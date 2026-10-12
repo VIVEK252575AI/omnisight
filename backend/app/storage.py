@@ -11,8 +11,9 @@ long-running execution.
 """
 
 import threading
-from uuid import UUID, uuid4
+from uuid import UUID
 
+from app.ids import new_uuid
 from app.schemas import ScanCreateRequest, ScanStatus, ScanResponse
 
 
@@ -26,7 +27,7 @@ class ScanStore:
     def create(self, request: ScanCreateRequest) -> ScanResponse:
         """Create a scan record in its initial state."""
         record = ScanResponse(
-            scan_id=uuid4(),
+            scan_id=new_uuid(),
             status=ScanStatus.created,
             target_url=request.target_url,
             viewports=request.viewports,
@@ -52,3 +53,11 @@ class ScanStore:
             if record.scan_id not in self._scans:
                 raise KeyError(f"scan {record.scan_id} does not exist")
             self._scans[record.scan_id] = record
+
+
+_store = ScanStore()
+
+
+def get_store() -> ScanStore:
+    """Return the process-wide scan store (FastAPI dependency)."""
+    return _store

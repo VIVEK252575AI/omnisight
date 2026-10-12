@@ -1,0 +1,35 @@
+{
+  "_fixture": "FIXTURE: SHOPLITE-LIKE - synthetic Playwright evidence; real collector integration pending",
+  "schema_version": "observation/v1",
+  "url": "https://shoplite.local/checkout",
+  "route": "/checkout",
+  "state": "cart-filled",
+  "viewport": { "width": 390, "height": 844 },
+  "screenshot": "screenshots/checkout-390.png",
+  "elements": [
+    {
+      "selector": "#checkout",
+      "tag": "button",
+      "text": "Checkout",
+      "visible": true,
+      "in_viewport": false,
+      "box": { "x": 420, "y": 690, "w": 120, "h": 44 },
+      "computed_style": {
+        "position": "relative",
+        "display": "inline-block",
+        "color": "rgb(255, 255, 255)"
+      }
+    },
+    {
+      "selector": ".cart-total",
+      "tag": "span",
+      "text": "$42.00",
+      "visible": true,
+      "in_viewport": true,
+      "box": { "x": 16, "y": 120, "w": 96, "h": 20 }
+    }
+  ],
+  "console_errors": [],
+  "network_errors": [],
+  "captured_at": "2026-01-01T00:00:00Z"
+}

@@ -1,0 +1,31 @@
+{
+  "_fixture": "FIXTURE: SHOPLITE-LIKE - synthetic Playwright evidence (desktop); real collector integration pending",
+  "schema_version": "observation/v1",
+  "url": "https://shoplite.local/checkout",
+  "route": "/checkout",
+  "state": "cart-filled",
+  "viewport": { "width": 1440, "height": 900 },
+  "screenshot": "screenshots/checkout-1440.png",
+  "elements": [
+    {
+      "selector": "#checkout",
+      "tag": "button",
+      "text": "Checkout",
+      "visible": true,
+      "in_viewport": true,
+      "box": { "x": 640, "y": 500, "w": 160, "h": 48 }
+    }
+  ],
+  "console_errors": [
+    { "message": "Failed to load resource: 404", "type": "error" }
+  ],
+  "network_errors": [
+    {
+      "url": "https://shoplite.local/api/cart/42",
+      "method": "GET",
+      "status": 404,
+      "resource_type": "fetch"
+    }
+  ],
+  "captured_at": "2026-01-01T00:00:00Z"
+}

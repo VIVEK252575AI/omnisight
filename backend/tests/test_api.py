@@ -47,7 +47,8 @@ def test_create_scan_accepts_explicit_viewports_and_routes(client):
 def test_create_scan_rejects_absolute_route(client):
     resp = client.post("/api/scans", json={**BASE, "routes": ["https://evil.com"]})
     assert resp.status_code == 422
-    assert "relative" in resp.json()["detail"][0]["msg"]
+    details = resp.json()["error"]["details"]
+    assert any("relative" in d["message"] for d in details)
 
 
 def test_create_scan_rejects_malformed_url_and_too_many_viewports(client):
@@ -85,7 +86,7 @@ def test_get_scan_roundtrip(client):
 def test_get_unknown_scan_returns_404_with_actionable_detail(client):
     resp = client.get(f"/api/scans/{uuid.uuid4()}")
     assert resp.status_code == 404
-    assert "not found" in resp.json()["detail"]
+    assert "not found" in resp.json()["error"]["message"]
 
 
 def test_list_scans_returns_created_scans(client):
@@ -120,7 +121,7 @@ def test_scan_never_reports_verified_before_early_stages(client):
             f"/api/scans/{data['scan_id']}/transition?to_status={forbidden.value}"
         )
         assert resp.status_code == 409, f"{forbidden} reachable from created!"
-        assert "illegal transition" in resp.json()["detail"]
+        assert "illegal transition" in resp.json()["error"]["message"]
 
 
 def test_full_happy_path_lifecycle(client):
@@ -170,7 +171,7 @@ def test_transition_from_terminal_state_rejected(client):
     client.post(f"/api/scans/{scan_id}/transition?to_status=cancelled")
     resp = client.post(f"/api/scans/{scan_id}/transition?to_status=created")
     assert resp.status_code == 409
-    assert "terminal" in resp.json()["detail"]
+    assert "terminal" in resp.json()["error"]["message"]
 
 
 def test_transition_unknown_scan_404(client):
