@@ -26,6 +26,9 @@ dom_snapshots/
 *.log
 logs/
 
+# Keep synthetic evidence test fixtures (committed on purpose).
+!backend/tests/fixtures/screenshots/
+
 # --- Environment / secrets ---
 .env
 .env.local

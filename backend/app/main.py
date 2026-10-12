@@ -1,173 +1,77 @@
 """OmniSight backend entry point (FastAPI).
 
-Foundation slice: explicit contracts + deterministic state transitions.
+The application is built by :func:`create_app`; ``app`` is the import-time
+instance used by the ASGI server.
+
+Start (from ``backend/``)::
+
+    .\\.venv\\Scripts\\uvicorn.exe app.main:app --reload
+
+Test (from ``backend/``)::
+
+    .\\.venv\\Scripts\\python.exe -m pytest tests\\ -v
+
+OpenAPI docs are served at ``/docs`` (and ``/openapi.json``).
+
 Background execution (Playwright worker, VLM, patch engine) is deliberately
 NOT wired here yet — those land in their own task slices and are gated by
 feature flags that stay off until the modules actually exist.
 """
 
 import logging
-from datetime import datetime, timezone
-from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from app.config import Settings, get_settings
-from app.schemas import (
-    LEGAL_TRANSITIONS,
-    ScanCreateRequest,
-    ScanResponse,
-    ScanStatus,
-)
-from app.storage import ScanStore
+from app.errors import register_exception_handlers
+from app.routers import ci_webhooks, evidence, scans
 
 logger = logging.getLogger("omnisight")
-logging.basicConfig(level=logging.INFO)
-
-store = ScanStore()
-
-app = FastAPI(
-    title="OmniSight Backend",
-    version="0.1.0",
-    description="Central coordinator for the Detect -> Fix -> Verify -> Deliver workflow.",
-)
 
 
-def _cors_origins(settings: Settings) -> list[str]:
-    return settings.allowed_origins
+def create_app() -> FastAPI:
+    """Build and configure the FastAPI application."""
+    settings = get_settings()
+    logging.basicConfig(level=settings.log_level.upper())
 
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=get_settings().allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.get("/health")
-def health(settings: Settings = Depends(get_settings)) -> dict:
-    """Liveness probe for the API process."""
-    return {
-        "status": "ok",
-        "app": settings.app_name,
-        "version": settings.app_version,
-        "time": datetime.now(timezone.utc).isoformat(),
-    }
-
-
-@app.post(
-    "/api/scans",
-    response_model=ScanResponse,
-    status_code=status.HTTP_201_CREATED,
-    responses={422: {"description": "Validation error (malformed URL, routes, or viewports)"}},
-)
-def create_scan(
-    request: ScanCreateRequest,
-    settings: Settings = Depends(get_settings),
-) -> ScanResponse:
-    """Validate a scan request and register it in `created` state."""
-    if len(str(request.target_url)) > settings.max_scan_url_length:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                f"target_url exceeds maximum length "
-                f"({len(str(request.target_url))} > {settings.max_scan_url_length})"
-            ),
-        )
-    record = store.create(request)
-    logger.info(
-        "scan created",
-        extra={"scan_id": str(record.scan_id), "target_url": str(record.target_url)},
+    app = FastAPI(
+        title="OmniSight Backend",
+        version=settings.app_version,
+        description="Central coordinator for the Detect -> Fix -> Verify -> Deliver workflow.",
     )
-    return record
 
-
-@app.get(
-    "/api/scans",
-    response_model=list[ScanResponse],
-)
-def list_scans() -> list[ScanResponse]:
-    """List all scans (oldest first)."""
-    return store.list()
-
-
-@app.get(
-    "/api/scans/{scan_id}",
-    response_model=ScanResponse,
-    responses={404: {"description": "Unknown scan_id"}},
-)
-def get_scan(scan_id: UUID) -> ScanResponse:
-    """Fetch a single scan record by id."""
-    record = store.get(scan_id)
-    if record is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"scan {scan_id} not found",
-        )
-    return record
-
-
-@app.post(
-    "/api/scans/{scan_id}/transition",
-    response_model=ScanResponse,
-    responses={
-        404: {"description": "Unknown scan_id"},
-        409: {"description": "Illegal state transition"},
-    },
-)
-def transition_scan(
-    scan_id: UUID,
-    to_status: ScanStatus,
-    error: str | None = None,
-) -> ScanResponse:
-    """Advance a scan through its lifecycle.
-
-    Transitions not listed in LEGAL_TRANSITIONS are rejected with 409 —
-    a failed build or failed visual verification can never surface as a
-    successful verified repair.
-    """
-    record = store.get(scan_id)
-    if record is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"scan {scan_id} not found",
-        )
-    current = record.status
-    if current in [ScanStatus.ready_for_review, ScanStatus.failed, ScanStatus.cancelled]:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"scan is in terminal state {current.value} and cannot transition",
-        )
-    if to_status not in LEGAL_TRANSITIONS[current]:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"illegal transition from {current.value} to {to_status.value}"
-                f" — allowed next states: "
-                + ", ".join(sorted(s.value for s in LEGAL_TRANSITIONS[current]))
-            ),
-        )
-    updated = record.model_copy(
-        update={"status": to_status, "error": error, "updated_at": datetime.now(timezone.utc)}
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
-    store.replace(updated)
-    logger.info(
-        "scan transitioned",
-        extra={"scan_id": str(scan_id), "from": current.value, "to": to_status.value},
-    )
-    return updated
+
+    register_exception_handlers(app)
+    app.include_router(scans.router)
+    app.include_router(ci_webhooks.router)
+    app.include_router(evidence.router)
+
+    if settings.ci_webhook_secret:
+        logger.info("CI webhook receiver: signature verification ENABLED")
+    else:
+        logger.warning(
+            "CI webhook receiver is UNAUTHENTICATED "
+            "(OMNISIGHT_CI_WEBHOOK_SECRET unset) — simulation/dev only"
+        )
+
+    @app.get("/health", tags=["system"])
+    def health(settings: Settings = Depends(get_settings)) -> dict:
+        """Liveness probe for the API process."""
+        return {
+            "status": "ok",
+            "service": settings.app_name,
+            "version": settings.app_version,
+        }
+
+    return app
 
 
-# The root cause for unmanaged exceptions: return a consistent JSON error
-# envelope without leaking stack traces to clients.
-@app.exception_handler(Exception)
-async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    logger.exception("unhandled error: %s", exc)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error — check server logs for details."},
-    )
+app = create_app()
