@@ -1,0 +1,39 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# --- Node / frontend ---
+node_modules/
+frontend/dist/
+
+# --- OmniSight local artifacts ---
+artifacts/
+screenshots/
+dom_snapshots/
+*.log
+logs/
+
+# --- Environment / secrets ---
+.env
+.env.local
+.env.*.local
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
