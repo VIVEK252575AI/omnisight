@@ -369,6 +369,43 @@ It returns a structured finding such as:
 
 This lets OmniSight combine visual understanding with browser evidence instead of relying only on DOM state.
 
+### VLM Responsibilities in the Pipeline
+
+- **Detect** visual defects: clipped elements, overlapping UI, low-contrast text, and broken responsive layouts.
+- **Explain** why something is a defect, in plain language a developer can act on.
+- **Localize** the problem to a specific target (e.g. `#checkout`) so downstream stages know what to fix.
+- **Verify** after a patch is applied: re-examine fresh screenshots and confirm the **original** defect is actually gone — build success alone is not proof.
+- **Score** severity and confidence so orchestrator routing, retry budgets, and human-review priorities stay deterministic.
+
+### How the VLM Combines Evidence
+
+The VLM never works from the screenshot alone. Every detection request includes:
+
+| Input | What it contributes |
+|---|---|
+| Screenshot (at fixed viewports: 390×844, 1440×900) | Ground truth pixels — what users actually see |
+| DOM / element geometry (`box`, `in_viewport`, `visible`) | Mechanical measurements the model can cite as evidence |
+| Console / network errors | Function context — a broken render or failed request frequently produces a visual defect |
+| Viewport metadata | Frame of reference for clipping and responsive judgments |
+
+Cross-checking structured evidence against visual perception is what makes findings reliable enough to trigger a patch.
+
+### Finding Contract Guarantees
+
+- Raw model output is **always validated against a strict JSON schema** before any downstream stage consumes it.
+- Invalid or truncated model responses are treated as a first-class failure — never silently retried with fabricated values, never guessed into a finding.
+- Each finding carries: `type`, `target`, `evidence`, `severity`, and `confidence`, matching the example above.
+- `severity` and `confidence` are read by the orchestrator to gate whether a check proceeds to patch generation.
+
+### Why a VLM Instead of DOM-Only Checks
+
+- An element can **exist in the DOM** yet be invisible or outside the viewport — DOM checks report it as healthy.
+- Functional tests pass while a button is clipped, text is unreadable, or a layout has collapsed.
+- Hardcoded DOM selectors break the moment UI structure changes; pixels don't lie about what users experience.
+- Responsive regressions only show up when the page is actually **rendered** at a narrow viewport.
+
+The VLM's job is precisely the part traditional DOM-based testing cannot see: what the rendered page _looks like_.
+
 ---
 
 ## 🧠 LLM / Fix Engine
