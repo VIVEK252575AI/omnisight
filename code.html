@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OmniSight — Autonomous UI Engineer</title>
+<meta name="description" content="OmniSight detects visual UI defects, reasons about them, generates minimal patches, verifies the result and delivers a reviewable pull request." />
+<style>
+/* ============================================================
+   OmniSight — Premium Light Design System (Inspired by Reference)
+   Lavender atmospheric background, floating rounded app shell,
+   soft light gray sidebar, clean white workspace, luminous AI orb.
+   ============================================================ */
+:root {
+  --bg-gradient: radial-gradient(circle at 18% 18%, rgba(255,255,255,.85), transparent 35%),
+                 radial-gradient(circle at 85% 80%, rgba(255,255,255,.6), transparent 40%),
+                 linear-gradient(135deg, #d9cee8 0%, #ebe4f4 50%, #dfd4ee 100%);
+  --app-bg: #ffffff;
+  --sidebar-bg: #f7f7f8;
+  --sidebar-border: #ececee;
+  --surface: #ffffff;
+  --surface-2: #fafafa;
+  --surface-3: #f3f3f5;
+  --surface-elevated: #ffffff;
+
+  --border: #ececef;
+  --border-strong: #dedee2;
+  --border-subtle: rgba(0,0,0,0.05);
+
+  --text: #16171b;
+  --text-2: #4a4d57;
+  --muted: #7e828f;
+  --muted-2: #a1a5b3;
+
+  --purple: #8b5cf6;
+  --purple-hover: #7c3aed;
+  --purple-soft: #f4effe;
+  --purple-border: #ded2f9;
+  --purple-glow: rgba(139,92,246,0.25);
+  
+  --green: #10b981;
+  --green-soft: #ecfdf5;
+  --green-border: #a7f3d0;
+  
+  --yellow: #f59e0b;
+  --yellow-soft: #fffbeb;
+  --yellow-border: #fde68a;
+  
+  --red: #ef4444;
+  --red-soft: #fef2f2;
+  --red-border: #fecaca;
+
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-shell: 22px;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --shadow-shell: 0 30px 80px -15px rgba(80, 50, 120, 0.22), 0 0 0 1px rgba(255,255,255,0.7);
+  --shadow-card: 0 4px 16px -2px rgba(20,20,30,0.04), 0 1px 3px rgba(20,20,30,0.03);
+  --shadow-hover: 0 8px 24px -4px rgba(80,50,120,0.08), 0 2px 6px rgba(0,0,0,0.03);
+  --shadow-composer: 0 12px 36px -8px rgba(90, 60, 130, 0.08), 0 1px 3px rgba(0,0,0,0.04);
+
+  --focus: 0 0 0 2px #fff, 0 0 0 4px #8b5cf6;
+  color-scheme: light;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; padding: 0; }
+body {
+  background: var(--bg-gradient);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.02em; color: var(--text); }
+p { margin: 0; }
+a { color: inherit; text-decoration: none; }
+button, input, textarea, select { font: inherit; color: inherit; }
+
+/* Custom light scrollbars */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.14); border-radius: 99px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.24); }
+
+.mono { font-family: var(--mono); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+.muted { color: var(--muted); }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ============================================================
+   Floating Shell & Layout Structure (Reference Inspired)
+   ============================================================ */
+#app { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+
+.app-shell {
+  width: min(95vw, 1420px);
+  height: min(92vh, 900px);
+  background: var(--app-bg);
+  border-radius: var(--radius-shell);
+  box-shadow: var(--shadow-shell);
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.85);
+  position: relative;
+}
+
+/* Sidebar */
+.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 14px 14px;
+  user-select: none;
+  gap: 16px;
+  overflow-y: auto;
+}
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  text-align: left;
+}
+.sidebar__logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 50%, #6d28d9 100%);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  box-shadow: 0 4px 12px var(--purple-glow);
+}
+.sidebar__brand-name {
+  font-weight: 650;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.btn-new-chat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: #11141a;
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: transform .08s ease, background .15s ease;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+.btn-new-chat:hover { background: #222630; }
+.btn-new-chat:active { transform: translateY(1px); }
+
+.sidebar__search-wrap {
+  position: relative;
+}
+.sidebar__search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted-2);
+  pointer-events: none;
+}
+.sidebar__search {
+  width: 100%;
+  padding: 8px 10px 8px 30px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+  transition: border-color .15s ease;
+}
+.sidebar__search:focus { border-color: var(--purple); }
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  transition: background .12s ease, color .12s ease;
+}
+.nav-item:hover { background: rgba(0,0,0,0.04); color: var(--text); }
+.nav-item--active { background: #ffffff; color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+
+.sidebar__section-title {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--muted-2);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 8px 10px 4px;
+}
+.recent-scans-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.recent-scan-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.recent-scan-btn:hover { background: rgba(0,0,0,0.04); color: var(--text); }
+
+.sidebar__footer {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--sidebar-border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sidebar__profile-pic {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #e0d7f5, #f3effc);
+  display: grid;
+  place-items: center;
+  color: var(--purple);
+  font-weight: 700;
+  font-size: 12px;
+}
+.sidebar__user-name { font-size: 12.5px; font-weight: 600; color: var(--text); line-height: 1.2; }
+.sidebar__user-sub { font-size: 11px; color: var(--muted); }
+
+/* Main Workspace */
+.workspace {
+  background: var(--app-bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+.topbar {
+  height: 54px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  flex: none;
+}
+.topbar__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topbar__actions { display: flex; align-items: center; gap: 8px; }
+
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================================
+   Landing View — Central AI Orb & Composer (Reference Matched)
+   ============================================================ */
+.landing-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px 60px;
+  max-width: 820px;
+  margin: 0 auto;
+  width: 100%;
+  text-align: center;
+}
+
+/* Glowing AI Orb */
+.ai-orb-wrap {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  margin-bottom: 24px;
+  display: grid;
+  place-items: center;
+}
+.ai-orb {
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff 0%, #c4b5fd 40%, #8b5cf6 75%, #6d28d9 100%);
+  box-shadow: 
+    0 0 45px rgba(167, 139, 250, 0.45),
+    inset -4px -6px 14px rgba(76, 29, 149, 0.4),
+    inset 4px 6px 12px rgba(255, 255, 255, 0.7);
+  animation: orb-float 6s ease-in-out infinite alternate;
+  position: relative;
+}
+.ai-orb::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(167, 139, 250, 0.25) 0%, transparent 70%);
+  z-index: -1;
+  animation: orb-pulse 4s ease-in-out infinite alternate;
+}
+@keyframes orb-float {
+  0% { transform: translateY(0px) rotate(0deg); }
+  100% { transform: translateY(-7px) rotate(8deg); }
+}
+@keyframes orb-pulse {
+  0% { transform: scale(0.92); opacity: 0.6; }
+  100% { transform: scale(1.1); opacity: 1; }
+}
+
+.landing-greeting {
+  font-size: 15px;
+  font-weight: 500;
+  color: #8b5cf6;
+  margin-bottom: 6px;
+  letter-spacing: -0.01em;
+}
+.landing-heading {
+  font-size: 29px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  margin-bottom: 30px;
+}
+
+/* Scan Composer Box */
+.scan-composer {
+  width: min(720px, 100%);
+  background: #ffffff;
+  border: 1px solid #e5e3ea;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-composer);
+  padding: 16px 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.scan-composer:focus-within {
+  border-color: #c4b5fd;
+  box-shadow: 0 12px 40px -8px rgba(139, 92, 246, 0.16), 0 0 0 1px #a78bfa;
+}
+.scan-composer__input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  color: var(--text);
+  padding: 4px 0;
+}
+.scan-composer__input::placeholder { color: var(--muted-2); }
+
+.scan-composer__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 6px;
+}
+.scan-composer__pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.deep-scan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: var(--radius-xs);
+  background: #faf7ff;
+  border: 1px solid #dcd1f7;
+  color: #7c3aed;
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.btn-scan-submit {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 12px var(--purple-glow);
+  transition: transform .08s ease, opacity .15s ease;
+}
+.btn-scan-submit:hover { transform: scale(1.04); }
+.btn-scan-submit:active { transform: scale(0.96); }
+.btn-scan-submit[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+/* Quick Action Cards */
+.quick-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  width: min(720px, 100%);
+  margin-top: 24px;
+}
+.q-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform .12s ease, border-color .15s ease, box-shadow .15s ease;
+  box-shadow: var(--shadow-card);
+}
+.q-card:hover {
+  transform: translateY(-2px);
+  border-color: #ddd6fe;
+  box-shadow: var(--shadow-hover);
+}
+.q-card__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--purple-soft);
+  color: var(--purple);
+  display: grid;
+  place-items: center;
+  margin-bottom: 12px;
+}
+.q-card__title { font-size: 13.5px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.q-card__desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+/* ============================================================
+   Active Scan Dashboard (Inside Workspace)
+   ============================================================ */
+.dashboard-view {
+  padding: 20px 24px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Stepper Pipeline */
+.pipeline-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  overflow-x: auto;
+}
+.pipe-step {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.pipe-step__badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  background: var(--surface-3);
+  color: var(--muted);
+}
+.pipe-step--running { color: var(--purple); }
+.pipe-step--running .pipe-step__badge { background: var(--purple-soft); color: var(--purple); border: 1.5px solid var(--purple); }
+.pipe-step--completed { color: var(--green); }
+.pipe-step--completed .pipe-step__badge { background: var(--green-soft); color: var(--green); }
+.pipe-step--failed { color: var(--red); }
+.pipe-step--failed .pipe-step__badge { background: var(--red-soft); color: var(--red); }
+.pipe-divider {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  margin: 0 14px;
+  min-width: 20px;
+}
+
+/* 2-Column Dashboard Split */
+.dash-split {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.dash-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* Panels */
+.panel {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.panel__head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+}
+.panel__title {
+  font-size: 13px;
+  font-weight: 650;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+.panel__body { padding: 16px; }
+
+/* Finding Cards */
+.finding-item {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all .12s ease;
+  margin-bottom: 8px;
+}
+.finding-item:last-child { margin-bottom: 0; }
+.finding-item:hover { border-color: #ddd6fe; background: #faf9ff; }
+.finding-item--selected {
+  border-color: #8b5cf6;
+  background: #fbf9ff;
+  box-shadow: 0 0 0 1px #8b5cf6;
+}
+.finding-item__title { font-size: 13px; font-weight: 600; color: var(--text); }
+.finding-item__meta { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: var(--muted); }
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.badge--high, .badge--error { background: var(--red-soft); color: var(--red); border: 1px solid var(--red-border); }
+.badge--medium, .badge--warning { background: var(--yellow-soft); color: var(--yellow); border: 1px solid var(--yellow-border); }
+.badge--low, .badge--info { background: var(--purple-soft); color: var(--purple); border: 1px solid var(--purple-border); }
+.badge--success { background: var(--green-soft); color: var(--green); border: 1px solid var(--green-border); }
+
+/* Code Diff (Soft Dark Component) */
+.diff-container {
+  background: #18191f;
+  color: #e5e7eb;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 12px 14px;
+}
+.diff-line { display: flex; line-height: 1.6; }
+.diff-line--add { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; }
+.diff-line--del { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
+
+/* Before / After Frame */
+.bav-frame {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  position: relative;
+  background: #fafafa;
+}
+.bav-frame img { display: block; width: 100%; height: auto; }
+
+/* Buttons & Inputs */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--text-2);
+  transition: all .12s ease;
+}
+.btn:hover { background: var(--surface-2); border-color: var(--border-strong); color: var(--text); }
+.btn--primary {
+  background: #11141a;
+  color: #ffffff;
+  border-color: #11141a;
+}
+.btn--primary:hover { background: #262933; color: #fff; }
+
+/* Toast */
+.toast-root { position: fixed; right: 24px; bottom: 24px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06);
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: toast-in .2s ease;
+}
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .app-shell { grid-template-columns: 210px minmax(0, 1fr); width: 98vw; height: 96vh; }
+  .dash-split { grid-template-columns: 1fr; }
+  .quick-cards { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  body { padding: 0; }
+  .app-shell { width: 100vw; height: 100vh; border-radius: 0; grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-orb, .ai-orb::after { animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast-root" class="toast-root"></div>
+
+<script>
+/* ============================================================================
+   OmniSight — Full Application Engine & Preserved Functionality
+   ========================================================================== */
+'use strict';
+
+// Retain all existing models & mock generators from original omnisight.html
+const Shots = (() => {
+  const uri = (svg) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  const F = 'font-family="Inter,sans-serif"';
+  return {
+    checkoutBefore: uri(`<svg viewBox="0 0 390 320" width="390" height="320" xmlns="http://www.w3.org/2000/svg"><rect width="390" height="320" fill="#f8fafc"/><text x="20" y="40" ${F} font-size="16" font-weight="700">ShopLite Checkout</text><rect x="20" y="80" width="350" height="120" rx="10" fill="#fff" stroke="#e2e8f0"/><rect x="270" y="240" width="160" height="44" rx="8" fill="#111"/><text x="350" y="267" ${F} fill="#fff" text-anchor="middle" font-size="14">Checkout</text></svg>`),
+    checkoutAfter: uri(`<svg viewBox="0 0 390 320" width="390" height="320" xmlns="http://www.w3.org/2000/svg"><rect width="390" height="320" fill="#f8fafc"/><text x="20" y="40" ${F} font-size="16" font-weight="700">ShopLite Checkout</text><rect x="20" y="80" width="350" height="120" rx="10" fill="#fff" stroke="#e2e8f0"/><rect x="20" y="240" width="350" height="44" rx="8" fill="#111"/><text x="195" y="267" ${F} fill="#fff" text-anchor="middle" font-size="14">Checkout · $140.61</text></svg>`)
+  };
+})();
+
+const Store = {
+  route: 'landing', // 'landing' | 'scan' | 'history'
+  scan: null,
+  activeFindingId: 'f-1',
+  history: [
+    { id: '1041', url: 'https://shoplite.local', status: 'completed', findings: 3, fixed: 3, pr: 127 },
+    { id: '1040', url: 'https://staging.acme.io/dashboard', status: 'failed', findings: 2, fixed: 0, pr: null },
+    { id: '1039', url: 'https://acme.io/marketing', status: 'completed', findings: 4, fixed: 4, pr: 124 }
+  ]
+};
+
+function toast(msg) {
+  const root = document.getElementById('toast-root');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<span>✨</span><span>${msg}</span>`;
+  root.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function startScan(url) {
+  if (!url || !url.includes('.')) {
+    toast('Please enter a valid URL (e.g., https://shoplite.local)');
+    return;
+  }
+  Store.route = 'scan';
+  Store.scan = {
+    id: '1042',
+    url: url,
+    status: 'running',
+    progress: 45,
+    stage: 'fix',
+    findings: [
+      { id: 'f-1', title: 'Checkout CTA clipped at 390px viewport', type: 'clipped_element', severity: 'high', confidence: '94%', selector: '#checkout .cta-button', status: 'fixing' },
+      { id: 'f-2', title: 'Sticky site header overlaps hero title', type: 'overlap', severity: 'medium', confidence: '88%', selector: '.site-header', status: 'detected' },
+      { id: 'f-3', title: 'Muted price text fails AA contrast', type: 'low_contrast', severity: 'low', confidence: '81%', selector: '.price--muted', status: 'verified' }
+    ]
+  };
+  render();
+  toast('Scan started for ' + url);
+}
+
+function renderSidebar() {
+  return `
+  <aside class="sidebar">
+    <button class="sidebar__brand" onclick="Store.route='landing'; render();">
+      <div class="sidebar__logo">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+      </div>
+      <div>
+        <div class="sidebar__brand-name">OmniSight</div>
+      </div>
+    </button>
+
+    <button class="btn-new-chat" onclick="Store.route='landing'; render();">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M3 8h10"/></svg>
+      New Scan
+    </button>
+
+    <div class="sidebar__search-wrap">
+      <svg class="sidebar__search-icon" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="4.5"/><path d="m11 11 3 3"/></svg>
+      <input type="text" class="sidebar__search" placeholder="Search scans..." />
+    </div>
+
+    <div class="nav-group">
+      <button class="nav-item ${Store.route==='landing'?'nav-item--active':''}" onclick="Store.route='landing'; render();">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+        Overview
+      </button>
+      <button class="nav-item ${Store.route==='scan'?'nav-item--active':''}" onclick="if(Store.scan){Store.route='scan'; render();}">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M8 2v4"/></svg>
+        Active Scan
+      </button>
+      <button class="nav-item">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 13h12M4 10l3-3 2 2 3-5"/></svg>
+        History
+      </button>
+    </div>
+
+    <div class="sidebar__section-title">Recent Scans</div>
+    <div class="recent-scans-list">
+      ${Store.history.map(h => `
+        <button class="recent-scan-btn truncate" onclick="startScan('${h.url}')">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="5"/></svg>
+          <span class="truncate">${h.url.replace(/^https?:\/\//,'')}</span>
+        </button>
+      `).join('')}
+    </div>
+
+    <div class="sidebar__footer">
+      <div class="sidebar__profile-pic">OS</div>
+      <div>
+        <div class="sidebar__user-name">OmniSight Engine</div>
+        <div class="sidebar__user-sub">Autonomous UI Bot</div>
+      </div>
+    </div>
+  </aside>
+  `;
+}
+
+function renderLanding() {
+  return `
+  <div class="landing-view">
+    <div class="ai-orb-wrap">
+      <div class="ai-orb"></div>
+    </div>
+    <div class="landing-greeting">Hello, Developer</div>
+    <h1 class="landing-heading">What should we inspect today?</h1>
+
+    <div class="scan-composer">
+      <input type="text" id="target-url-input" class="scan-composer__input" placeholder="Enter website URL to inspect... (e.g. https://shoplite.local)" value="https://shoplite.local" />
+      <div class="scan-composer__bottom">
+        <div class="scan-composer__pills">
+          <button class="deep-scan-btn">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 8a6 6 0 1 1 12 0A6 6 0 0 1 2 8Z"/><circle cx="8" cy="8" r="2"/></svg>
+            Deep Scan
+          </button>
+        </div>
+        <button class="btn-scan-submit" onclick="startScan(document.getElementById('target-url-input').value)">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 12V4M4 8l4-4 4 4"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="quick-cards">
+      <div class="q-card" onclick="startScan('https://shoplite.local')">
+        <div class="q-card__icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 4h12M2 8h8M2 12h5"/></svg>
+        </div>
+        <div class="q-card__title">Detect UI Issues</div>
+        <div class="q-card__desc">Scan layouts for clipping, overlapping elements and responsive breakpoints.</div>
+      </div>
+      <div class="q-card" onclick="startScan('https://shoplite.local')">
+        <div class="q-card__icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 11 10-10M9 1h4v4"/></svg>
+        </div>
+        <div class="q-card__title">Generate Fixes</div>
+        <div class="q-card__desc">Synthesize minimal targeted CSS & DOM patches for detected visual bugs.</div>
+      </div>
+      <div class="q-card" onclick="startScan('https://shoplite.local')">
+        <div class="q-card__icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="m6 8 1.5 1.5L10 6"/></svg>
+        </div>
+        <div class="q-card__title">Verify Changes</div>
+        <div class="q-card__desc">Compare before and after browser captures to guarantee zero regressions.</div>
+      </div>
+    </div>
+  </div>
+  `;
+}
+
+function renderDashboard() {
+  const s = Store.scan;
+  return `
+  <div class="dashboard-view">
+    <!-- Stepper Pipeline -->
+    <div class="pipeline-card">
+      <div class="pipe-step pipe-step--completed">
+        <div class="pipe-step__badge">✓</div>
+        <span>Detect</span>
+      </div>
+      <div class="pipe-divider"></div>
+      <div class="pipe-step pipe-step--completed">
+        <div class="pipe-step__badge">✓</div>
+        <span>Reason</span>
+      </div>
+      <div class="pipe-divider"></div>
+      <div class="pipe-step pipe-step--running">
+        <div class="pipe-step__badge">3</div>
+        <span>Fix</span>
+      </div>
+      <div class="pipe-divider"></div>
+      <div class="pipe-step">
+        <div class="pipe-step__badge">4</div>
+        <span>Validate</span>
+      </div>
+      <div class="pipe-divider"></div>
+      <div class="pipe-step">
+        <div class="pipe-step__badge">5</div>
+        <span>Verify & Ship</span>
+      </div>
+    </div>
+
+    <!-- 2 Column Split -->
+    <div class="dash-split">
+      <!-- Findings Column -->
+      <div class="dash-col">
+        <div class="panel">
+          <div class="panel__head">
+            <div class="panel__title">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M8 5v3M8 11v.1"/></svg>
+              Detected Findings (${s.findings.length})
+            </div>
+            <span class="badge badge--info">${s.status}</span>
+          </div>
+          <div class="panel__body">
+            ${s.findings.map(f => `
+              <div class="finding-item ${f.id === Store.activeFindingId ? 'finding-item--selected' : ''}" onclick="Store.activeFindingId='${f.id}'; render();">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span class="badge badge--${f.severity}">${f.severity}</span>
+                  <span class="muted mono" style="font-size:11px;">${f.confidence}</span>
+                </div>
+                <div class="finding-item__title">${f.title}</div>
+                <div class="finding-item__meta">
+                  <span class="mono">${f.selector}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail & Fix Column -->
+      <div class="dash-col">
+        <div class="panel">
+          <div class="panel__head">
+            <div class="panel__title">Before / After Visual Verification</div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn--sm">Side by Side</button>
+              <button class="btn btn--sm btn--primary">Slider</button>
+            </div>
+          </div>
+          <div class="panel__body">
+            <div class="bav-frame">
+              <img src="${Shots.checkoutAfter}" alt="After fix comparison" />
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__head">
+            <div class="panel__title">Generated Minimal Patch</div>
+            <span class="mono muted" style="font-size:11.5px;">CheckoutButton.css</span>
+          </div>
+          <div class="panel__body" style="padding:0;">
+            <div class="diff-container">
+              <div class="diff-line">.checkout .cta-button {</div>
+              <div class="diff-line diff-line--del">-   min-width: 320px;</div>
+              <div class="diff-line diff-line--add">+   width: 100%;</div>
+              <div class="diff-line diff-line--add">+   max-width: 100%;</div>
+              <div class="diff-line">    padding: 14px 24px;</div>
+              <div class="diff-line">}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  `;
+}
+
+function render() {
+  const root = document.getElementById('app');
+  root.innerHTML = `
+    <div class="app-shell">
+      ${renderSidebar()}
+      <div class="workspace">
+        <header class="topbar">
+          <div class="topbar__title">
+            <span>OmniSight</span>
+            <span class="muted">/</span>
+            <span style="font-weight:400; color:var(--text-2);">${Store.route==='scan' ? Store.scan.url : 'Overview'}</span>
+          </div>
+          <div class="topbar__actions">
+            ${Store.route==='scan' ? `<button class="btn btn--primary" onclick="toast('Pull request #128 opened on GitHub!')">Ship PR #128</button>` : ''}
+          </div>
+        </header>
+        <div class="main-content">
+          ${Store.route === 'landing' ? renderLanding() : renderDashboard()}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+document.addEventListener('DOMContentLoaded', render);
+render();
+</script>
+</body>
+</html>
