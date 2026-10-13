@@ -4,701 +4,12 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>OmniSight — Autonomous UI Engineer</title>
-<meta name="description" content="OmniSight detects visual UI defects, reasons about them, generates minimal patches, verifies the result and delivers a reviewable pull request." />
-<style>
-/* ============================================================
-   OmniSight — Premium Light Design System (Inspired by Reference)
-   Lavender atmospheric background, floating rounded app shell,
-   soft light gray sidebar, clean white workspace, luminous AI orb.
-   ============================================================ */
-:root {
-  --bg-gradient: radial-gradient(circle at 18% 18%, rgba(255,255,255,.85), transparent 35%),
-                 radial-gradient(circle at 85% 80%, rgba(255,255,255,.6), transparent 40%),
-                 linear-gradient(135deg, #d9cee8 0%, #ebe4f4 50%, #dfd4ee 100%);
-  --app-bg: #ffffff;
-  --sidebar-bg: #f7f7f8;
-  --sidebar-border: #ececee;
-  --surface: #ffffff;
-  --surface-2: #fafafa;
-  --surface-3: #f3f3f5;
-  --surface-elevated: #ffffff;
-
-  --border: #ececef;
-  --border-strong: #dedee2;
-  --border-subtle: rgba(0,0,0,0.05);
-
-  --text: #16171b;
-  --text-2: #4a4d57;
-  --muted: #7e828f;
-  --muted-2: #a1a5b3;
-
-  --purple: #8b5cf6;
-  --purple-hover: #7c3aed;
-  --purple-soft: #f4effe;
-  --purple-border: #ded2f9;
-  --purple-glow: rgba(139,92,246,0.25);
-  
-  --green: #10b981;
-  --green-soft: #ecfdf5;
-  --green-border: #a7f3d0;
-  
-  --yellow: #f59e0b;
-  --yellow-soft: #fffbeb;
-  --yellow-border: #fde68a;
-  
-  --red: #ef4444;
-  --red-soft: #fef2f2;
-  --red-border: #fecaca;
-
-  --radius-xs: 6px;
-  --radius-sm: 8px;
-  --radius: 12px;
-  --radius-lg: 18px;
-  --radius-shell: 22px;
-
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-
-  --shadow-shell: 0 30px 80px -15px rgba(80, 50, 120, 0.22), 0 0 0 1px rgba(255,255,255,0.7);
-  --shadow-card: 0 4px 16px -2px rgba(20,20,30,0.04), 0 1px 3px rgba(20,20,30,0.03);
-  --shadow-hover: 0 8px 24px -4px rgba(80,50,120,0.08), 0 2px 6px rgba(0,0,0,0.03);
-  --shadow-composer: 0 12px 36px -8px rgba(90, 60, 130, 0.08), 0 1px 3px rgba(0,0,0,0.04);
-
-  --focus: 0 0 0 2px #fff, 0 0 0 4px #8b5cf6;
-  color-scheme: light;
-}
-
-*, *::before, *::after { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; padding: 0; }
-body {
-  background: var(--bg-gradient);
-  background-attachment: fixed;
-  color: var(--text);
-  font-family: var(--sans);
-  font-size: 13.5px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 24px;
-}
-
-h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.02em; color: var(--text); }
-p { margin: 0; }
-a { color: inherit; text-decoration: none; }
-button, input, textarea, select { font: inherit; color: inherit; }
-
-/* Custom light scrollbars */
-*::-webkit-scrollbar { width: 8px; height: 8px; }
-*::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.14); border-radius: 99px; }
-*::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.24); }
-
-.mono { font-family: var(--mono); }
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
-.muted { color: var(--muted); }
-.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ============================================================
-   Floating Shell & Layout Structure (Reference Inspired)
-   ============================================================ */
-#app { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-
-.app-shell {
-  width: min(95vw, 1420px);
-  height: min(92vh, 900px);
-  background: var(--app-bg);
-  border-radius: var(--radius-shell);
-  box-shadow: var(--shadow-shell);
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.85);
-  position: relative;
-}
-
-/* Sidebar */
-.sidebar {
-  background: var(--sidebar-bg);
-  border-right: 1px solid var(--sidebar-border);
-  display: flex;
-  flex-direction: column;
-  padding: 18px 14px 14px;
-  user-select: none;
-  gap: 16px;
-  overflow-y: auto;
-}
-.sidebar__brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 6px;
-  cursor: pointer;
-  background: none;
-  border: none;
-  text-align: left;
-}
-.sidebar__logo {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 50%, #6d28d9 100%);
-  display: grid;
-  place-items: center;
-  color: #fff;
-  box-shadow: 0 4px 12px var(--purple-glow);
-}
-.sidebar__brand-name {
-  font-weight: 650;
-  font-size: 15px;
-  letter-spacing: -0.01em;
-  color: var(--text);
-}
-
-.btn-new-chat {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 14px;
-  background: #11141a;
-  color: #ffffff;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-weight: 550;
-  cursor: pointer;
-  transition: transform .08s ease, background .15s ease;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-}
-.btn-new-chat:hover { background: #222630; }
-.btn-new-chat:active { transform: translateY(1px); }
-
-.sidebar__search-wrap {
-  position: relative;
-}
-.sidebar__search-icon {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--muted-2);
-  pointer-events: none;
-}
-.sidebar__search {
-  width: 100%;
-  padding: 8px 10px 8px 30px;
-  background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  color: var(--text);
-  outline: none;
-  transition: border-color .15s ease;
-}
-.sidebar__search:focus { border-color: var(--purple); }
-
-.nav-group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
-  color: var(--text-2);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  background: transparent;
-  border: none;
-  width: 100%;
-  text-align: left;
-  transition: background .12s ease, color .12s ease;
-}
-.nav-item:hover { background: rgba(0,0,0,0.04); color: var(--text); }
-.nav-item--active { background: #ffffff; color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-
-.sidebar__section-title {
-  font-size: 11px;
-  font-weight: 650;
-  color: var(--muted-2);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  padding: 8px 10px 4px;
-}
-.recent-scans-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.recent-scan-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  border: none;
-  font-size: 12px;
-  color: var(--text-2);
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-}
-.recent-scan-btn:hover { background: rgba(0,0,0,0.04); color: var(--text); }
-
-.sidebar__footer {
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid var(--sidebar-border);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.sidebar__profile-pic {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #e0d7f5, #f3effc);
-  display: grid;
-  place-items: center;
-  color: var(--purple);
-  font-weight: 700;
-  font-size: 12px;
-}
-.sidebar__user-name { font-size: 12.5px; font-weight: 600; color: var(--text); line-height: 1.2; }
-.sidebar__user-sub { font-size: 11px; color: var(--muted); }
-
-/* Main Workspace */
-.workspace {
-  background: var(--app-bg);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  height: 100%;
-}
-.topbar {
-  height: 54px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  flex: none;
-}
-.topbar__title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.topbar__actions { display: flex; align-items: center; gap: 8px; }
-
-.main-content {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ============================================================
-   Landing View — Central AI Orb & Composer (Reference Matched)
-   ============================================================ */
-.landing-view {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px 60px;
-  max-width: 820px;
-  margin: 0 auto;
-  width: 100%;
-  text-align: center;
-}
-
-/* Glowing AI Orb */
-.ai-orb-wrap {
-  position: relative;
-  width: 100px;
-  height: 100px;
-  margin-bottom: 24px;
-  display: grid;
-  place-items: center;
-}
-.ai-orb {
-  width: 82px;
-  height: 82px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #ffffff 0%, #c4b5fd 40%, #8b5cf6 75%, #6d28d9 100%);
-  box-shadow: 
-    0 0 45px rgba(167, 139, 250, 0.45),
-    inset -4px -6px 14px rgba(76, 29, 149, 0.4),
-    inset 4px 6px 12px rgba(255, 255, 255, 0.7);
-  animation: orb-float 6s ease-in-out infinite alternate;
-  position: relative;
-}
-.ai-orb::after {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(167, 139, 250, 0.25) 0%, transparent 70%);
-  z-index: -1;
-  animation: orb-pulse 4s ease-in-out infinite alternate;
-}
-@keyframes orb-float {
-  0% { transform: translateY(0px) rotate(0deg); }
-  100% { transform: translateY(-7px) rotate(8deg); }
-}
-@keyframes orb-pulse {
-  0% { transform: scale(0.92); opacity: 0.6; }
-  100% { transform: scale(1.1); opacity: 1; }
-}
-
-.landing-greeting {
-  font-size: 15px;
-  font-weight: 500;
-  color: #8b5cf6;
-  margin-bottom: 6px;
-  letter-spacing: -0.01em;
-}
-.landing-heading {
-  font-size: 29px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  color: var(--text);
-  margin-bottom: 30px;
-}
-
-/* Scan Composer Box */
-.scan-composer {
-  width: min(720px, 100%);
-  background: #ffffff;
-  border: 1px solid #e5e3ea;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-composer);
-  padding: 16px 18px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  text-align: left;
-  transition: border-color .15s ease, box-shadow .15s ease;
-}
-.scan-composer:focus-within {
-  border-color: #c4b5fd;
-  box-shadow: 0 12px 40px -8px rgba(139, 92, 246, 0.16), 0 0 0 1px #a78bfa;
-}
-.scan-composer__input {
-  width: 100%;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 15px;
-  color: var(--text);
-  padding: 4px 0;
-}
-.scan-composer__input::placeholder { color: var(--muted-2); }
-
-.scan-composer__bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 6px;
-}
-.scan-composer__pills {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.deep-scan-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 11px;
-  border-radius: var(--radius-xs);
-  background: #faf7ff;
-  border: 1px solid #dcd1f7;
-  color: #7c3aed;
-  font-size: 12px;
-  font-weight: 550;
-  cursor: pointer;
-}
-.btn-scan-submit {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
-  color: #ffffff;
-  border: none;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  box-shadow: 0 4px 12px var(--purple-glow);
-  transition: transform .08s ease, opacity .15s ease;
-}
-.btn-scan-submit:hover { transform: scale(1.04); }
-.btn-scan-submit:active { transform: scale(0.96); }
-.btn-scan-submit[disabled] { opacity: 0.5; cursor: not-allowed; }
-
-/* Quick Action Cards */
-.quick-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  width: min(720px, 100%);
-  margin-top: 24px;
-}
-.q-card {
-  background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 14px;
-  text-align: left;
-  cursor: pointer;
-  transition: transform .12s ease, border-color .15s ease, box-shadow .15s ease;
-  box-shadow: var(--shadow-card);
-}
-.q-card:hover {
-  transform: translateY(-2px);
-  border-color: #ddd6fe;
-  box-shadow: var(--shadow-hover);
-}
-.q-card__icon {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-sm);
-  background: var(--purple-soft);
-  color: var(--purple);
-  display: grid;
-  place-items: center;
-  margin-bottom: 12px;
-}
-.q-card__title { font-size: 13.5px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-.q-card__desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
-
-/* ============================================================
-   Active Scan Dashboard (Inside Workspace)
-   ============================================================ */
-.dashboard-view {
-  padding: 20px 24px 30px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  max-width: 1200px;
-  width: 100%;
-  margin: 0 auto;
-}
-
-/* Stepper Pipeline */
-.pipeline-card {
-  background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 18px;
-  box-shadow: var(--shadow-card);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  overflow-x: auto;
-}
-.pipe-step {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--muted);
-}
-.pipe-step__badge {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  background: var(--surface-3);
-  color: var(--muted);
-}
-.pipe-step--running { color: var(--purple); }
-.pipe-step--running .pipe-step__badge { background: var(--purple-soft); color: var(--purple); border: 1.5px solid var(--purple); }
-.pipe-step--completed { color: var(--green); }
-.pipe-step--completed .pipe-step__badge { background: var(--green-soft); color: var(--green); }
-.pipe-step--failed { color: var(--red); }
-.pipe-step--failed .pipe-step__badge { background: var(--red-soft); color: var(--red); }
-.pipe-divider {
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-  margin: 0 14px;
-  min-width: 20px;
-}
-
-/* 2-Column Dashboard Split */
-.dash-split {
-  display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-}
-.dash-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-
-/* Panels */
-.panel {
-  background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
-}
-.panel__head {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: #ffffff;
-}
-.panel__title {
-  font-size: 13px;
-  font-weight: 650;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text);
-}
-.panel__body { padding: 16px; }
-
-/* Finding Cards */
-.finding-item {
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: #ffffff;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  transition: all .12s ease;
-  margin-bottom: 8px;
-}
-.finding-item:last-child { margin-bottom: 0; }
-.finding-item:hover { border-color: #ddd6fe; background: #faf9ff; }
-.finding-item--selected {
-  border-color: #8b5cf6;
-  background: #fbf9ff;
-  box-shadow: 0 0 0 1px #8b5cf6;
-}
-.finding-item__title { font-size: 13px; font-weight: 600; color: var(--text); }
-.finding-item__meta { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: var(--muted); }
-
-/* Badges */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 7px;
-  border-radius: 99px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: capitalize;
-}
-.badge--high, .badge--error { background: var(--red-soft); color: var(--red); border: 1px solid var(--red-border); }
-.badge--medium, .badge--warning { background: var(--yellow-soft); color: var(--yellow); border: 1px solid var(--yellow-border); }
-.badge--low, .badge--info { background: var(--purple-soft); color: var(--purple); border: 1px solid var(--purple-border); }
-.badge--success { background: var(--green-soft); color: var(--green); border: 1px solid var(--green-border); }
-
-/* Code Diff (Soft Dark Component) */
-.diff-container {
-  background: #18191f;
-  color: #e5e7eb;
-  border-radius: var(--radius-sm);
-  overflow-x: auto;
-  font-family: var(--mono);
-  font-size: 12px;
-  padding: 12px 14px;
-}
-.diff-line { display: flex; line-height: 1.6; }
-.diff-line--add { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; }
-.diff-line--del { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
-
-/* Before / After Frame */
-.bav-frame {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  position: relative;
-  background: #fafafa;
-}
-.bav-frame img { display: block; width: 100%; height: auto; }
-
-/* Buttons & Inputs */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 7px 13px;
-  border-radius: var(--radius-sm);
-  font-size: 12.5px;
-  font-weight: 550;
-  cursor: pointer;
-  border: 1px solid var(--border);
-  background: #ffffff;
-  color: var(--text-2);
-  transition: all .12s ease;
-}
-.btn:hover { background: var(--surface-2); border-color: var(--border-strong); color: var(--text); }
-.btn--primary {
-  background: #11141a;
-  color: #ffffff;
-  border-color: #11141a;
-}
-.btn--primary:hover { background: #262933; color: #fff; }
-
-/* Toast */
-.toast-root { position: fixed; right: 24px; bottom: 24px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
-.toast {
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  background: #ffffff;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.06);
-  font-size: 12.5px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  animation: toast-in .2s ease;
-}
-@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-
-/* Responsive */
-@media (max-width: 1024px) {
-  .app-shell { grid-template-columns: 210px minmax(0, 1fr); width: 98vw; height: 96vh; }
-  .dash-split { grid-template-columns: 1fr; }
-  .quick-cards { grid-template-columns: 1fr; }
-}
-@media (max-width: 768px) {
-  body { padding: 0; }
-  .app-shell { width: 100vw; height: 100vh; border-radius: 0; grid-template-columns: 1fr; }
-  .sidebar { display: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ai-orb, .ai-orb::after { animation: none !important; }
-}
-</style>
+<meta name="description" content="OmniSight uses a vision-language model to detect visual UI defects, a language model to reason about and fix them, then verifies the result and delivers a reviewable pull request." />
+<link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <div id="app"></div>
-<div id="toast-root" class="toast-root"></div>
+<div id="toast-root" class="toast-root" aria-live="polite"></div>
 
 <script>
 /* ============================================================================
@@ -717,7 +28,9 @@ const Shots = (() => {
 })();
 
 const Store = {
-  route: 'landing', // 'landing' | 'scan' | 'history'
+  route: 'landing', // 'landing' | 'scan' | 'models'
+  deep: false,
+  traceTab: null,
   scan: null,
   activeFindingId: 'f-1',
   history: [
@@ -736,26 +49,127 @@ function toast(msg) {
   setTimeout(() => el.remove(), 4000);
 }
 
-function startScan(url) {
-  if (!url || !url.includes('.')) {
-    toast('Please enter a valid URL (e.g., https://shoplite.local)');
-    return;
+/* ---------------------------------------------------------------------------
+   Model configuration (VLM = vision-language model, LLM = language model)
+   mode 'simulated' returns built-in sample output. mode 'live' POSTs each
+   stage to the endpoints below (see README for the request/response contract).
+   ------------------------------------------------------------------------- */
+const Models = {
+  mode: 'simulated',
+  vlm: { name: 'OmniVision-VL 7B', endpoint: '/api/vlm' },
+  llm: { name: 'OmniCoder-LLM 70B', endpoint: '/api/llm' },
+  vlmOptions: ['OmniVision-VL 7B', 'OmniVision-VL 34B'],
+  llmOptions: ['OmniCoder-LLM 70B', 'OmniCoder-LLM 8B']
+};
+
+const STAGES = [
+  { key: 'detect',   label: 'Detect',        kind: 'vlm', role: 'VLM reads screenshots and locates defects' },
+  { key: 'reason',   label: 'Reason',        kind: 'llm', role: 'LLM finds the root cause from DOM + CSS' },
+  { key: 'fix',      label: 'Fix',           kind: 'llm', role: 'LLM writes the smallest patch' },
+  { key: 'validate', label: 'Validate',      kind: null,  role: 'Sandbox applies patch, runs lint and tests' },
+  { key: 'verify',   label: 'Verify & Ship', kind: 'vlm', role: 'VLM compares before/after, then opens the PR' }
+];
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const PATCH = `.checkout .cta-button {
+-   min-width: 320px;
++   width: 100%;
++   max-width: 100%;
+    padding: 14px 24px;
+}`;
+
+const SAMPLE_FINDINGS = [
+  { id: 'f-1', title: 'Checkout CTA clipped at 390px viewport', type: 'clipped_element', severity: 'high', confidence: '94%', selector: '#checkout .cta-button', box: [270, 240, 120, 44],
+    cause: 'The button has <strong>min-width: 320px</strong> and sits in a 350px container with 20px offset, so it overflows the 390px viewport by 40px.' },
+  { id: 'f-2', title: 'Sticky site header overlaps hero title', type: 'overlap', severity: 'medium', confidence: '88%', selector: '.site-header', box: [20, 18, 350, 32],
+    cause: 'The header is <strong>position: sticky</strong> with no offset on the hero, so the title renders underneath it after scroll.' },
+  { id: 'f-3', title: 'Muted price text fails AA contrast', type: 'low_contrast', severity: 'low', confidence: '81%', selector: '.price--muted', box: [20, 150, 110, 24],
+    cause: 'Text colour <strong>#a1a5b3</strong> on white has a contrast ratio of about 2.5:1, below the 4.5:1 AA minimum.' }
+];
+
+/* Each stage's prompt and sample output. Used for the trace viewer and as the simulated response. */
+function simulate(key, scan) {
+  const f = scan.findings;
+  const vp = Store.deep ? '390, 768 and 1440px' : '390px';
+  return {
+    detect: { prompt: `Inspect the screenshot of ${scan.url} at ${vp}. Return JSON defects with type, severity, confidence and bbox.`,
+      output: JSON.stringify({ defects: f.map(d => ({ id: d.id, type: d.type, severity: d.severity, confidence: d.confidence, bbox: d.box })) }, null, 2) },
+    reason: { prompt: `Given the VLM defects and the DOM/CSS for ${f.map(d => d.selector).join(', ')}, explain each root cause.`,
+      output: f.map(d => `${d.id}: ${String(d.cause).replace(/<[^>]+>/g, '')}`).join('\n\n') },
+    fix: { prompt: 'Write the smallest CSS/DOM patch for the highest-severity defect. Return a unified diff.', output: PATCH },
+    validate: { prompt: 'No model. Apply the patch in a sandbox, then run lint and visual tests.',
+      output: '✓ patch applies cleanly\n✓ stylelint: 0 errors\n✓ visual tests: 24/24 passed' },
+    verify: { prompt: 'Compare before.png and after.png. Report cleared defects and any regressions.',
+      output: JSON.stringify({ cleared: f.length, regressions: 0, similarity: 0.994 }, null, 2) }
+  }[key];
+}
+
+async function callStage(st, scan) {
+  const sim = simulate(st.key, scan);
+  const cfg = st.kind ? Models[st.kind] : null;
+  const t0 = performance.now();
+  let output = sim.output;
+  if (Models.mode === 'live' && cfg) {
+    const res = await fetch(cfg.endpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: st.key, model: cfg.name, url: scan.url, deep: Store.deep, prompt: sim.prompt })
+    });
+    if (!res.ok) throw new Error(`${cfg.name} returned HTTP ${res.status}`);
+    const data = await res.json();
+    if (st.key === 'detect' && Array.isArray(data.findings)) scan.findings = data.findings;
+    output = typeof data.output === 'string' ? data.output : JSON.stringify(data.output ?? data, null, 2);
+  } else {
+    await new Promise(r => setTimeout(r, 1000 + Math.random() * 500));
   }
-  Store.route = 'scan';
-  Store.scan = {
-    id: '1042',
-    url: url,
-    status: 'running',
-    progress: 45,
-    stage: 'fix',
-    findings: [
-      { id: 'f-1', title: 'Checkout CTA clipped at 390px viewport', type: 'clipped_element', severity: 'high', confidence: '94%', selector: '#checkout .cta-button', status: 'fixing' },
-      { id: 'f-2', title: 'Sticky site header overlaps hero title', type: 'overlap', severity: 'medium', confidence: '88%', selector: '.site-header', status: 'detected' },
-      { id: 'f-3', title: 'Muted price text fails AA contrast', type: 'low_contrast', severity: 'low', confidence: '81%', selector: '.price--muted', status: 'verified' }
-    ]
+  scan.trace[st.key] = { model: cfg ? cfg.name : 'Sandbox', kind: st.kind, prompt: sim.prompt, output, ms: Math.round(performance.now() - t0) };
+}
+
+const refresh = scan => { if (Store.scan === scan && Store.route === 'scan') render(); };
+
+async function runPipeline(scan) {
+  try {
+    for (let i = 0; i < STAGES.length; i++) {
+      scan.stage = i; refresh(scan);
+      await callStage(STAGES[i], scan);
+    }
+    scan.stage = STAGES.length; scan.status = 'completed';
+    toast('Scan complete: ' + scan.findings.length + ' findings verified');
+  } catch (e) {
+    scan.status = 'failed'; scan.error = e.message;
+    toast('Scan failed: ' + e.message);
+  }
+  refresh(scan);
+}
+
+function toggleDeep(btn) {
+  Store.deep = !Store.deep;
+  btn.setAttribute('aria-pressed', Store.deep);
+}
+
+function startScan(url) {
+  if (!url || !url.includes('.')) { toast('Enter a valid URL (e.g. https://shoplite.local)'); return; }
+  const v = document.getElementById('sel-vlm'), l = document.getElementById('sel-llm');
+  if (v) Models.vlm.name = v.value;
+  if (l) Models.llm.name = l.value;
+  const scan = {
+    id: '1042', url, status: 'running', stage: 0, trace: {}, error: null,
+    findings: Models.mode === 'live' ? [] : SAMPLE_FINDINGS.map(f => ({ ...f }))
   };
+  Store.route = 'scan'; Store.scan = scan; Store.activeFindingId = 'f-1'; Store.traceTab = null;
   render();
   toast('Scan started for ' + url);
+  runPipeline(scan);
+}
+
+function saveModels() {
+  const g = id => document.getElementById(id).value.trim();
+  Models.mode = g('m-mode');
+  Models.vlm = { name: g('m-vlm-name') || Models.vlm.name, endpoint: g('m-vlm-ep') || Models.vlm.endpoint };
+  Models.llm = { name: g('m-llm-name') || Models.llm.name, endpoint: g('m-llm-ep') || Models.llm.endpoint };
+  for (const [k, o] of [['vlm', 'vlmOptions'], ['llm', 'llmOptions']]) if (!Models[o].includes(Models[k].name)) Models[o].push(Models[k].name);
+  toast('Model settings saved (' + Models.mode + ' mode)');
+  render();
 }
 
 function renderSidebar() {
@@ -793,6 +207,10 @@ function renderSidebar() {
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 13h12M4 10l3-3 2 2 3-5"/></svg>
         History
       </button>
+      <button class="nav-item ${Store.route==='models'?'nav-item--active':''}" onclick="Store.route='models'; render();">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M3 13l1.4-1.4M11.6 4.4 13 3"/></svg>
+        Models
+      </button>
     </div>
 
     <div class="sidebar__section-title">Recent Scans</div>
@@ -817,24 +235,25 @@ function renderSidebar() {
 }
 
 function renderLanding() {
+  const opts = (list, cur) => list.map(o => `<option ${o === cur ? 'selected' : ''}>${esc(o)}</option>`).join('');
   return `
   <div class="landing-view">
-    <div class="ai-orb-wrap">
-      <div class="ai-orb"></div>
-    </div>
+    <div class="ai-orb-wrap"><div class="ai-orb"></div></div>
     <div class="landing-greeting">Hello, Developer</div>
     <h1 class="landing-heading">What should we inspect today?</h1>
 
     <div class="scan-composer">
-      <input type="text" id="target-url-input" class="scan-composer__input" placeholder="Enter website URL to inspect... (e.g. https://shoplite.local)" value="https://shoplite.local" />
+      <input type="text" id="target-url-input" class="scan-composer__input" aria-label="Website URL" placeholder="Enter website URL to inspect... (e.g. https://shoplite.local)" value="https://shoplite.local" />
       <div class="scan-composer__bottom">
         <div class="scan-composer__pills">
-          <button class="deep-scan-btn">
+          <button class="deep-scan-btn" aria-pressed="${Store.deep}" onclick="toggleDeep(this)">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 8a6 6 0 1 1 12 0A6 6 0 0 1 2 8Z"/><circle cx="8" cy="8" r="2"/></svg>
-            Deep Scan
+            Deep scan
           </button>
+          <select id="sel-vlm" class="model-select" aria-label="Vision model (VLM)" title="VLM: reads screenshots">${opts(Models.vlmOptions, Models.vlm.name)}</select>
+          <select id="sel-llm" class="model-select" aria-label="Language model (LLM)" title="LLM: reasons and writes patches">${opts(Models.llmOptions, Models.llm.name)}</select>
         </div>
-        <button class="btn-scan-submit" onclick="startScan(document.getElementById('target-url-input').value)">
+        <button class="btn-scan-submit" aria-label="Start scan" onclick="startScan(document.getElementById('target-url-input').value)">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 12V4M4 8l4-4 4 4"/></svg>
         </button>
       </div>
@@ -842,153 +261,176 @@ function renderLanding() {
 
     <div class="quick-cards">
       <div class="q-card" onclick="startScan('https://shoplite.local')">
-        <div class="q-card__icon">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 4h12M2 8h8M2 12h5"/></svg>
-        </div>
-        <div class="q-card__title">Detect UI Issues</div>
-        <div class="q-card__desc">Scan layouts for clipping, overlapping elements and responsive breakpoints.</div>
+        <div class="q-card__icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 4h12M2 8h8M2 12h5"/></svg></div>
+        <div class="q-card__title">Detect with VLM</div>
+        <div class="q-card__desc">A vision model reads page screenshots and boxes clipped, overlapping and low-contrast elements.</div>
       </div>
       <div class="q-card" onclick="startScan('https://shoplite.local')">
-        <div class="q-card__icon">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 11 10-10M9 1h4v4"/></svg>
-        </div>
-        <div class="q-card__title">Generate Fixes</div>
-        <div class="q-card__desc">Synthesize minimal targeted CSS & DOM patches for detected visual bugs.</div>
+        <div class="q-card__icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 11 10-10M9 1h4v4"/></svg></div>
+        <div class="q-card__title">Reason and fix with LLM</div>
+        <div class="q-card__desc">A language model traces each defect to its DOM and CSS cause, then writes a minimal patch.</div>
       </div>
       <div class="q-card" onclick="startScan('https://shoplite.local')">
-        <div class="q-card__icon">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="m6 8 1.5 1.5L10 6"/></svg>
-        </div>
-        <div class="q-card__title">Verify Changes</div>
-        <div class="q-card__desc">Compare before and after browser captures to guarantee zero regressions.</div>
+        <div class="q-card__icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="m6 8 1.5 1.5L10 6"/></svg></div>
+        <div class="q-card__title">Verify with VLM</div>
+        <div class="q-card__desc">The vision model compares before and after captures to confirm the fix and catch regressions.</div>
       </div>
     </div>
-  </div>
-  `;
+  </div>`;
+}
+
+const kindTag = k => k ? `<span class="tag tag--${k}">${k.toUpperCase()}</span>` : `<span class="tag tag--box">SANDBOX</span>`;
+
+function renderPipeline(s) {
+  return `<div class="pipeline-card">` + STAGES.map((st, i) => {
+    const cls = s.status === 'failed' && i === s.stage ? 'failed' : i < s.stage ? 'completed' : i === s.stage ? 'running' : '';
+    const badge = cls === 'completed' ? '✓' : cls === 'failed' ? '!' : i + 1;
+    return (i ? '<div class="pipe-divider"></div>' : '') +
+      `<div class="pipe-step ${cls ? 'pipe-step--' + cls : ''}" title="${esc(st.role)}"><div class="pipe-step__row"><div class="pipe-step__badge">${badge}</div><span>${st.label}</span></div>${kindTag(st.kind)}</div>`;
+  }).join('') + `</div>`;
+}
+
+function renderTrace(s) {
+  const keys = Object.keys(s.trace);
+  const tab = Store.traceTab && s.trace[Store.traceTab] ? Store.traceTab : keys[keys.length - 1];
+  const t = s.trace[tab];
+  return `
+  <div class="panel">
+    <div class="panel__head"><div class="panel__title">Model trace</div><span class="panel__sub">${Models.mode === 'live' ? 'Live responses' : 'Simulated responses'}</span></div>
+    <div class="trace-tabs" role="tablist">
+      ${STAGES.map(st => `<button role="tab" class="trace-tab ${st.key === tab ? 'trace-tab--active' : ''}" ${s.trace[st.key] ? '' : 'disabled'} onclick="Store.traceTab='${st.key}'; render();">${st.label}</button>`).join('')}
+    </div>
+    <div class="trace-body">
+      ${t ? `
+        <div><div class="trace-label">${kindTag(t.kind)} ${esc(t.model)} <span>· ${t.ms} ms</span></div></div>
+        <div><div class="trace-label">Prompt</div><pre class="code-block code-block--light">${esc(t.prompt)}</pre></div>
+        <div><div class="trace-label">Output</div><pre class="code-block">${esc(t.output)}</pre></div>` : `<div class="empty">The VLM is analysing screenshots. Its prompt and output will appear here.</div>`}
+    </div>
+  </div>`;
 }
 
 function renderDashboard() {
   const s = Store.scan;
+  const active = s.findings.find(f => f.id === Store.activeFindingId) || s.findings[0];
+  const statusLabel = s.status === 'completed' ? 'completed' : s.status === 'failed' ? 'failed' : STAGES[s.stage].label.toLowerCase() + '…';
+  const done = s.trace.detect;
   return `
   <div class="dashboard-view">
-    <!-- Stepper Pipeline -->
-    <div class="pipeline-card">
-      <div class="pipe-step pipe-step--completed">
-        <div class="pipe-step__badge">✓</div>
-        <span>Detect</span>
-      </div>
-      <div class="pipe-divider"></div>
-      <div class="pipe-step pipe-step--completed">
-        <div class="pipe-step__badge">✓</div>
-        <span>Reason</span>
-      </div>
-      <div class="pipe-divider"></div>
-      <div class="pipe-step pipe-step--running">
-        <div class="pipe-step__badge">3</div>
-        <span>Fix</span>
-      </div>
-      <div class="pipe-divider"></div>
-      <div class="pipe-step">
-        <div class="pipe-step__badge">4</div>
-        <span>Validate</span>
-      </div>
-      <div class="pipe-divider"></div>
-      <div class="pipe-step">
-        <div class="pipe-step__badge">5</div>
-        <span>Verify & Ship</span>
-      </div>
-    </div>
-
-    <!-- 2 Column Split -->
+    ${renderPipeline(s)}
+    ${s.error ? `<div class="error-note">${esc(s.error)}. Check the endpoints under Models, or switch to simulated mode.</div>` : ''}
     <div class="dash-split">
-      <!-- Findings Column -->
       <div class="dash-col">
         <div class="panel">
           <div class="panel__head">
-            <div class="panel__title">
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M8 5v3M8 11v.1"/></svg>
-              Detected Findings (${s.findings.length})
-            </div>
-            <span class="badge badge--info">${s.status}</span>
+            <div class="panel__title">Findings (${s.findings.length})</div>
+            <span class="badge badge--${s.status === 'failed' ? 'error' : s.status === 'completed' ? 'success' : 'info'}">${statusLabel}</span>
           </div>
           <div class="panel__body">
-            ${s.findings.map(f => `
-              <div class="finding-item ${f.id === Store.activeFindingId ? 'finding-item--selected' : ''}" onclick="Store.activeFindingId='${f.id}'; render();">
+            ${s.findings.length ? s.findings.map(f => `
+              <div class="finding-item ${f.id === active.id ? 'finding-item--selected' : ''}" onclick="Store.activeFindingId='${f.id}'; render();">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <span class="badge badge--${f.severity}">${f.severity}</span>
                   <span class="muted mono" style="font-size:11px;">${f.confidence}</span>
                 </div>
-                <div class="finding-item__title">${f.title}</div>
-                <div class="finding-item__meta">
-                  <span class="mono">${f.selector}</span>
-                </div>
-              </div>
-            `).join('')}
+                <div class="finding-item__title">${esc(f.title)}</div>
+                <div class="finding-item__meta"><span class="mono">${esc(f.selector)}</span></div>
+              </div>`).join('') : `<div class="empty">No findings yet. The VLM is still inspecting.</div>`}
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel__head"><div class="panel__title">Models</div><span class="panel__sub">${Models.mode}</span></div>
+          <div class="panel__body">
+            ${['vlm', 'llm'].map(k => `<div class="model-row"><div><div class="model-row__name">${esc(Models[k].name)}</div><div class="panel__sub">${k === 'vlm' ? 'Detect and verify' : 'Reason and fix'}</div></div>${kindTag(k)}</div>`).join('')}
           </div>
         </div>
       </div>
 
-      <!-- Detail & Fix Column -->
       <div class="dash-col">
         <div class="panel">
-          <div class="panel__head">
-            <div class="panel__title">Before / After Visual Verification</div>
-            <div style="display:flex; gap:6px;">
-              <button class="btn btn--sm">Side by Side</button>
-              <button class="btn btn--sm btn--primary">Slider</button>
-            </div>
-          </div>
+          <div class="panel__head"><div class="panel__title">${kindTag('vlm')} Visual perception</div><span class="panel__sub">${Store.deep ? '390 · 768 · 1440px' : '390px viewport'}</span></div>
           <div class="panel__body">
-            <div class="bav-frame">
-              <img src="${Shots.checkoutAfter}" alt="After fix comparison" />
+            <div class="vis-frame">
+              <img src="${Shots.checkoutBefore}" alt="Screenshot of the checkout page with detected defects outlined" />
+              ${done ? s.findings.map(f => `<div class="bbox ${f.id === active.id ? 'bbox--active' : ''}" style="left:${f.box[0] / 3.9}%;top:${f.box[1] / 3.2}%;width:${f.box[2] / 3.9}%;height:${f.box[3] / 3.2}%"><span>${f.id}</span></div>`).join('') : ''}
             </div>
           </div>
         </div>
 
         <div class="panel">
-          <div class="panel__head">
-            <div class="panel__title">Generated Minimal Patch</div>
-            <span class="mono muted" style="font-size:11.5px;">CheckoutButton.css</span>
-          </div>
-          <div class="panel__body" style="padding:0;">
-            <div class="diff-container">
-              <div class="diff-line">.checkout .cta-button {</div>
-              <div class="diff-line diff-line--del">-   min-width: 320px;</div>
-              <div class="diff-line diff-line--add">+   width: 100%;</div>
-              <div class="diff-line diff-line--add">+   max-width: 100%;</div>
-              <div class="diff-line">    padding: 14px 24px;</div>
-              <div class="diff-line">}</div>
-            </div>
+          <div class="panel__head"><div class="panel__title">${kindTag('llm')} Reasoning</div><span class="panel__sub">${esc(active.selector)}</span></div>
+          <div class="panel__body">
+            ${s.trace.reason ? `<div class="cause"><strong>Root cause.</strong> ${active.cause}</div>` : `<div class="empty">The LLM will explain the cause of each finding after detection.</div>`}
           </div>
         </div>
+
+        <div class="panel">
+          <div class="panel__head"><div class="panel__title">${kindTag('llm')} Generated patch</div><span class="mono muted" style="font-size:11.5px;">CheckoutButton.css</span></div>
+          <div class="panel__body" style="padding:0;">
+            ${s.trace.fix ? `<div class="diff-container">${PATCH.split('\n').map(l => `<div class="diff-line ${l[0] === '+' ? 'diff-line--add' : l[0] === '-' ? 'diff-line--del' : ''}">${esc(l)}</div>`).join('')}</div>` : `<div class="panel__body"><div class="empty">The patch appears once reasoning finishes.</div></div>`}
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__head"><div class="panel__title">${kindTag('vlm')} Before / after verification</div></div>
+          <div class="panel__body">
+            ${s.trace.verify ? `<div class="ba-grid">
+              <figure><div class="bav-frame"><img src="${Shots.checkoutBefore}" alt="Before the fix" /></div><figcaption>Before</figcaption></figure>
+              <figure><div class="bav-frame"><img src="${Shots.checkoutAfter}" alt="After the fix" /></div><figcaption>After</figcaption></figure>
+            </div>` : `<div class="empty">The VLM compares captures once the patch passes validation.</div>`}
+          </div>
+        </div>
+
+        ${renderTrace(s)}
       </div>
     </div>
-  </div>
-  `;
+  </div>`;
+}
+
+function renderModels() {
+  const f = (id, label, val) => `<div class="field"><label for="${id}">${label}</label><input id="${id}" value="${esc(val)}" /></div>`;
+  return `
+  <div class="models-view">
+    <div class="panel">
+      <div class="panel__head"><div class="panel__title">Model settings</div></div>
+      <div class="panel__body">
+        <div class="field"><label for="m-mode">Mode</label>
+          <select id="m-mode"><option value="simulated" ${Models.mode === 'simulated' ? 'selected' : ''}>Simulated (built-in sample output)</option><option value="live" ${Models.mode === 'live' ? 'selected' : ''}>Live (call the endpoints below)</option></select></div>
+        <div class="field-grid">${f('m-vlm-name', 'VLM name', Models.vlm.name)}${f('m-vlm-ep', 'VLM endpoint', Models.vlm.endpoint)}</div>
+        <div class="field-grid">${f('m-llm-name', 'LLM name', Models.llm.name)}${f('m-llm-ep', 'LLM endpoint', Models.llm.endpoint)}</div>
+        <button class="btn btn--primary" onclick="saveModels()">Save settings</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel__head"><div class="panel__title">How a scan runs</div></div>
+      <div class="panel__body">
+        <ul class="proc-list">${STAGES.map(st => `<li>${kindTag(st.kind)}<span><b>${st.label}.</b> ${st.role}.</span></li>`).join('')}</ul>
+      </div>
+    </div>
+  </div>`;
 }
 
 function render() {
   const root = document.getElementById('app');
+  const crumb = Store.route === 'scan' ? esc(Store.scan.url) : Store.route === 'models' ? 'Models' : 'Overview';
+  const canShip = Store.route === 'scan' && Store.scan.status === 'completed';
   root.innerHTML = `
     <div class="app-shell">
       ${renderSidebar()}
       <div class="workspace">
         <header class="topbar">
           <div class="topbar__title">
-            <span>OmniSight</span>
-            <span class="muted">/</span>
-            <span style="font-weight:400; color:var(--text-2);">${Store.route==='scan' ? Store.scan.url : 'Overview'}</span>
+            <span>OmniSight</span><span class="muted">/</span>
+            <span style="font-weight:400; color:var(--text-2);">${crumb}</span>
           </div>
           <div class="topbar__actions">
-            ${Store.route==='scan' ? `<button class="btn btn--primary" onclick="toast('Pull request #128 opened on GitHub!')">Ship PR #128</button>` : ''}
+            ${canShip ? `<button class="btn btn--primary" onclick="toast('PR #128 drafted (simulated). Connect a backend to open real pull requests.')">Ship PR #128</button>` : ''}
           </div>
         </header>
         <div class="main-content">
-          ${Store.route === 'landing' ? renderLanding() : renderDashboard()}
+          ${Store.route === 'landing' ? renderLanding() : Store.route === 'models' ? renderModels() : renderDashboard()}
         </div>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
 document.addEventListener('DOMContentLoaded', render);
