@@ -1,6 +1,92 @@
 # 👁️ OmniSight
 
 ## Multimodal UI Self-Healing & RPA Agent — Frontend
+OmniSight — Autonomous UI Engineer
+==================================
+
+Files
+-----
+- code.html   : Front-end markup and JavaScript.
+- styles.css  : All styling (design system, layout, VLM/LLM components).
+- screen.png  : UI design reference screenshot.
+- README.txt  : This file.
+
+Keep code.html and styles.css in the same folder.
+
+How to run
+----------
+1. Extract this folder.
+2. Open code.html in a modern browser (Chrome, Edge, or Firefox).
+3. No build step is required.
+
+What's new in this version
+--------------------------
+The UI now shows which model does what in a scan.
+
+VLM (vision-language model) - looks at screenshots
+  - Detect: reads the page screenshot (390px, or 390/768/1440px with Deep scan)
+    and returns defects with type, severity, confidence and a bounding box.
+  - Verify & Ship: compares the before and after captures, reports cleared
+    defects and regressions.
+
+LLM (language model) - reads and writes code
+  - Reason: takes the VLM's defects plus the DOM/CSS for each selector and
+    explains the root cause.
+  - Fix: writes the smallest CSS/DOM patch as a unified diff.
+
+Sandbox (no model)
+  - Validate: applies the patch, then runs lint and visual tests.
+
+UI changes
+  - Composer: pick the VLM and the LLM before scanning; Deep scan is now a
+    real on/off toggle.
+  - Pipeline stepper: every stage carries a VLM, LLM or SANDBOX tag and updates
+    live as the scan advances. A failed stage is shown in red.
+  - Visual perception panel: screenshot with the VLM's bounding boxes. Select a
+    finding to highlight its box.
+  - Reasoning panel: the LLM's root cause for the selected finding.
+  - Generated patch panel: the LLM's diff.
+  - Before / after verification panel: side-by-side captures.
+  - Model trace panel: per-stage tabs showing model name, latency, prompt and
+    output.
+  - Models page (sidebar): switch between simulated and live mode and set the
+    name and endpoint of each model.
+  - Landing cards, the Ship PR button and the focus ring were also updated.
+
+Simulated vs live mode
+----------------------
+Simulated (default): no network calls. Each stage waits about a second and
+returns built-in sample output. Nothing is scanned, no real model runs, and
+"Ship PR" only shows a message.
+
+Live: each model stage sends a POST to the endpoint set on the Models page
+(defaults /api/vlm and /api/llm). The stages Validate and the PR step are not
+called; they still need your backend.
+
+Request body (JSON)
+  { "stage": "detect | reason | fix | verify",
+    "model": "<model name>",
+    "url": "<page being scanned>",
+    "deep": true | false,
+    "prompt": "<prompt text>" }
+
+Response body (JSON)
+  { "output": "<text or JSON shown in the Model trace panel>",
+    "findings": [ ... ] }       <- Detect stage only
+
+Each finding needs: id, title, type, severity (high | medium | low),
+confidence (e.g. "94%"), selector, box [x, y, width, height] in a 390x320
+coordinate space, and cause (short root-cause text, HTML allowed).
+
+Notes
+-----
+- The Fix, patch and verify panels still display the sample CheckoutButton.css
+  patch and sample before/after images, even in live mode. Wire these to your
+  backend's output when you connect it.
+- Live mode from a file:// page needs endpoints that allow CORS.
+- Settings are held in memory and reset on reload.
+- This is a front-end prototype. Real scanning, model inference, patch
+  application and pull-request creation require a backend.
 
 OmniSight is an AI-powered autonomous QA workflow that detects visual UI defects, proposes targeted fixes, verifies the result, and prepares reviewable changes through GitHub.
 
