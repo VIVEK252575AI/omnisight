@@ -30,6 +30,7 @@ const Shots = (() => {
 const Store = {
   route: 'landing', // 'landing' | 'scan' | 'models'
   deep: false,
+  sev: 'all',
   traceTab: null,
   scan: null,
   activeFindingId: 'f-1',
@@ -49,6 +50,16 @@ function toast(msg) {
   setTimeout(() => el.remove(), 4000);
 }
 
+/* ---- Persistence (localStorage, safe if blocked) and theme ---- */
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem('omnisight.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('omnisight.' + k, JSON.stringify(v)); } catch (e) {} }
+};
+function applyTheme(t) { document.documentElement.dataset.theme = t; LS.set('theme', t); }
+function toggleTheme() { applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); render(); }
+applyTheme(LS.get('theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+Store.history = LS.get('history', Store.history);
+
 /* ---------------------------------------------------------------------------
    Model configuration (VLM = vision-language model, LLM = language model)
    mode 'simulated' returns built-in sample output. mode 'live' POSTs each
@@ -61,6 +72,10 @@ const Models = {
   vlmOptions: ['OmniVision-VL 7B', 'OmniVision-VL 34B'],
   llmOptions: ['OmniCoder-LLM 70B', 'OmniCoder-LLM 8B']
 };
+
+{ const m = LS.get('models'); if (m) { Models.mode = m.mode; Models.vlm = m.vlm; Models.llm = m.llm;
+  if (!Models.vlmOptions.includes(m.vlm.name)) Models.vlmOptions.push(m.vlm.name);
+  if (!Models.llmOptions.includes(m.llm.name)) Models.llmOptions.push(m.llm.name); } }
 
 const STAGES = [
   { key: 'detect',   label: 'Detect',        kind: 'vlm', role: 'VLM reads screenshots and locates defects' },
@@ -133,13 +148,36 @@ async function runPipeline(scan) {
       scan.stage = i; refresh(scan);
       await callStage(STAGES[i], scan);
     }
-    scan.stage = STAGES.length; scan.status = 'completed';
+    scan.stage = STAGES.length; scan.status = 'completed'; recordScan(scan);
     toast('Scan complete: ' + scan.findings.length + ' findings verified');
   } catch (e) {
-    scan.status = 'failed'; scan.error = e.message;
+    scan.status = 'failed'; scan.error = e.message; recordScan(scan);
     toast('Scan failed: ' + e.message);
   }
   refresh(scan);
+}
+
+function recordScan(s) {
+  const ok = s.status === 'completed';
+  Store.history.unshift({ id: s.id, url: s.url, status: s.status, findings: s.findings.length, fixed: ok ? s.findings.length : 0, pr: null, at: Date.now() });
+  Store.history = Store.history.slice(0, 50);
+  LS.set('history', Store.history);
+}
+const recentScans = () => [...new Map(Store.history.map(x => [x.url, x])).values()].slice(0, 5);
+function filterScans(q) {
+  q = q.trim().toLowerCase();
+  document.querySelectorAll('.recent-scan-btn, .hist-row').forEach(el => { el.hidden = !!q && !el.textContent.toLowerCase().includes(q); });
+}
+function downloadReport() {
+  const s = Store.scan;
+  const report = { url: s.url, status: s.status, mode: Models.mode, models: { vlm: Models.vlm.name, llm: Models.llm.name }, findings: s.findings, patch: PATCH, trace: s.trace, generatedAt: new Date().toISOString() };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }));
+  a.download = 'omnisight-report-' + s.id + '.json'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function copyPatch() {
+  (navigator.clipboard ? navigator.clipboard.writeText(PATCH) : Promise.reject()).then(() => toast('Patch copied'), () => toast('Copy failed. Select the diff and copy it manually.'));
 }
 
 function toggleDeep(btn) {
@@ -153,7 +191,7 @@ function startScan(url) {
   if (v) Models.vlm.name = v.value;
   if (l) Models.llm.name = l.value;
   const scan = {
-    id: '1042', url, status: 'running', stage: 0, trace: {}, error: null,
+    id: String(1042 + Store.history.length), url, status: 'running', stage: 0, trace: {}, error: null,
     findings: Models.mode === 'live' ? [] : SAMPLE_FINDINGS.map(f => ({ ...f }))
   };
   Store.route = 'scan'; Store.scan = scan; Store.activeFindingId = 'f-1'; Store.traceTab = null;
@@ -168,6 +206,7 @@ function saveModels() {
   Models.vlm = { name: g('m-vlm-name') || Models.vlm.name, endpoint: g('m-vlm-ep') || Models.vlm.endpoint };
   Models.llm = { name: g('m-llm-name') || Models.llm.name, endpoint: g('m-llm-ep') || Models.llm.endpoint };
   for (const [k, o] of [['vlm', 'vlmOptions'], ['llm', 'llmOptions']]) if (!Models[o].includes(Models[k].name)) Models[o].push(Models[k].name);
+  LS.set('models', { mode: Models.mode, vlm: Models.vlm, llm: Models.llm });
   toast('Model settings saved (' + Models.mode + ' mode)');
   render();
 }
@@ -191,7 +230,7 @@ function renderSidebar() {
 
     <div class="sidebar__search-wrap">
       <svg class="sidebar__search-icon" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="4.5"/><path d="m11 11 3 3"/></svg>
-      <input type="text" class="sidebar__search" placeholder="Search scans..." />
+      <input type="text" class="sidebar__search" placeholder="Search scans..." aria-label="Search scans" oninput="filterScans(this.value)" />
     </div>
 
     <div class="nav-group">
@@ -203,7 +242,7 @@ function renderSidebar() {
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M8 2v4"/></svg>
         Active Scan
       </button>
-      <button class="nav-item">
+      <button class="nav-item ${Store.route==='history'?'nav-item--active':''}" onclick="Store.route='history'; render();">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 13h12M4 10l3-3 2 2 3-5"/></svg>
         History
       </button>
@@ -215,7 +254,7 @@ function renderSidebar() {
 
     <div class="sidebar__section-title">Recent Scans</div>
     <div class="recent-scans-list">
-      ${Store.history.map(h => `
+      ${recentScans().map(h => `
         <button class="recent-scan-btn truncate" onclick="startScan('${h.url}')">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="5"/></svg>
           <span class="truncate">${h.url.replace(/^https?:\/\//,'')}</span>
@@ -243,7 +282,7 @@ function renderLanding() {
     <h1 class="landing-heading">What should we inspect today?</h1>
 
     <div class="scan-composer">
-      <input type="text" id="target-url-input" class="scan-composer__input" aria-label="Website URL" placeholder="Enter website URL to inspect... (e.g. https://shoplite.local)" value="https://shoplite.local" />
+      <input type="text" id="target-url-input" onkeydown="if(event.key==='Enter')startScan(this.value)" class="scan-composer__input" aria-label="Website URL" placeholder="Enter website URL to inspect... (e.g. https://shoplite.local)" value="https://shoplite.local" />
       <div class="scan-composer__bottom">
         <div class="scan-composer__pills">
           <button class="deep-scan-btn" aria-pressed="${Store.deep}" onclick="toggleDeep(this)">
@@ -311,7 +350,8 @@ function renderTrace(s) {
 
 function renderDashboard() {
   const s = Store.scan;
-  const active = s.findings.find(f => f.id === Store.activeFindingId) || s.findings[0];
+  const shown = s.findings.filter(f => Store.sev === 'all' || f.severity === Store.sev);
+  const active = shown.find(f => f.id === Store.activeFindingId) || shown[0] || s.findings[0];
   const statusLabel = s.status === 'completed' ? 'completed' : s.status === 'failed' ? 'failed' : STAGES[s.stage].label.toLowerCase() + '…';
   const done = s.trace.detect;
   return `
@@ -326,7 +366,8 @@ function renderDashboard() {
             <span class="badge badge--${s.status === 'failed' ? 'error' : s.status === 'completed' ? 'success' : 'info'}">${statusLabel}</span>
           </div>
           <div class="panel__body">
-            ${s.findings.length ? s.findings.map(f => `
+            <div class="chips">${['all', 'high', 'medium', 'low'].map(v => `<button class="chip ${Store.sev === v ? 'chip--on' : ''}" onclick="Store.sev='${v}'; render();">${v}</button>`).join('')}</div>
+            ${shown.length ? shown.map(f => `
               <div class="finding-item ${f.id === active.id ? 'finding-item--selected' : ''}" onclick="Store.activeFindingId='${f.id}'; render();">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <span class="badge badge--${f.severity}">${f.severity}</span>
@@ -334,7 +375,7 @@ function renderDashboard() {
                 </div>
                 <div class="finding-item__title">${esc(f.title)}</div>
                 <div class="finding-item__meta"><span class="mono">${esc(f.selector)}</span></div>
-              </div>`).join('') : `<div class="empty">No findings yet. The VLM is still inspecting.</div>`}
+              </div>`).join('') : `<div class="empty">${s.findings.length ? 'No findings at this severity.' : 'No findings yet. The VLM is still inspecting.'}</div>`}
           </div>
         </div>
         <div class="panel">
@@ -364,7 +405,7 @@ function renderDashboard() {
         </div>
 
         <div class="panel">
-          <div class="panel__head"><div class="panel__title">${kindTag('llm')} Generated patch</div><span class="mono muted" style="font-size:11.5px;">CheckoutButton.css</span></div>
+          <div class="panel__head"><div class="panel__title">${kindTag('llm')} Generated patch</div><span style="display:flex;gap:10px;align-items:center;"><span class="mono muted" style="font-size:11.5px;">CheckoutButton.css</span><button class="btn" onclick="copyPatch()">Copy</button></span></div>
           <div class="panel__body" style="padding:0;">
             ${s.trace.fix ? `<div class="diff-container">${PATCH.split('\n').map(l => `<div class="diff-line ${l[0] === '+' ? 'diff-line--add' : l[0] === '-' ? 'diff-line--del' : ''}">${esc(l)}</div>`).join('')}</div>` : `<div class="panel__body"><div class="empty">The patch appears once reasoning finishes.</div></div>`}
           </div>
@@ -381,6 +422,25 @@ function renderDashboard() {
         </div>
 
         ${renderTrace(s)}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderHistory() {
+  const rows = Store.history;
+  return `
+  <div class="models-view">
+    <div class="panel">
+      <div class="panel__head"><div class="panel__title">Scan history</div><span class="panel__sub">${rows.length} scans</span></div>
+      <div class="panel__body">
+        ${rows.length ? rows.map(x => `
+          <div class="hist-row">
+            <div style="min-width:0;"><div class="model-row__name truncate">${esc(x.url)}</div>
+              <div class="panel__sub">#${x.id} · ${x.at ? new Date(x.at).toLocaleString() : 'earlier'} · ${x.findings} findings, ${x.fixed} fixed${x.pr ? ' · PR #' + x.pr : ''}</div></div>
+            <span class="badge badge--${x.status === 'completed' ? 'success' : 'error'}">${x.status}</span>
+            <button class="btn" onclick="startScan('${esc(x.url)}')">Re-run</button>
+          </div>`).join('') : '<div class="empty">No scans yet. Start one from Overview.</div>'}
       </div>
     </div>
   </div>`;
@@ -411,7 +471,7 @@ function renderModels() {
 
 function render() {
   const root = document.getElementById('app');
-  const crumb = Store.route === 'scan' ? esc(Store.scan.url) : Store.route === 'models' ? 'Models' : 'Overview';
+  const crumb = Store.route === 'scan' ? esc(Store.scan.url) : Store.route === 'models' ? 'Models' : Store.route === 'history' ? 'History' : 'Overview';
   const canShip = Store.route === 'scan' && Store.scan.status === 'completed';
   root.innerHTML = `
     <div class="app-shell">
@@ -423,11 +483,13 @@ function render() {
             <span style="font-weight:400; color:var(--text-2);">${crumb}</span>
           </div>
           <div class="topbar__actions">
+            <button class="btn" onclick="toggleTheme()" aria-label="Toggle dark mode">${document.documentElement.dataset.theme === 'dark' ? '☀ Light' : '☾ Dark'}</button>
+            ${canShip ? `<button class="btn" onclick="downloadReport()">Export report</button>` : ''}
             ${canShip ? `<button class="btn btn--primary" onclick="toast('PR #128 drafted (simulated). Connect a backend to open real pull requests.')">Ship PR #128</button>` : ''}
           </div>
         </header>
         <div class="main-content">
-          ${Store.route === 'landing' ? renderLanding() : Store.route === 'models' ? renderModels() : renderDashboard()}
+          ${Store.route === 'landing' ? renderLanding() : Store.route === 'models' ? renderModels() : Store.route === 'history' ? renderHistory() : renderDashboard()}
         </div>
       </div>
     </div>`;
