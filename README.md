@@ -93,6 +93,50 @@ The major stages are:
 
 ---
 
+## 🧪 Backend Implementation Status
+
+> This section reflects the **actual repository state**. The rest of this
+> document describes the target design.
+
+The Week 1 backend (FastAPI) is implemented, tested and pushed on the `lakshy`
+branch (`backend/`):
+
+| Area | Status |
+|---|---|
+| Scan API + lifecycle state machine | Tested against the local application |
+| Simulated CI/CD webhook receiver (optional HMAC) | Tested against the local application |
+| Evidence API (`observation/v1`) + safe artifact serving | Tested against the local application |
+| Playwright collector, VLM, patch engine, PyGithub, React dashboard | Not implemented |
+
+Endpoints currently served:
+
+```text
+GET      /health
+GET      /api/scans
+POST     /api/scans
+GET      /api/scans/{scan_id}
+POST     /api/scans/{scan_id}/transition
+POST     /api/v1/webhooks/ci              # SIMULATED CI only
+GET      /api/v1/webhooks/events
+GET      /api/v1/webhooks/events/{event_id}
+POST     /api/v1/scans/{scan_id}/evidence
+GET      /api/v1/scans/{scan_id}/evidence
+GET      /api/v1/artifacts/{artifact_id}
+```
+
+Run it (from `backend/`):
+
+```powershell
+.\.venv\Scripts\uvicorn.exe app.main:app --reload     # serve
+.\.venv\Scripts\python.exe -m pytest tests\ -q        # test
+```
+
+See `docs/week1_integration_audit.md` for the Week 1 audit report. The CI
+webhook is a **simulation** — there is no real GitHub Actions/Jenkins
+integration, and no VLM provider has been selected yet.
+
+---
+
 ## 🏗️ System Architecture
 
 OmniSight follows a modular architecture with stable JSON/API contracts between components.
