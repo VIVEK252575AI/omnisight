@@ -10,10 +10,7 @@ from __future__ import annotations
 
 from app.ai.contracts import (
     AnalysisOutcome,
-    PatchGenerationRequest,
-    PatchProposal,
-    PatchProposalOutcome,
-    VisualAnalysisRequest,
+    VisionRequest,
     VisualAnalysisResult,
 )
 from app.ai.errors import AiError, AiErrorCode
@@ -29,7 +26,7 @@ def measurement_ref(name: str) -> str:
     return f"measurement:{name}"
 
 
-def allowed_evidence_refs(request: VisualAnalysisRequest) -> set[str]:
+def allowed_evidence_refs(request: VisionRequest) -> set[str]:
     """The set of evidence refs a result is permitted to cite for this request."""
     refs = {screenshot_ref(shot.artifact_id) for shot in request.screenshots}
     refs.update(measurement_ref(m.name) for m in request.measurements)
@@ -46,7 +43,7 @@ def _evidence_error(message: str, *, details: list[dict] | None = None) -> AiErr
 
 def validate_visual_analysis(
     result: VisualAnalysisResult,
-    request: VisualAnalysisRequest,
+    request: VisionRequest,
 ) -> None:
     """Raise :class:`AiError` if ``result`` is inconsistent with ``request``."""
     allowed = allowed_evidence_refs(request)
@@ -95,47 +92,4 @@ def validate_visual_analysis(
             raise _evidence_error(
                 f"finding '{finding.temporary_key}' cites unknown evidence refs",
                 details=[{"unknown_refs": sorted(unknown)}],
-            )
-
-
-def validate_patch_proposal(
-    proposal: PatchProposal,
-    request: PatchGenerationRequest,
-) -> None:
-    """Raise :class:`AiError` if ``proposal`` violates its request constraints."""
-    constraints = request.constraints
-
-    if proposal.proposal_outcome is not PatchProposalOutcome.patch_proposed:
-        return
-
-    if proposal.base_revision != request.base_revision:
-        raise _evidence_error(
-            "proposal base_revision does not match the requested base revision"
-        )
-    if not proposal.unified_diff or not proposal.unified_diff.strip():
-        raise _evidence_error("'patch_proposed' outcome requires a unified_diff")
-    if not proposal.changed_paths:
-        raise _evidence_error("'patch_proposed' outcome requires changed_paths")
-
-    provided_paths = {f.path for f in request.relevant_files}
-    unknown = set(proposal.changed_paths) - provided_paths
-    if unknown:
-        raise _evidence_error(
-            "proposal references files that were not provided",
-            details=[{"unknown_paths": sorted(unknown)}],
-        )
-    if len(proposal.changed_paths) > constraints.max_files:
-        raise _evidence_error(
-            f"proposal changes {len(proposal.changed_paths)} files, over the "
-            f"{constraints.max_files} allowed"
-        )
-    if len(proposal.unified_diff.encode("utf-8")) > constraints.max_bytes:
-        raise _evidence_error("proposal diff exceeds the configured size limit")
-
-    allowed_ext = {ext.lower() for ext in constraints.allowed_extensions}
-    for path in proposal.changed_paths:
-        lowered = path.lower()
-        if not any(lowered.endswith(ext) for ext in allowed_ext):
-            raise _evidence_error(
-                f"changed path '{path}' has a disallowed extension"
             )

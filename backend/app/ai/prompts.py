@@ -12,7 +12,6 @@ from pathlib import Path
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 VISUAL_ANALYSIS_PROMPT_VERSION = "visual-analysis-v1"
-PATCH_GENERATION_PROMPT_VERSION = "patch-generation-v1"
 STRUCTURED_OUTPUT_REPAIR_PROMPT_VERSION = "structured-output-repair-v1"
 
 
