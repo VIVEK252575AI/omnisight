@@ -148,7 +148,7 @@ async function runPipeline(scan) {
       scan.stage = i; refresh(scan);
       await callStage(STAGES[i], scan);
     }
-    scan.stage = STAGES.length; scan.status = 'completed'; recordScan(scan);
+    scan.stage = STAGES.length; scan.status = 'completed'; recordScan(scan); burst();
     toast('Scan complete: ' + scan.findings.length + ' findings verified');
   } catch (e) {
     scan.status = 'failed'; scan.error = e.message; recordScan(scan);
@@ -178,6 +178,16 @@ function downloadReport() {
 }
 function copyPatch() {
   (navigator.clipboard ? navigator.clipboard.writeText(PATCH) : Promise.reject()).then(() => toast('Patch copied'), () => toast('Copy failed. Select the diff and copy it manually.'));
+}
+
+function burst() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cols = ['#8b5cf6', '#a78bfa', '#c4b5fd', '#10b981', '#f59e0b'];
+  for (let i = 0; i < 28; i++) {
+    const e = document.createElement('i'); e.className = 'confetti';
+    e.style.cssText = `left:${42 + Math.random() * 16}%;background:${cols[i % 5]};--dx:${((Math.random() - .5) * 640).toFixed(0)}px;--dy:${(-180 - Math.random() * 320).toFixed(0)}px;--r:${(Math.random() * 720).toFixed(0)}deg`;
+    document.body.appendChild(e); setTimeout(() => e.remove(), 1600);
+  }
 }
 
 function toggleDeep(btn) {
@@ -280,6 +290,7 @@ function renderLanding() {
     <div class="ai-orb-wrap"><div class="ai-orb"></div></div>
     <div class="landing-greeting">Hello, Developer</div>
     <h1 class="landing-heading">What should we inspect today?</h1>
+    <div class="stat-row"><span><i></i>A vision model finds defects</span><span><i></i>A language model writes fixes</span><span><i></i>You review the PR</span></div>
 
     <div class="scan-composer">
       <input type="text" id="target-url-input" onkeydown="if(event.key==='Enter')startScan(this.value)" class="scan-composer__input" aria-label="Website URL" placeholder="Enter website URL to inspect... (e.g. https://shoplite.local)" value="https://shoplite.local" />
@@ -321,7 +332,7 @@ function renderLanding() {
 const kindTag = k => k ? `<span class="tag tag--${k}">${k.toUpperCase()}</span>` : `<span class="tag tag--box">SANDBOX</span>`;
 
 function renderPipeline(s) {
-  return `<div class="pipeline-card">` + STAGES.map((st, i) => {
+  return `<div class="pipeline-card" style="--p:${Math.min(100, Math.round((s.stage + (s.status === 'running' ? .5 : 0)) / STAGES.length * 100))}%">` + STAGES.map((st, i) => {
     const cls = s.status === 'failed' && i === s.stage ? 'failed' : i < s.stage ? 'completed' : i === s.stage ? 'running' : '';
     const badge = cls === 'completed' ? '✓' : cls === 'failed' ? '!' : i + 1;
     return (i ? '<div class="pipe-divider"></div>' : '') +
@@ -348,6 +359,17 @@ function renderTrace(s) {
   </div>`;
 }
 
+function renderScore(s) {
+  const W = { high: 20, medium: 10, low: 5 };
+  const known = !!s.trace.detect, fixed = !!s.trace.verify;
+  const before = Math.max(0, 100 - s.findings.reduce((a, f) => a + (W[f.severity] || 5), 0));
+  const val = fixed ? 100 : before, R = 34, C = +(2 * Math.PI * R).toFixed(1);
+  return `<div class="panel score-card">
+    <div class="score-ring"><svg viewBox="0 0 80 80" aria-hidden="true"><circle class="ring-bg" cx="40" cy="40" r="${R}"/>${known ? `<circle class="ring-fg" cx="40" cy="40" r="${R}" style="--c:${C};--v:${(C * (1 - val / 100)).toFixed(1)}"/>` : ''}</svg><b>${known ? val : '–'}</b></div>
+    <div><div class="model-row__name">UI health score</div><div class="panel__sub">${fixed ? 'Up from ' + before + ' once every finding is cleared' : known ? 'Before the fix. Penalty: high 20, medium 10, low 5.' : 'Waiting for the VLM'}</div></div>
+  </div>`;
+}
+
 function renderDashboard() {
   const s = Store.scan;
   const shown = s.findings.filter(f => Store.sev === 'all' || f.severity === Store.sev);
@@ -360,6 +382,7 @@ function renderDashboard() {
     ${s.error ? `<div class="error-note">${esc(s.error)}. Check the endpoints under Models, or switch to simulated mode.</div>` : ''}
     <div class="dash-split">
       <div class="dash-col">
+        ${renderScore(s)}
         <div class="panel">
           <div class="panel__head">
             <div class="panel__title">Findings (${s.findings.length})</div>
@@ -368,7 +391,7 @@ function renderDashboard() {
           <div class="panel__body">
             <div class="chips">${['all', 'high', 'medium', 'low'].map(v => `<button class="chip ${Store.sev === v ? 'chip--on' : ''}" onclick="Store.sev='${v}'; render();">${v}</button>`).join('')}</div>
             ${shown.length ? shown.map(f => `
-              <div class="finding-item ${f.id === active.id ? 'finding-item--selected' : ''}" onclick="Store.activeFindingId='${f.id}'; render();">
+              <div class="finding-item sev-${f.severity} ${f.id === active.id ? 'finding-item--selected' : ''}" onclick="Store.activeFindingId='${f.id}'; render();">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <span class="badge badge--${f.severity}">${f.severity}</span>
                   <span class="muted mono" style="font-size:11px;">${f.confidence}</span>
@@ -391,6 +414,7 @@ function renderDashboard() {
           <div class="panel__head"><div class="panel__title">${kindTag('vlm')} Visual perception</div><span class="panel__sub">${Store.deep ? '390 · 768 · 1440px' : '390px viewport'}</span></div>
           <div class="panel__body">
             <div class="vis-frame">
+              ${!s.trace.detect && s.status === 'running' ? '<div class="scan-line"></div>' : ''}
               <img src="${Shots.checkoutBefore}" alt="Screenshot of the checkout page with detected defects outlined" />
               ${done ? s.findings.map(f => `<div class="bbox ${f.id === active.id ? 'bbox--active' : ''}" style="left:${f.box[0] / 3.9}%;top:${f.box[1] / 3.2}%;width:${f.box[2] / 3.9}%;height:${f.box[3] / 3.2}%"><span>${f.id}</span></div>`).join('') : ''}
             </div>
@@ -414,9 +438,12 @@ function renderDashboard() {
         <div class="panel">
           <div class="panel__head"><div class="panel__title">${kindTag('vlm')} Before / after verification</div></div>
           <div class="panel__body">
-            ${s.trace.verify ? `<div class="ba-grid">
-              <figure><div class="bav-frame"><img src="${Shots.checkoutBefore}" alt="Before the fix" /></div><figcaption>Before</figcaption></figure>
-              <figure><div class="bav-frame"><img src="${Shots.checkoutAfter}" alt="After the fix" /></div><figcaption>After</figcaption></figure>
+            ${s.trace.verify ? `<div class="compare" style="--pos:50%">
+              <img src="${Shots.checkoutAfter}" alt="After the fix" />
+              <img class="compare__before" src="${Shots.checkoutBefore}" alt="Before the fix" />
+              <span class="compare__tag compare__tag--l">Before</span><span class="compare__tag compare__tag--r">After</span>
+              <div class="compare__handle"></div>
+              <input type="range" min="0" max="100" value="50" aria-label="Drag to compare before and after" oninput="this.parentNode.style.setProperty('--pos', this.value + '%')" />
             </div>` : `<div class="empty">The VLM compares captures once the patch passes validation.</div>`}
           </div>
         </div>
