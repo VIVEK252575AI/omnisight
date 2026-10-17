@@ -3,15 +3,14 @@
 Never touches the network or a model. Canned responses are keyed by *scenario*
 so tests and offline development can drive every outcome deterministically:
 
-- ``clipped_button``  -> a ``findings_detected`` result (viewport_clipping),
-- ``healthy_page``    -> ``no_findings_detected``,
+- ``clipped_button``  -> a ``defects_found`` result (clipped_element),
+- ``healthy_page``    -> ``no_defects``,
 - ``malformed_text``  -> non-JSON text (shape failure),
 - ``empty``           -> empty text (empty-output failure),
 - ``timeout``         -> raises :class:`VisionTimeoutError`,
 - ``provider_error``  -> raises :class:`VisionUnavailableError`.
 
-Every result is labelled ``MOCK``. Generated evidence references point at the
-screenshots actually supplied in the request, so validation stays meaningful.
+Every result is labelled ``MOCK``.
 """
 
 from __future__ import annotations
@@ -32,7 +31,6 @@ from app.ai.errors import (
     VisionTimeoutError,
     VisionUnavailableError,
 )
-from app.ai.validation import screenshot_ref
 
 MOCK_LABEL = "MOCK"
 
@@ -125,50 +123,30 @@ class MockVisionAnalyzer:
         return json.dumps(self._clipped_button_payload(request))
 
     @staticmethod
-    def _ref(request: VisionRequest) -> str:
-        if request.screenshots:
-            return screenshot_ref(request.screenshots[0].artifact_id)
-        return "screenshot:unknown"
-
-    def _clipped_button_payload(self, request: VisionRequest) -> dict:
-        ref = self._ref(request)
+    def _clipped_button_payload(request: VisionRequest) -> dict:
         return {
-            "schema_version": "visual-analysis-result/v1",
-            "analysis_outcome": "findings_detected",
+            "schema_version": 1,
+            "outcome": "defects_found",
             "summary": "MOCK: primary button is clipped at this viewport.",
             "findings": [
                 {
-                    "temporary_key": "mock-f1",
-                    "category": "viewport_clipping",
-                    "title": "Submit button clipped",
-                    "description": "The primary button extends past the viewport.",
+                    "category": "clipped_element",
+                    "target_candidate": "#submit",
+                    "observation": "The primary button extends past the viewport.",
+                    "evidence": "button box exceeds viewport width (MOCK geometry).",
+                    "potential_causes": ["fixed pixel width"],
                     "severity": "high",
                     "confidence": 0.9,
-                    "confidence_label": "high",
-                    "observed_facts": [
-                        {
-                            "statement": "button box exceeds viewport width",
-                            "evidence_refs": [ref],
-                        }
-                    ],
-                    "interpretation": "Likely a fixed pixel width.",
-                    "evidence_refs": [ref],
-                    "affected_element_refs": ["#submit"],
-                    "expected_behavior_source": None,
-                    "limitations": ["MOCK output — not real model inference"],
+                    "region": {"x": 10.0, "y": 20.0, "width": 220.0, "height": 48.0},
                 }
             ],
-            "limitations": ["MOCK output — not real model inference"],
-            "additional_evidence_needed": [],
         }
 
     @staticmethod
     def _healthy_payload() -> dict:
         return {
-            "schema_version": "visual-analysis-result/v1",
-            "analysis_outcome": "no_findings_detected",
+            "schema_version": 1,
+            "outcome": "no_defects",
             "summary": "MOCK: no visual defects detected.",
             "findings": [],
-            "limitations": ["MOCK output — not real model inference"],
-            "additional_evidence_needed": [],
         }

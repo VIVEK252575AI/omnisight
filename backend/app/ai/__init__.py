@@ -6,7 +6,8 @@ Public surface:
 - :func:`~app.ai.adapters.factory.create_vision_analyzer` — config-selected impl.
 - :class:`~app.ai.adapters.mock.MockVisionAnalyzer` — labelled ``MOCK`` impl.
 - :class:`~app.ai.gateway.AiGateway` — parse + validate raw output.
-- :class:`~app.ai.contracts.VisionRequest` / ``RawVisionResult`` — boundary models.
+- :func:`~app.ai.parsing.parse_vlm_output` — the structured-finding parser.
+- :class:`~app.ai.contracts.VisionRequest` / ``RawVisionResult`` / ``VlmResponse``.
 - :class:`~app.ai.errors.AiError` and typed ``Vision*`` errors.
 
 Model output is always treated as untrusted text and parsed into the validated
@@ -19,7 +20,14 @@ from app.ai.adapters import (
     VisionAnalyzer,
     create_vision_analyzer,
 )
+from app.ai.contracts import (
+    Finding,
+    FindingCategory,
+    VlmOutcome,
+    VlmResponse,
+)
 from app.ai.errors import AiError, AiErrorCode
+from app.ai.parsing import ParseReason, ParseResult, parse_vlm_output
 
 __all__ = [
     "AiError",
@@ -28,4 +36,11 @@ __all__ = [
     "MockVisionAnalyzer",
     "TeammateVisionAnalyzer",
     "create_vision_analyzer",
+    "Finding",
+    "FindingCategory",
+    "VlmOutcome",
+    "VlmResponse",
+    "ParseReason",
+    "ParseResult",
+    "parse_vlm_output",
 ]

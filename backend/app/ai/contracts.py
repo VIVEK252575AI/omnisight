@@ -1,18 +1,20 @@
-"""Provider-neutral VLM boundary contracts.
+"""Provider-neutral VLM boundary contracts (Week 2).
 
 These Pydantic models are the *only* shape exchanged across the vision-model
 boundary. Nothing here references a provider, SDK, endpoint, or model id.
 
-Vocabulary is the canonical LLD (``03-LLD.md``):
+The visual-finding vocabulary is the canonical Week-2 schema (W2.3):
 
-- categories -> :class:`FindingCategory` (``viewport_clipping``, ...),
+- categories -> :class:`FindingCategory` (``clipped_element``, ...),
 - severity   -> :class:`Severity` (``critical/high/medium/low/informational``),
-- confidence -> numeric ``confidence`` in ``[0, 1]`` *and/or* a
-  ``confidence_label`` (``low/medium/high``).
+- confidence -> optional numeric ``confidence`` in ``[0, 1]``.
 
 Model output crosses the boundary as :class:`RawVisionResult`: raw, untrusted
 text plus a ``provider_label`` (e.g. ``"MOCK"``). It is only ever turned into a
-:class:`VisualAnalysisResult` after schema + semantic validation.
+:class:`VlmResponse` after :func:`app.ai.parsing.parse_vlm_output` has parsed,
+schema-checked, and semantically checked it. Backend-assigned fields
+(``finding_id``, ``status``, ``target_unverified``) are *never* trusted from the
+model.
 """
 
 from __future__ import annotations
@@ -25,21 +27,18 @@ from pydantic import BaseModel, Field
 from app.ids import new_uuid
 from app.schemas import Viewport
 
-VISUAL_ANALYSIS_RESULT_SCHEMA_VERSION = "visual-analysis-result/v1"
+FINDING_SCHEMA_VERSION = 1
 
 
 class FindingCategory(str, Enum):
-    """Closed set of allowed visual-defect categories (canonical LLD)."""
+    """Closed set of allowed visual-defect categories (canonical Week-2 schema)."""
 
-    viewport_clipping = "viewport_clipping"
-    element_overlap = "element_overlap"
-    unexpected_hidden_control = "unexpected_hidden_control"
-    overflow_or_truncation = "overflow_or_truncation"
-    responsive_misalignment = "responsive_misalignment"
-    readability_or_contrast = "readability_or_contrast"
-    unexpected_layout_shift = "unexpected_layout_shift"
-    content_misalignment = "content_misalignment"
-    other_visual_issue = "other_visual_issue"
+    clipped_element = "clipped_element"
+    overlapping_elements = "overlapping_elements"
+    low_contrast_text = "low_contrast_text"
+    responsive_layout_failure = "responsive_layout_failure"
+    hidden_or_unreachable_element = "hidden_or_unreachable_element"
+    needs_inspection = "needs_inspection"
 
 
 class Severity(str, Enum):
@@ -52,22 +51,18 @@ class Severity(str, Enum):
     informational = "informational"
 
 
-class ConfidenceLabel(str, Enum):
-    """Human-readable confidence bucket (canonical LLD)."""
-
-    low = "low"
-    medium = "medium"
-    high = "high"
-
-
-class AnalysisOutcome(str, Enum):
+class VlmOutcome(str, Enum):
     """What the visual-analysis call concluded (never implies a fix)."""
 
-    findings_detected = "findings_detected"
-    no_findings_detected = "no_findings_detected"
-    inconclusive = "inconclusive"
-    insufficient_evidence = "insufficient_evidence"
-    refused = "refused"
+    defects_found = "defects_found"
+    no_defects = "no_defects"
+    needs_inspection = "needs_inspection"
+
+
+class FindingStatus(str, Enum):
+    """Lifecycle status of a finding (backend-assigned)."""
+
+    detected = "detected"
 
 
 # ---------------------------------------------------------------------------
@@ -110,33 +105,53 @@ class PageContext(BaseModel):
     browser: str | None = Field(default=None, max_length=100)
 
 
-class ObservedFact(BaseModel):
-    """A factual observation, backed by evidence references."""
+class SourceRegion(BaseModel):
+    """A bounding box in source-image coordinates (x, y, width, height)."""
 
     model_config = {"extra": "forbid"}
 
-    statement: str = Field(min_length=1, max_length=2000)
-    evidence_refs: list[str] = Field(default_factory=list, max_length=50)
+    x: float
+    y: float
+    width: float = Field(ge=0.0)
+    height: float = Field(ge=0.0)
 
 
-class FindingCandidate(BaseModel):
-    """A single candidate defect; observation and interpretation are separated."""
+# ---------------------------------------------------------------------------
+# Finding record (canonical Week-2 schema)
+# ---------------------------------------------------------------------------
+
+
+class Finding(BaseModel):
+    """A single visual finding (backend-validated record).
+
+    ``finding_id``, ``target_unverified`` and ``status`` are assigned by the
+    backend during parsing; a model can never set them.
+    """
 
     model_config = {"extra": "forbid"}
 
-    temporary_key: str = Field(min_length=1, max_length=100)
+    finding_id: str = Field(default_factory=lambda: str(new_uuid()))
     category: FindingCategory
-    title: str = Field(min_length=1, max_length=200)
-    description: str = Field(min_length=1, max_length=4000)
-    severity: Severity
+    target_candidate: str | None = Field(default=None, max_length=500)
+    target_unverified: bool = False
+    observation: str = Field(min_length=1, max_length=2000)
+    evidence: str = Field(default="", max_length=2000)
+    potential_causes: list[str] = Field(default_factory=list, max_length=50)
+    severity: Severity | None = None
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
-    confidence_label: ConfidenceLabel | None = None
-    observed_facts: list[ObservedFact] = Field(min_length=1, max_length=50)
-    interpretation: str | None = Field(default=None, max_length=4000)
-    evidence_refs: list[str] = Field(min_length=1, max_length=50)
-    affected_element_refs: list[str] = Field(default_factory=list, max_length=100)
-    expected_behavior_source: str | None = Field(default=None, max_length=500)
-    limitations: list[str] = Field(default_factory=list, max_length=50)
+    region: SourceRegion | None = None
+    status: FindingStatus = FindingStatus.detected
+
+
+class VlmResponse(BaseModel):
+    """Validated visual-analysis output (never raw model text)."""
+
+    model_config = {"extra": "forbid"}
+
+    schema_version: int = FINDING_SCHEMA_VERSION
+    outcome: VlmOutcome
+    findings: list[Finding] = Field(default_factory=list, max_length=200)
+    summary: str = Field(default="", max_length=4000)
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +167,7 @@ class VisionRequest(BaseModel):
     request_id: str = Field(default_factory=lambda: str(new_uuid()))
     run_id: str | None = Field(default=None, max_length=200)
     prompt_version: str = Field(min_length=1, max_length=100)
-    schema_version: str = VISUAL_ANALYSIS_RESULT_SCHEMA_VERSION
+    schema_version: int = FINDING_SCHEMA_VERSION
     page_context: PageContext
     screenshots: list[ScreenEvidenceRef] = Field(default_factory=list, max_length=20)
     measurements: list[DeterministicMeasurement] = Field(
@@ -161,19 +176,6 @@ class VisionRequest(BaseModel):
     expected_behavior: str | None = Field(default=None, max_length=4000)
     allowed_categories: list[FindingCategory] = Field(min_length=1)
     max_findings: int = Field(default=20, ge=1, le=200)
-
-
-class VisualAnalysisResult(BaseModel):
-    """Validated visual-analysis output (never raw model text)."""
-
-    model_config = {"extra": "forbid"}
-
-    schema_version: str = VISUAL_ANALYSIS_RESULT_SCHEMA_VERSION
-    analysis_outcome: AnalysisOutcome
-    summary: str = Field(min_length=1, max_length=4000)
-    findings: list[FindingCandidate] = Field(default_factory=list, max_length=200)
-    limitations: list[str] = Field(default_factory=list, max_length=50)
-    additional_evidence_needed: list[str] = Field(default_factory=list, max_length=50)
 
 
 class RawVisionResult(BaseModel):
@@ -202,7 +204,7 @@ class ModelCallMetadata(BaseModel):
     provider_label: str
     model_label: str | None = None
     prompt_version: str
-    schema_version: str
+    schema_version: int
     attempts: int = Field(ge=1)
     duration_ms: float = Field(ge=0.0)
     finish_reason: str | None = None

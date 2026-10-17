@@ -33,6 +33,7 @@ from app.ai.errors import (
     VisionTimeoutError,
     VisionUnavailableError,
 )
+from app.ai.prompts import VISUAL_ANALYSIS_PROMPT_VERSION
 from app.config import Settings
 from app.schemas import Viewport
 
@@ -41,12 +42,12 @@ ARTIFACT_ID = UUID("11111111-1111-1111-1111-111111111111")
 
 def make_request(artifact_id: UUID = ARTIFACT_ID) -> VisionRequest:
     return VisionRequest(
-        prompt_version="visual-analysis-v1",
+        prompt_version=VISUAL_ANALYSIS_PROMPT_VERSION,
         page_context=PageContext(route="/checkout", viewport=Viewport(width=390, height=844)),
         screenshots=[ScreenEvidenceRef(artifact_id=artifact_id, label="dominant")],
         allowed_categories=[
-            FindingCategory.viewport_clipping,
-            FindingCategory.other_visual_issue,
+            FindingCategory.clipped_element,
+            FindingCategory.needs_inspection,
         ],
         max_findings=5,
     )
@@ -104,14 +105,14 @@ def test_mock_clipped_button_scenario():
     assert isinstance(raw, RawVisionResult)
     assert raw.provider_label == "MOCK"
     payload = json.loads(raw.text)
-    assert payload["analysis_outcome"] == "findings_detected"
-    assert payload["findings"][0]["category"] == "viewport_clipping"
+    assert payload["outcome"] == "defects_found"
+    assert payload["findings"][0]["category"] == "clipped_element"
 
 
 def test_mock_healthy_page_scenario():
     raw = MockVisionAnalyzer("healthy_page").analyze(make_request())
     payload = json.loads(raw.text)
-    assert payload["analysis_outcome"] == "no_findings_detected"
+    assert payload["outcome"] == "no_defects"
     assert payload["findings"] == []
 
 
@@ -155,7 +156,7 @@ def test_mock_scenario_sequence_advances():
     second = analyzer.analyze(make_request())
     with pytest.raises(json.JSONDecodeError):
         json.loads(first.text)
-    assert json.loads(second.text)["analysis_outcome"] == "findings_detected"
+    assert json.loads(second.text)["outcome"] == "defects_found"
 
 
 # ---------------------------------------------------------------------------
@@ -195,12 +196,12 @@ def test_teammate_wrapper_delegates_and_labels():
 
     def fake_call(request: VisionRequest, image_paths: list[Path]) -> str:
         calls.append((request.request_id, len(image_paths)))
-        return json.dumps({"analysis_outcome": "no_findings_detected"})
+        return json.dumps({"outcome": "no_defects", "findings": [], "summary": ""})
 
     analyzer = TeammateVisionAnalyzer(fake_call, provider_label="TEAMMATE")
     raw = analyzer.analyze(make_request())
     assert raw.provider_label == "TEAMMATE"
-    assert json.loads(raw.text)["analysis_outcome"] == "no_findings_detected"
+    assert json.loads(raw.text)["outcome"] == "no_defects"
     assert len(calls) == 1
 
 

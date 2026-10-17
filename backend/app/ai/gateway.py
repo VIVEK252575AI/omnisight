@@ -4,9 +4,9 @@ The gateway sits on top of a :class:`VisionAnalyzer` adapter and:
 
 1. calls the adapter (which resolves images, enforces the payload budget, and
    applies the provider timeout),
-2. parses the raw text into :class:`VisualAnalysisResult`,
-3. applies semantic validation, and
-4. optionally performs ONE bounded repair re-ask on a shape failure.
+2. parses the raw text into a :class:`VlmResponse` via
+   :func:`~app.ai.parsing.parse_vlm_output` (schema + semantic checks), and
+3. optionally performs ONE bounded repair re-ask on a repairable failure.
 
 Raw model output never leaves this module: callers receive validated contract
 objects plus non-sensitive :class:`ModelCallMetadata` (including the
@@ -15,75 +15,30 @@ objects plus non-sensitive :class:`ModelCallMetadata` (including the
 
 from __future__ import annotations
 
-import json
-from typing import Callable, TypeVar
-
-from pydantic import BaseModel, ValidationError
-
 from app.ai.adapters.base import VisionAnalyzer
 from app.ai.contracts import (
     ModelCallMetadata,
     VisionRequest,
-    VisualAnalysisResult,
+    VlmResponse,
 )
 from app.ai.errors import AiError, AiErrorCode
-from app.ai.validation import validate_visual_analysis
+from app.ai.parsing import ParseReason, parse_vlm_output
 from app.config import Settings
 
-_ResultT = TypeVar("_ResultT", bound=BaseModel)
+_REASON_TO_CODE = {
+    ParseReason.empty: AiErrorCode.AI_RESPONSE_EMPTY,
+    ParseReason.not_json: AiErrorCode.AI_RESPONSE_NOT_JSON,
+    ParseReason.schema_invalid: AiErrorCode.AI_SCHEMA_VALIDATION_FAILED,
+    ParseReason.unknown_category: AiErrorCode.AI_SCHEMA_VALIDATION_FAILED,
+    ParseReason.contradictory: AiErrorCode.AI_EVIDENCE_VALIDATION_FAILED,
+}
 
 
-def _extract_json(text: str) -> dict:
-    """Parse model text into a JSON object, tolerating ``` fences."""
-    if text is None or not text.strip():
-        raise AiError(AiErrorCode.AI_RESPONSE_EMPTY, "provider returned empty output")
-
-    candidate = text.strip()
-    if candidate.startswith("```"):
-        candidate = candidate[3:]
-        newline = candidate.find("\n")
-        if newline != -1:
-            candidate = candidate[newline + 1 :]
-        candidate = candidate.rstrip("`").strip()
-
-    try:
-        data = json.loads(candidate)
-    except json.JSONDecodeError:
-        start, end = candidate.find("{"), candidate.rfind("}")
-        if start == -1 or end <= start:
-            raise AiError(
-                AiErrorCode.AI_RESPONSE_NOT_JSON,
-                "provider output is not valid JSON",
-            ) from None
-        try:
-            data = json.loads(candidate[start : end + 1])
-        except json.JSONDecodeError:
-            raise AiError(
-                AiErrorCode.AI_RESPONSE_NOT_JSON,
-                "provider output is not valid JSON",
-            ) from None
-
-    if not isinstance(data, dict):
-        raise AiError(
-            AiErrorCode.AI_RESPONSE_NOT_JSON,
-            "provider JSON output must be an object",
-        )
-    return data
-
-
-def _schema_error(exc: ValidationError) -> AiError:
-    details = [
-        {
-            "field": ".".join(str(part) for part in err.get("loc", [])),
-            "message": err.get("msg", ""),
-            "type": err.get("type", ""),
-        }
-        for err in exc.errors()
-    ]
+def _parse_error(reason: ParseReason, message: str | None) -> AiError:
     return AiError(
-        AiErrorCode.AI_SCHEMA_VALIDATION_FAILED,
-        "provider output failed schema validation",
-        details=details,
+        _REASON_TO_CODE[reason],
+        message or f"model output rejected: {reason.value}",
+        details=[{"reason": reason.value}],
     )
 
 
@@ -95,22 +50,16 @@ class AiGateway:
         self._analyzer = analyzer
 
     def analyze_visual(
-        self, request: VisionRequest
-    ) -> tuple[VisualAnalysisResult, ModelCallMetadata]:
-        """Run a validated visual-analysis call."""
-        return self._run(
-            request=request,
-            result_model=VisualAnalysisResult,
-            validate=lambda result: validate_visual_analysis(result, request),
-        )
-
-    def _run(
         self,
-        *,
         request: VisionRequest,
-        result_model: type[_ResultT],
-        validate: Callable[[_ResultT], None],
-    ) -> tuple[_ResultT, ModelCallMetadata]:
+        *,
+        candidates: list[str] | None = None,
+    ) -> tuple[VlmResponse, ModelCallMetadata]:
+        """Run a validated visual-analysis call.
+
+        ``candidates`` is the list of DOM candidate selectors/ids supplied to
+        the model; a finding targeting anything else is flagged unverified.
+        """
         max_attempts = 1 + max(0, self._settings.ai_max_repair_attempts)
         total_ms = 0.0
         warnings: list[str] = []
@@ -121,34 +70,30 @@ class AiGateway:
             raw = self._analyzer.analyze(request, repair=is_repair)
             total_ms += raw.duration_ms
 
-            try:
-                parsed = result_model.model_validate(_extract_json(raw.text))
-                validate(parsed)
-            except (AiError, ValidationError) as exc:
-                last_error = (
-                    _schema_error(exc) if isinstance(exc, ValidationError) else exc
+            parsed = parse_vlm_output(raw.text, candidates)
+            if parsed.ok:
+                if is_repair:
+                    warnings.append(f"repaired after {attempt - 1} failed attempt(s)")
+                return parsed.response, ModelCallMetadata(
+                    request_id=request.request_id,
+                    provider_label=raw.provider_label,
+                    model_label=raw.model_label,
+                    prompt_version=request.prompt_version,
+                    schema_version=request.schema_version,
+                    attempts=attempt,
+                    duration_ms=total_ms,
+                    finish_reason=raw.finish_reason,
+                    is_mock=self._analyzer.is_mock,
+                    warnings=warnings,
                 )
-                if last_error.repairable and attempt < max_attempts:
-                    warnings.append(
-                        f"repair attempt {attempt} after {last_error.code.value}"
-                    )
-                    continue
-                raise last_error
 
-            if is_repair:
-                warnings.append(f"repaired after {attempt - 1} failed attempt(s)")
-            return parsed, ModelCallMetadata(
-                request_id=request.request_id,
-                provider_label=raw.provider_label,
-                model_label=raw.model_label,
-                prompt_version=request.prompt_version,
-                schema_version=request.schema_version,
-                attempts=attempt,
-                duration_ms=total_ms,
-                finish_reason=raw.finish_reason,
-                is_mock=self._analyzer.is_mock,
-                warnings=warnings,
-            )
+            last_error = _parse_error(parsed.reason, parsed.message)
+            if last_error.repairable and attempt < max_attempts:
+                warnings.append(
+                    f"repair attempt {attempt} after {last_error.code.value}"
+                )
+                continue
+            raise last_error
 
         raise last_error or AiError(
             AiErrorCode.AI_PROVIDER_UNAVAILABLE, "no attempts were made"

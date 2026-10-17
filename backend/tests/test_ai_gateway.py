@@ -1,4 +1,4 @@
-"""Unit tests for the AI Gateway validation layer (Week 2).
+"""Unit tests for the AI Gateway validation layer (Week 2, W2.3 schema).
 
 The gateway sits on top of a ``VisionAnalyzer``; these tests use the offline
 MOCK adapter or small injected callables. No network, no model SDK.
@@ -7,21 +7,19 @@ MOCK adapter or small injected callables. No network, no model SDK.
 from __future__ import annotations
 
 import json
-from uuid import UUID
 
 import pytest
 
 from app.ai.adapters import MockVisionAnalyzer, TeammateVisionAnalyzer
 from app.ai.contracts import (
-    AnalysisOutcome,
     FindingCategory,
     Severity,
-    VisualAnalysisResult,
+    VlmOutcome,
 )
 from app.ai.errors import AiError, AiErrorCode
 from app.ai.gateway import AiGateway
 from app.config import Settings
-from tests.test_vlm_adapter import ARTIFACT_ID, make_request
+from tests.test_vlm_adapter import make_request
 
 
 def gateway_with(analyzer, *, max_repair_attempts: int = 0) -> AiGateway:
@@ -29,22 +27,44 @@ def gateway_with(analyzer, *, max_repair_attempts: int = 0) -> AiGateway:
     return AiGateway(settings, analyzer)
 
 
+def finding_payload(**overrides) -> dict:
+    base = {
+        "category": "clipped_element",
+        "target_candidate": "#submit",
+        "observation": "button extends past the viewport",
+        "evidence": "geometry: x=380 w=220",
+        "potential_causes": ["fixed pixel width"],
+        "severity": "high",
+        "confidence": 0.8,
+    }
+    base.update(overrides)
+    return base
+
+
+def response_payload(outcome="defects_found", findings=None, **overrides) -> dict:
+    payload = {
+        "schema_version": 1,
+        "outcome": outcome,
+        "summary": "mock summary",
+        "findings": [finding_payload()] if findings is None else findings,
+    }
+    payload.update(overrides)
+    return payload
+
+
 # ---------------------------------------------------------------------------
 # Contracts
 # ---------------------------------------------------------------------------
 
 
-def test_canonical_category_vocabulary_is_lld():
+def test_canonical_category_vocabulary_is_w2_3():
     assert {c.value for c in FindingCategory} == {
-        "viewport_clipping",
-        "element_overlap",
-        "unexpected_hidden_control",
-        "overflow_or_truncation",
-        "responsive_misalignment",
-        "readability_or_contrast",
-        "unexpected_layout_shift",
-        "content_misalignment",
-        "other_visual_issue",
+        "clipped_element",
+        "overlapping_elements",
+        "low_contrast_text",
+        "responsive_layout_failure",
+        "hidden_or_unreachable_element",
+        "needs_inspection",
     }
 
 
@@ -58,26 +78,12 @@ def test_severity_vocabulary():
     }
 
 
-def test_unknown_category_is_rejected():
-    payload = {
-        "schema_version": "visual-analysis-result/v1",
-        "analysis_outcome": "findings_detected",
-        "summary": "x",
-        "findings": [
-            {
-                "temporary_key": "f1",
-                "category": "layout_overflow",  # 06-AI-PIPELINE name, not canonical
-                "title": "t",
-                "description": "d",
-                "severity": "high",
-                "confidence": 0.5,
-                "observed_facts": [{"statement": "s", "evidence_refs": []}],
-                "evidence_refs": ["screenshot:x"],
-            }
-        ],
+def test_outcome_vocabulary():
+    assert {o.value for o in VlmOutcome} == {
+        "defects_found",
+        "no_defects",
+        "needs_inspection",
     }
-    with pytest.raises(Exception):
-        VisualAnalysisResult.model_validate(payload)
 
 
 # ---------------------------------------------------------------------------
@@ -87,46 +93,36 @@ def test_unknown_category_is_rejected():
 
 def test_gateway_parses_valid_mock_response():
     gateway = gateway_with(MockVisionAnalyzer("clipped_button"))
-    result, meta = gateway.analyze_visual(make_request())
-    assert result.analysis_outcome is AnalysisOutcome.findings_detected
-    assert result.findings[0].category is FindingCategory.viewport_clipping
+    result, meta = gateway.analyze_visual(make_request(), candidates=["#submit"])
+    assert result.outcome is VlmOutcome.defects_found
+    assert result.findings[0].category is FindingCategory.clipped_element
+    assert result.findings[0].target_unverified is False
     assert meta.provider_label == "MOCK"
     assert meta.is_mock is True
     assert meta.attempts == 1
 
 
-def test_gateway_propagates_mock_label_onto_metadata():
+def test_gateway_healthy_page_is_no_defects():
     gateway = gateway_with(MockVisionAnalyzer("healthy_page"))
     result, meta = gateway.analyze_visual(make_request())
     assert meta.is_mock is True
     assert meta.provider_label == "MOCK"
-    assert result.analysis_outcome is AnalysisOutcome.no_findings_detected
+    assert result.outcome is VlmOutcome.no_defects
+    assert result.findings == []
+
+
+def test_gateway_flags_unverified_target_when_not_a_candidate():
+    gateway = gateway_with(MockVisionAnalyzer("clipped_button"))
+    result, _ = gateway.analyze_visual(make_request(), candidates=["#other"])
+    assert result.findings[0].target_unverified is True
 
 
 def test_gateway_tolerates_code_fenced_json():
-    ref = f"screenshot:{ARTIFACT_ID}"
-    payload = {
-        "schema_version": "visual-analysis-result/v1",
-        "analysis_outcome": "findings_detected",
-        "summary": "one",
-        "findings": [
-            {
-                "temporary_key": "f1",
-                "category": "viewport_clipping",
-                "title": "t",
-                "description": "d",
-                "severity": "high",
-                "confidence": 0.8,
-                "observed_facts": [{"statement": "s", "evidence_refs": [ref]}],
-                "evidence_refs": [ref],
-            }
-        ],
-    }
-    fenced = "```json\n" + json.dumps(payload) + "\n```"
+    fenced = "```json\n" + json.dumps(response_payload()) + "\n```"
     analyzer = TeammateVisionAnalyzer(lambda req, imgs: fenced)
     gateway = gateway_with(analyzer)
     result, _ = gateway.analyze_visual(make_request())
-    assert result.findings[0].temporary_key == "f1"
+    assert result.findings[0].target_candidate == "#submit"
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +137,7 @@ def test_gateway_repairs_malformed_then_valid():
     assert meta.attempts == 2
     assert any("repair" in w for w in meta.warnings)
     assert len(analyzer.calls) == 2
+    assert result.outcome is VlmOutcome.defects_found
 
 
 def test_gateway_no_repair_when_disabled():
@@ -158,66 +155,31 @@ def test_gateway_empty_output_raises():
 
 
 def test_gateway_schema_failure_raises():
-    payload = {
-        "schema_version": "visual-analysis-result/v1",
-        "analysis_outcome": "no_findings_detected",
-        "summary": "ok",
-        # missing required key by dropping nothing valid -> use bad enum instead
-        "findings": [{"temporary_key": "f1"}],
-    }
-    analyzer = TeammateVisionAnalyzer(lambda req, imgs: json.dumps(payload))
+    analyzer = TeammateVisionAnalyzer(
+        lambda req, imgs: json.dumps(response_payload(findings=[{}]))
+    )
     gateway = gateway_with(analyzer, max_repair_attempts=0)
     with pytest.raises(AiError) as exc:
         gateway.analyze_visual(make_request())
     assert exc.value.code is AiErrorCode.AI_SCHEMA_VALIDATION_FAILED
 
 
-def test_gateway_rejects_unknown_evidence_ref():
-    ref = {"statement": "s", "evidence_refs": ["screenshot:does-not-exist"]}
-    payload = {
-        "schema_version": "visual-analysis-result/v1",
-        "analysis_outcome": "findings_detected",
-        "summary": "x",
-        "findings": [
-            {
-                "temporary_key": "f1",
-                "category": "viewport_clipping",
-                "title": "t",
-                "description": "d",
-                "severity": "high",
-                "confidence": 0.5,
-                "observed_facts": [ref],
-                "evidence_refs": ["screenshot:does-not-exist"],
-            }
-        ],
-    }
-    analyzer = TeammateVisionAnalyzer(lambda req, imgs: json.dumps(payload))
+def test_gateway_unknown_category_raises():
+    analyzer = TeammateVisionAnalyzer(
+        lambda req, imgs: json.dumps(
+            response_payload(findings=[finding_payload(category="layout_overflow")])
+        )
+    )
     gateway = gateway_with(analyzer, max_repair_attempts=0)
     with pytest.raises(AiError) as exc:
         gateway.analyze_visual(make_request())
-    assert exc.value.code is AiErrorCode.AI_EVIDENCE_VALIDATION_FAILED
+    assert exc.value.code is AiErrorCode.AI_SCHEMA_VALIDATION_FAILED
 
 
-def test_gateway_rejects_disallowed_category():
-    ref = f"screenshot:{ARTIFACT_ID}"
-    payload = {
-        "schema_version": "visual-analysis-result/v1",
-        "analysis_outcome": "findings_detected",
-        "summary": "x",
-        "findings": [
-            {
-                "temporary_key": "f1",
-                "category": "element_overlap",  # valid enum, but not allowed here
-                "title": "t",
-                "description": "d",
-                "severity": "high",
-                "confidence": 0.5,
-                "observed_facts": [{"statement": "s", "evidence_refs": [ref]}],
-                "evidence_refs": [ref],
-            }
-        ],
-    }
-    analyzer = TeammateVisionAnalyzer(lambda req, imgs: json.dumps(payload))
+def test_gateway_rejects_contradictory_outcome():
+    analyzer = TeammateVisionAnalyzer(
+        lambda req, imgs: json.dumps(response_payload(outcome="no_defects"))
+    )
     gateway = gateway_with(analyzer, max_repair_attempts=0)
     with pytest.raises(AiError) as exc:
         gateway.analyze_visual(make_request())
