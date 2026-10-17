@@ -69,6 +69,26 @@ class Settings(BaseSettings):
     enable_patch_engine: bool = False
     enable_github_delivery: bool = False
 
+    # AI Gateway (Week 2) — provider-neutral model boundary.
+    # `ai_mode` is "disabled" | "fake" | "live". Only "fake" (deterministic
+    # offline adapter) and "disabled" are meaningful today; "live" requires a
+    # real provider adapter that does not ship yet. No provider/model is
+    # hardcoded: names come from these settings.
+    ai_mode: str = "disabled"
+    ai_visual_provider: str = "none"
+    ai_visual_model: str = "none"
+    ai_patch_provider: str = "none"
+    ai_patch_model: str = "none"
+    ai_provider_timeout_seconds: float = 45.0
+    ai_max_repair_attempts: int = 1
+    ai_max_output_tokens: int = 4096
+    ai_max_findings: int = 20
+    ai_max_screenshots_per_analysis: int = 6
+    ai_max_concurrent_calls: int = 2
+    # Whether raw provider output may ever be persisted. Off by default;
+    # raw output is untrusted and must not be stored or logged.
+    ai_allow_raw_output_storage: bool = False
+
     # Local directories (configurable; created on demand by later modules).
     artifacts_dir: Path = Path("artifacts")
     data_dir: Path = Path("data")
