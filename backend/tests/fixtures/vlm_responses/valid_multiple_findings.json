@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "outcome": "defects_found",
+  "summary": "FIXTURE: two independent defects.",
+  "findings": [
+    {
+      "category": "clipped_element",
+      "target_candidate": "#submit",
+      "observation": "The primary button extends past the right viewport edge.",
+      "evidence": "geometry: button.x=380 width=220 viewport.width=390",
+      "potential_causes": ["fixed pixel width"],
+      "severity": "high",
+      "confidence": 0.9
+    },
+    {
+      "category": "low_contrast_text",
+      "target_candidate": ".cart-total",
+      "observation": "Cart total text has very low contrast against its background.",
+      "evidence": "computed color #cccccc on #ffffff background",
+      "potential_causes": ["muted colour token used for body text"],
+      "severity": "medium",
+      "confidence": 0.7
+    }
+  ]
+}

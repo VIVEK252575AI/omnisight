@@ -6,8 +6,8 @@ budget — and that everything else is recorded as ``rejected`` with a reason
 code, never silently dropped and never reported as success.
 
 ``JsonPatchExtractor`` below is an explicitly-labelled TEST DOUBLE standing in
-for the W2.6 extractor; the production default is ``StubPatchExtractor``, which
-rejects everything with ``extractor_not_implemented``.
+for a generator-output parser; the production default is the real
+``SourcePatchExtractor`` (see ``tests/test_patch_extraction.py``).
 """
 
 from __future__ import annotations
@@ -20,11 +20,11 @@ from uuid import uuid4
 
 import pytest
 
-from app.action_engine import ExtractResult, StubPatchExtractor
 from app.ai.adapters.patch import MockPatchGenerator
 from app.ai.contracts import Finding, FindingCategory, FindingStatus, Severity
 from app.config import Settings
 from app.detection_schemas import FindingRecord
+from app.patch_extraction import ExtractionResult, ExtractionStatus
 from app.patch_paths import normalize_relpath, path_rejection
 from app.patch_schemas import (
     PatchEdit,
@@ -73,14 +73,14 @@ class JsonPatchExtractor:
         self._mutate = mutate
         self.calls: list[str] = []
 
-    def extract(self, raw_text, *, finding, source_context) -> ExtractResult:
+    def extract(self, raw_text, *, finding, source_context) -> ExtractionResult:
         self.calls.append(raw_text)
         try:
             payload = json.loads(raw_text)
         except (TypeError, ValueError):
-            return ExtractResult(
-                ok=False,
-                reasons=[RejectionReason.invalid_proposal.value],
+            return ExtractionResult(
+                status=ExtractionStatus.rejected,
+                reasons=[RejectionReason.schema_invalid.value],
                 message="not JSON",
             )
         if self._mutate is not None:
@@ -88,12 +88,12 @@ class JsonPatchExtractor:
         try:
             proposal = PatchProposal(**payload)
         except Exception as exc:  # pydantic ValidationError and friends
-            return ExtractResult(
-                ok=False,
-                reasons=[RejectionReason.invalid_proposal.value],
+            return ExtractionResult(
+                status=ExtractionStatus.rejected,
+                reasons=[RejectionReason.schema_invalid.value],
                 message=type(exc).__name__,
             )
-        return ExtractResult(ok=True, proposal=proposal)
+        return ExtractionResult(status=ExtractionStatus.accepted, proposal=proposal)
 
 
 def _make_tree(root: Path, files: dict[str, str]) -> Path:
@@ -278,7 +278,7 @@ def test_path_outside_allowlist_is_rejected(tmp_path, patch_client, detection_st
 
     body = _propose(client, finding_id).json()
     assert body["status"] == "rejected"
-    assert RejectionReason.path_not_allowed.value in body["rejection_reasons"]
+    assert RejectionReason.path_not_approved.value in body["rejection_reasons"]
     assert detection_store.get_finding(finding_id).finding.status.value == "detected"
 
 
@@ -339,7 +339,7 @@ def test_disallowed_extension_is_rejected(tmp_path, patch_client, detection_stor
 
     body = _propose(client, finding_id).json()
     assert body["status"] == "rejected"
-    assert RejectionReason.extension_not_allowed.value in body["rejection_reasons"]
+    assert RejectionReason.unsupported_file_type.value in body["rejection_reasons"]
 
 
 def test_empty_allowlist_rejects_everything(tmp_path, patch_client, detection_store):
@@ -353,7 +353,7 @@ def test_empty_allowlist_rejects_everything(tmp_path, patch_client, detection_st
 
     body = _propose(client, finding_id).json()
     assert body["status"] == "rejected"
-    assert RejectionReason.path_not_allowed.value in body["rejection_reasons"]
+    assert RejectionReason.path_not_approved.value in body["rejection_reasons"]
 
 
 # ---------------------------------------------------------------------------
@@ -465,17 +465,31 @@ def test_generator_failure_is_a_clean_rejection(
     assert detection_store.get_finding(finding_id).finding.status.value == "detected"
 
 
-def test_default_extractor_stub_rejects_everything(
+def test_default_extractor_is_the_deterministic_extractor(
     tmp_path, patch_client, detection_store, patch_store
 ):
-    """Production default until W2.6: no guessing, explicit reason code."""
+    """Production default: a valid MOCK proposal against an allow-listed file is accepted."""
     root = _make_tree(tmp_path, {"styles/checkout.css": CSS_TEXT})
     client = patch_client(settings=_settings(root))
     finding_id = _seed_finding(detection_store)
 
     body = _propose(client, finding_id).json()
+    assert body["status"] == "proposed"
+    assert detection_store.get_finding(finding_id).finding.status.value == "patch_proposed"
+    assert patch_store.get_proposal(body["proposal_id"]) is not None
+
+
+def test_default_extractor_rejects_without_an_allowlist(
+    tmp_path, patch_client, detection_store, patch_store
+):
+    """With no approved paths, the default extractor rejects on the path layer."""
+    root = _make_tree(tmp_path, {"styles/checkout.css": CSS_TEXT})
+    client = patch_client(settings=_settings(root, approved_patch_paths=[]))
+    finding_id = _seed_finding(detection_store)
+
+    body = _propose(client, finding_id).json()
     assert body["status"] == "rejected"
-    assert RejectionReason.extractor_not_implemented.value in body["rejection_reasons"]
+    assert RejectionReason.path_not_approved.value in body["rejection_reasons"]
     assert detection_store.get_finding(finding_id).finding.status.value == "detected"
     assert patch_store.get_proposal(body["proposal_id"]) is None
 
@@ -493,7 +507,7 @@ def test_unparsable_generator_text_is_rejected(
 
     body = _propose(client, finding_id).json()
     assert body["status"] == "rejected"
-    assert RejectionReason.invalid_proposal.value in body["rejection_reasons"]
+    assert RejectionReason.schema_invalid.value in body["rejection_reasons"]
 
 
 def test_retry_after_rejection_succeeds(tmp_path, patch_client, detection_store):
@@ -576,8 +590,7 @@ def test_source_tree_is_byte_identical_across_a_full_propose_flow(
 
     rejected_id = _seed_finding(detection_store)
     rejecting = patch_client(
-        generator=MockPatchGenerator("timeout"),
-        extractor=StubPatchExtractor(),
+        generator=MockPatchGenerator("prose_only"),
         settings=settings,
     )
     assert _propose(rejecting, rejected_id).json()["status"] == "rejected"
@@ -619,11 +632,11 @@ def test_path_rejection_reason_codes(tmp_path):
     settings = _settings(tmp_path)
     assert path_rejection("styles/checkout.css", settings) is None
     assert (
-        path_rejection("src/app.tsx", settings) is RejectionReason.path_not_allowed
+        path_rejection("src/app.tsx", settings) is RejectionReason.path_not_approved
     )
     assert (
         path_rejection("styles/logo.png", settings)
-        is RejectionReason.extension_not_allowed
+        is RejectionReason.unsupported_file_type
     )
     assert path_rejection("package-lock.json", settings) is RejectionReason.forbidden_file
     assert path_rejection(".env", settings) is RejectionReason.forbidden_file
@@ -677,7 +690,7 @@ def test_validate_patch_proposal_reports_every_problem(tmp_path):
     mismatch = validate_patch_proposal(
         proposal, settings=settings, expected_finding_id="other"
     )
-    assert RejectionReason.invalid_proposal in mismatch
+    assert RejectionReason.schema_invalid in mismatch
 
 
 # ---------------------------------------------------------------------------

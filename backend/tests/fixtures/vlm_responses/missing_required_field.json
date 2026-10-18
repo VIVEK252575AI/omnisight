@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "outcome": "defects_found",
+  "summary": "FIXTURE: malformed output - finding missing the required observation field.",
+  "findings": [
+    { "category": "clipped_element" }
+  ]
+}

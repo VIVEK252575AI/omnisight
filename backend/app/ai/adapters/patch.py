@@ -27,16 +27,34 @@ from typing import Protocol, runtime_checkable
 
 from app.ai.contracts import Finding
 from app.config import Settings
-from app.patch_schemas import PATCH_SCHEMA_VERSION, RejectionReason
+from app.patch_schemas import PATCH_FENCE_TAG, PATCH_SCHEMA_VERSION, RejectionReason
 from app.source_context import SourceContext, SourceFile
 
 MOCK_LABEL = "MOCK"
+FENCE_TAG = PATCH_FENCE_TAG
 MOCK_PATCH_GENERATOR = "mock"
 TEAMMATE_PATCH_GENERATOR = "teammate"
 KNOWN_PATCH_GENERATORS = (MOCK_PATCH_GENERATOR, TEAMMATE_PATCH_GENERATOR)
 
-# Offline, deterministic scenarios for :class:`MockPatchGenerator`.
-SCENARIOS = ("ok", "timeout", "error", "invalid_json", "empty")
+# Offline, deterministic scenarios for :class:`MockPatchGenerator`. The extras
+# exist so the W2.6 extraction rules can be exercised without a provider:
+#   prose_with_fence    prose + exactly one `omnisight-patch` block (accepted)
+#   two_plain_fences    two untagged code blocks, no payload (no_patch_found)
+#   two_tagged_fences   two `omnisight-patch` blocks (ambiguous_multiple_patches)
+#   prose_only          no JSON at all (no_patch_found)
+#   truncated           cut-off JSON (truncated)
+SCENARIOS = (
+    "ok",
+    "timeout",
+    "error",
+    "invalid_json",
+    "empty",
+    "prose_with_fence",
+    "two_plain_fences",
+    "two_tagged_fences",
+    "prose_only",
+    "truncated",
+)
 
 _CSS_LIKE = {".css", ".scss"}
 
@@ -78,13 +96,6 @@ class PatchGenerator(Protocol):
 def _comment_for(path: str) -> str:
     suffix = "." + path.rsplit(".", 1)[-1].lower() if "." in path else ""
     return "/* OmniSight MOCK patch */" if suffix in _CSS_LIKE else "// OmniSight MOCK patch"
-
-
-def _first_code_line(text: str) -> str | None:
-    for line in text.splitlines():
-        if line.strip():
-            return line
-    return None
 
 
 def _pick_source_file(source_context: SourceContext) -> SourceFile | None:
@@ -142,9 +153,27 @@ class MockPatchGenerator:
             return ""
         if self.scenario == "invalid_json":
             return "I would try widening the button. (not JSON)"
+        if self.scenario == "prose_only":
+            return (
+                "Here is my suggestion.\n\nI recommend widening the submit "
+                "button so it is fully visible on a 390px viewport.\n"
+            )
 
-        payload = self._payload(finding, source_context)
-        return json.dumps(payload)
+        body = json.dumps(self._payload(finding, source_context))
+        if self.scenario == "prose_with_fence":
+            return (
+                "Sure — here is the patch:\n\n"
+                f"```{FENCE_TAG}\n{body}\n```\n\n"
+                "Let me know if you want more detail.\n"
+            )
+        if self.scenario == "two_plain_fences":
+            return f"First idea:\n\n```\n{body}\n```\n\nSecond idea:\n\n```\n{body}\n```\n"
+        if self.scenario == "two_tagged_fences":
+            return f"```{FENCE_TAG}\n{body}\n```\n\n```{FENCE_TAG}\n{body}\n```\n"
+        if self.scenario == "truncated":
+            # Cut the JSON mid-object so it is unbalanced and unparsable.
+            return body[: max(1, len(body) - 3)]
+        return body  # "ok"
 
     def _payload(self, finding: Finding, source_context: SourceContext) -> dict:
         base: dict = {
@@ -162,17 +191,14 @@ class MockPatchGenerator:
             return base
 
         source_file = _pick_source_file(source_context)
-        if source_file is None:
+        if source_file is None or not source_file.text.strip():
             path, old_text = self.fallback_path, "color: red;"
         else:
-            line = _first_code_line(source_file.text)
-            if line is None:
-                path, old_text = source_file.path, "color: red;"
-            else:
-                path, old_text = source_file.path, line
+            # A whole-file, balanced replacement keeps the MOCK edit valid under
+            # the W2.6 structural checks (no dangling `{`).
+            path, old_text = source_file.path, source_file.text
 
-        indent = old_text[: len(old_text) - len(old_text.lstrip())]
-        new_text = f"{old_text}\n{indent}{_comment_for(path)}"
+        new_text = f"{old_text.rstrip()}\n{_comment_for(path)}\n"
         base["files"] = [
             {"path": path, "edits": [{"old_text": old_text, "new_text": new_text}]}
         ]

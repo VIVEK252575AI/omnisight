@@ -126,6 +126,10 @@ class Settings(BaseSettings):
     max_patch_bytes: int = 4096
     patch_context_max_bytes: int = 4096
     patch_timeout_seconds: float = 30.0
+    # Cap on the raw generator/patch text handed to the extractor. Enforced
+    # BEFORE parsing so a giant response cannot pin memory or drive a
+    # pathological regex; an oversized response is rejected ``too_large``.
+    patch_max_response_bytes: int = 16384
 
     @field_validator("approved_patch_paths", mode="before")
     @classmethod

@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "outcome": "needs_inspection",
+  "summary": "FIXTURE: possible element overlap; needs a human look.",
+  "findings": []
+}

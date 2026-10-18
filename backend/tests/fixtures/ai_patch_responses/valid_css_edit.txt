@@ -1,0 +1,14 @@
+{
+  "finding_id": "__FINDING_ID__",
+  "files": [
+    {
+      "path": "styles/checkout.css",
+      "edits": [
+        { "old_text": "color: red;", "new_text": "color: blue;" }
+      ]
+    }
+  ],
+  "rationale": "FIXTURE: widen the submit button so it is fully visible.",
+  "generator_label": "MOCK",
+  "schema_version": 1
+}

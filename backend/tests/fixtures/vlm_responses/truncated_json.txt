@@ -1,0 +1,1 @@
+{"schema_version": 1, "outcome": "defects_found", "findings": [{"category": "clipped_element", "observation": "The button is clipp

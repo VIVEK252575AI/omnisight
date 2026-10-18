@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "outcome": "defects_found",
+  "summary": "FIXTURE: malformed output - observation has the wrong type.",
+  "findings": [
+    { "category": "clipped_element", "observation": 12345 }
+  ]
+}

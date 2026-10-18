@@ -54,7 +54,7 @@ def validate_patch_proposal(
     reasons: list[RejectionReason] = []
 
     if expected_finding_id is not None and proposal.finding_id != expected_finding_id:
-        reasons.append(RejectionReason.invalid_proposal)
+        reasons.append(RejectionReason.schema_invalid)
 
     if len(proposal.files) > settings.max_patch_files:
         reasons.append(RejectionReason.too_many_files)
