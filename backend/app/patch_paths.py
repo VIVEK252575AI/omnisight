@@ -180,7 +180,7 @@ def path_rejection(relpath: str, settings: Settings) -> RejectionReason | None:
 
     ``relpath`` must already be the output of :func:`normalize_relpath`.
     Checks run most-specific first so a lockfile reports ``forbidden_file``
-    rather than the vaguer ``path_not_allowed``.
+    rather than the vaguer ``path_not_approved``.
     """
     if is_forbidden_for(relpath, settings.approved_patch_paths):
         return RejectionReason.forbidden_file
@@ -188,9 +188,9 @@ def path_rejection(relpath: str, settings: Settings) -> RejectionReason | None:
     suffix = PurePosixPath(relpath).suffix.lower()
     allowed = {ext.lower() for ext in settings.patch_allowed_extensions}
     if suffix not in allowed:
-        return RejectionReason.extension_not_allowed
+        return RejectionReason.unsupported_file_type
 
     if not is_approved(relpath, settings.approved_patch_paths):
-        return RejectionReason.path_not_allowed
+        return RejectionReason.path_not_approved
 
     return None

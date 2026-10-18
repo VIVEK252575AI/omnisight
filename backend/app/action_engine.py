@@ -6,9 +6,9 @@ Pipeline for one finding — **nothing is ever written to disk here**:
 2. build a read-only, allow-listed, size-capped source context;
 3. ask the replaceable :class:`~app.ai.adapters.patch.PatchGenerator` for RAW
    text, under a wall-clock timeout;
-4. hand that text to the :class:`PatchExtractor`, which turns it into a
-   structured :class:`~app.patch_schemas.PatchProposal` (the extractor is a
-   W2.6 deliverable — the default one is an explicit stub);
+4. hand that text to the :class:`~app.patch_extraction.PatchExtractor`, which
+   turns it into a structured :class:`~app.patch_schemas.PatchProposal` (see
+   :mod:`app.patch_extraction`, the W2.6 deliverable);
 5. safety-validate the proposal (allow-list, extensions, budgets);
 6. persist the outcome. Only a fully validated proposal becomes ``proposed``;
    anything else is stored as ``rejected`` with reason codes, and a generator
@@ -23,8 +23,6 @@ Raw text is parsed, never executed, imported, evaluated or shelled out.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Protocol, runtime_checkable
 
 from fastapi import status
 
@@ -41,6 +39,7 @@ from app.detection_schemas import FindingRecord
 from app.detection_storage import DetectionStore
 from app.errors import DomainError, ErrorCode
 from app.ids import new_id, utcnow
+from app.patch_extraction import PatchExtractor
 from app.patch_paths import normalize_relpath
 from app.patch_schemas import (
     PATCH_SCHEMA_VERSION,
@@ -59,66 +58,6 @@ from app.patch_validation import (
 from app.source_context import SourceContext, build_source_context
 
 logger = logging.getLogger("omnisight")
-
-
-@dataclass(frozen=True)
-class ExtractResult:
-    """Outcome of turning raw generator text into a structured proposal.
-
-    ``ok=False`` is a normal, expected result (the model wrote prose, the
-    answer was unusable, ...) and must never be treated as an error to raise.
-    ``reasons`` are :class:`~app.patch_schemas.RejectionReason` values.
-    """
-
-    ok: bool
-    proposal: PatchProposal | None = None
-    reasons: list[str] = field(default_factory=list)
-    message: str | None = None
-
-
-@runtime_checkable
-class PatchExtractor(Protocol):
-    """The structured-output extractor for patch proposals (W2.6 deliverable).
-
-    Implementations parse untrusted text into :class:`PatchProposal`. They must
-    not execute, import or otherwise evaluate that text.
-    """
-
-    label: str
-
-    def extract(
-        self,
-        raw_text: str,
-        *,
-        finding: Finding,
-        source_context: SourceContext,
-    ) -> ExtractResult:
-        ...
-
-
-class StubPatchExtractor:
-    """Explicit placeholder for the W2.6 extractor.
-
-    Until the real extractor lands, every proposal is rejected with
-    ``extractor_not_implemented`` rather than being guessed at. This is
-    deliberate: a stub that "usually works" would be indistinguishable from a
-    validated proposal.
-    """
-
-    label = "not-implemented"
-
-    def extract(
-        self,
-        raw_text: str,
-        *,
-        finding: Finding,
-        source_context: SourceContext,
-    ) -> ExtractResult:
-        return ExtractResult(
-            ok=False,
-            reasons=[RejectionReason.extractor_not_implemented.value],
-            message="structured patch extraction is not implemented yet (W2.6)",
-        )
 
 
 class ActionEngine:
@@ -190,14 +129,14 @@ class ActionEngine:
             logger.exception("patch extractor raised")
             return self._store_rejected(
                 record,
-                [RejectionReason.invalid_proposal.value],
+                [RejectionReason.schema_invalid.value],
                 message=f"extractor raised {type(exc).__name__}",
             )
 
         if extracted is None or not extracted.ok or extracted.proposal is None:
             reasons = list(
                 (extracted.reasons if extracted else [])
-                or [RejectionReason.invalid_proposal.value]
+                or [RejectionReason.no_patch_found.value]
             )
             return self._store_rejected(
                 record,

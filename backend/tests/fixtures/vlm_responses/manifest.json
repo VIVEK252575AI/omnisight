@@ -1,0 +1,107 @@
+{
+  "$comment": "FIXTURE corpus of raw VLM output for parse_vlm_output (Week 2, W2.7). 'kind' is 'real' for text captured from a live model (none yet - real-response tests are pending) or 'fixture' for hand-authored synthetic output. Every entry is exercised by tests/test_week2_matrix.py; adding an entry adds a test.",
+  "manifest_version": 1,
+  "entries": [
+    {
+      "file": "valid_single_finding.json",
+      "kind": "fixture",
+      "scenario": "valid_single_finding",
+      "expected_status": "ok",
+      "expected_outcome": "defects_found",
+      "expected_findings": 1,
+      "note": "One well-formed clipped_element finding."
+    },
+    {
+      "file": "valid_multiple_findings.json",
+      "kind": "fixture",
+      "scenario": "valid_multiple_findings",
+      "expected_status": "ok",
+      "expected_outcome": "defects_found",
+      "expected_findings": 2,
+      "note": "Two distinct findings that must not be merged."
+    },
+    {
+      "file": "valid_no_defects.json",
+      "kind": "fixture",
+      "scenario": "valid_no_defects",
+      "expected_status": "ok",
+      "expected_outcome": "no_defects",
+      "expected_findings": 0,
+      "note": "Clean page."
+    },
+    {
+      "file": "valid_needs_inspection.json",
+      "kind": "fixture",
+      "scenario": "valid_needs_inspection",
+      "expected_status": "ok",
+      "expected_outcome": "needs_inspection",
+      "expected_findings": 0,
+      "note": "Model could not decide; no findings."
+    },
+    {
+      "file": "missing_required_field.json",
+      "kind": "fixture",
+      "scenario": "missing_required_field",
+      "expected_status": "rejected",
+      "expected_reason": "schema_invalid",
+      "note": "Finding has a category but no observation."
+    },
+    {
+      "file": "wrong_types.json",
+      "kind": "fixture",
+      "scenario": "wrong_types",
+      "expected_status": "rejected",
+      "expected_reason": "schema_invalid",
+      "note": "observation is a number, not a string."
+    },
+    {
+      "file": "unknown_category.json",
+      "kind": "fixture",
+      "scenario": "unknown_category",
+      "expected_status": "rejected",
+      "expected_reason": "unknown_category",
+      "note": "Category outside the closed vocabulary."
+    },
+    {
+      "file": "contradictory_outcome.json",
+      "kind": "fixture",
+      "scenario": "contradictory_outcome",
+      "expected_status": "rejected",
+      "expected_reason": "contradictory",
+      "note": "outcome is no_defects but findings were returned."
+    },
+    {
+      "file": "non_json_prose.txt",
+      "kind": "fixture",
+      "scenario": "non_json_prose",
+      "expected_status": "rejected",
+      "expected_reason": "not_json",
+      "note": "Natural-language answer with no JSON."
+    },
+    {
+      "file": "truncated_json.txt",
+      "kind": "fixture",
+      "scenario": "truncated_json",
+      "expected_status": "rejected",
+      "expected_reason": "not_json",
+      "note": "Output cut off mid-object."
+    },
+    {
+      "file": "json_in_prose.txt",
+      "kind": "fixture",
+      "scenario": "json_in_prose",
+      "expected_status": "ok",
+      "expected_outcome": "defects_found",
+      "expected_findings": 1,
+      "note": "One tagged ```json block surrounded by prose."
+    },
+    {
+      "file": "empty_body.txt",
+      "kind": "fixture",
+      "scenario": "empty_body",
+      "expected_status": "rejected",
+      "expected_reason": "empty",
+      "note": "Whitespace-only body."
+    }
+  ]
+}

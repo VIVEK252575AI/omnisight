@@ -1,0 +1,2 @@
+FIXTURE: I think the checkout button is probably clipped off the right
+side of the screen on mobile, but I'm not completely sure.

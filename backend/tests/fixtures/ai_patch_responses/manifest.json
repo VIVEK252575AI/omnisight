@@ -1,0 +1,89 @@
+{
+  "$comment": "FIXTURE corpus of raw patch-generator output for the W2.6 extractor (Week 2, W2.7). Each entry names a raw response file (with a __FINDING_ID__ placeholder the runner replaces) plus the source tree and allow-list it must be run against. 'kind' is 'real' for text captured from a live model (none yet - real-response tests are pending) or 'fixture'. Every entry is exercised by tests/test_week2_matrix.py.",
+  "manifest_version": 1,
+  "default_approved_patch_paths": ["styles/**", "src/**"],
+  "entries": [
+    {
+      "scenario": "valid_css_edit",
+      "kind": "fixture",
+      "response_file": "valid_css_edit.txt",
+      "expected_status": "accepted",
+      "approved_patch_paths": ["styles/**", "src/**"],
+      "source_root": {
+        "styles/checkout.css": "#submit {\n  width: 220px;\n  color: red;\n}\n"
+      },
+      "note": "Minimal single-line CSS replacement."
+    },
+    {
+      "scenario": "valid_tsx_edit",
+      "kind": "fixture",
+      "response_file": "valid_tsx_edit.txt",
+      "expected_status": "accepted",
+      "approved_patch_paths": ["styles/**", "src/**"],
+      "source_root": {
+        "src/Button.tsx": "export const Button = () => <button>Buy</button>;\n"
+      },
+      "note": "Balanced JSX replacement."
+    },
+    {
+      "scenario": "unsupported_file_type",
+      "kind": "fixture",
+      "response_file": "unsupported_file_type.txt",
+      "expected_status": "rejected",
+      "expected_reason": "unsupported_file_type",
+      "approved_patch_paths": ["styles/**"],
+      "source_root": {
+        "styles/logo.png": "not really binary"
+      },
+      "note": ".png is not a patchable extension."
+    },
+    {
+      "scenario": "unapproved_path",
+      "kind": "fixture",
+      "response_file": "unapproved_path.txt",
+      "expected_status": "rejected",
+      "expected_reason": "path_not_approved",
+      "approved_patch_paths": ["styles/**"],
+      "source_root": {
+        "src/app.tsx": "export const App = () => null;\n"
+      },
+      "note": "src/** is not in the allow-list."
+    },
+    {
+      "scenario": "ambiguous_blocks",
+      "kind": "fixture",
+      "response_file": "ambiguous_blocks.txt",
+      "expected_status": "rejected",
+      "expected_reason": "ambiguous_multiple_patches",
+      "approved_patch_paths": ["styles/**"],
+      "source_root": {
+        "styles/checkout.css": "#submit {\n  width: 220px;\n  color: red;\n}\n"
+      },
+      "note": "Two omnisight-patch blocks: ambiguous."
+    },
+    {
+      "scenario": "forbidden_construct",
+      "kind": "fixture",
+      "response_file": "forbidden_construct.txt",
+      "expected_status": "rejected",
+      "expected_reason": "forbidden_construct",
+      "approved_patch_paths": ["styles/**"],
+      "source_root": {
+        "styles/checkout.css": "#submit {\n  width: 220px;\n  color: red;\n}\n"
+      },
+      "note": "CSS expression() is a forbidden construct."
+    },
+    {
+      "scenario": "edit_mismatch",
+      "kind": "fixture",
+      "response_file": "edit_mismatch.txt",
+      "expected_status": "rejected",
+      "expected_reason": "edit_not_applicable",
+      "approved_patch_paths": ["styles/**"],
+      "source_root": {
+        "styles/checkout.css": "#submit {\n  width: 220px;\n  color: red;\n}\n"
+      },
+      "note": "old_text does not occur in the target file."
+    }
+  ]
+}

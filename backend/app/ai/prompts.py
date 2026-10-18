@@ -13,6 +13,7 @@ _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 VISUAL_ANALYSIS_PROMPT_VERSION = "visual-analysis-v2"
 STRUCTURED_OUTPUT_REPAIR_PROMPT_VERSION = "structured-output-repair-v1"
+PATCH_PROPOSAL_PROMPT_VERSION = "patch-proposal-v1"
 
 
 class PromptNotFoundError(RuntimeError):

@@ -30,8 +30,9 @@ finding (validated, W2.3/W2.4)
    ├─ 404 / 409 guard          only a `detected` finding may be proposed against
    ├─ source context           approved files only, size-capped, read-only
    ├─ PatchGenerator           raw text, under a wall-clock timeout
-   ├─ PatchExtractor           raw text -> structured PatchProposal  (W2.6)
-   ├─ safety validation        allow-list, extensions, budgets
+   ├─ PatchExtractor           raw text -> schema -> paths -> applicability ->
+   │                           payload checks -> structured PatchProposal (W2.6)
+   ├─ safety validation        allow-list, extensions, budgets (defence in depth)
    └─ persist                  `proposed` (claims the finding) or `rejected`
 ```
 
@@ -55,10 +56,28 @@ cannot both win.
 
 ## Reason codes (closed set)
 
-`path_unsafe`, `forbidden_file`, `extension_not_allowed`, `path_not_allowed`,
-`too_many_files`, `too_large`, `duplicate_path`, `empty_edit`,
-`invalid_proposal`, `generator_timeout`, `generator_error`,
-`extractor_not_implemented`.
+The set is single-sourced in `RejectionReason` (`app/patch_schemas.py`). One code
+per concept, produced by exactly one layer:
+
+| Code | Layer | Meaning |
+| --- | --- | --- |
+| `no_patch_found` | extraction | no JSON object, and no single `omnisight-patch` block |
+| `ambiguous_multiple_patches` | extraction | more than one `omnisight-patch` block |
+| `truncated` | extraction | output looks cut off (unbalanced / unterminated fence) |
+| `schema_invalid` | extraction | payload did not match the `PatchProposal` schema (or wrong `finding_id`) |
+| `path_unsafe` | paths | not a clean relative POSIX path (absolute, `..`, NUL, ...) |
+| `forbidden_file` | paths | `.git`, `.env*`, lockfile, CI or build config (not explicitly allowlisted) |
+| `unsupported_file_type` | paths | extension not in `OMNISIGHT_PATCH_ALLOWED_EXTENSIONS` |
+| `path_not_approved` | paths | not matched by `OMNISIGHT_APPROVED_PATCH_PATHS` |
+| `edit_not_applicable` | applicability | `old_text` occurs zero times, or the target file cannot be confirmed |
+| `edit_ambiguous` | applicability | `old_text` occurs more than once |
+| `forbidden_construct` | payload | forbidden API or unbalanced structure in `new_text` |
+| `too_many_files` | budget | more files than `OMNISIGHT_MAX_PATCH_FILES` |
+| `too_large` | budget / extraction | edit payload over `MAX_PATCH_BYTES`, or raw text over `PATCH_MAX_RESPONSE_BYTES` |
+| `duplicate_path` | budget | the same normalised path appears twice |
+| `empty_edit` | budget | an edit's `old_text` is empty/whitespace-only |
+| `generator_timeout` | generator | generator exceeded the wall-clock timeout |
+| `generator_error` | generator | generator raised / returned non-text |
 
 Path safety, in order:
 
@@ -66,31 +85,35 @@ Path safety, in order:
    `..`, NUL bytes and empty segments are rejected (`path_unsafe`);
 2. **forbidden** — `.git`, `.env*`, lockfiles, CI config and build config are
    rejected unless a *glob-free* approved pattern names that exact file;
-3. **extension** — `.css`/`.scss`/`.jsx`/`.tsx` by default;
-4. **allow-list** — matched against `OMNISIGHT_APPROVED_PATCH_PATHS`.
+3. **extension** — `.css`/`.scss`/`.jsx`/`.tsx` by default (`unsupported_file_type`);
+4. **allow-list** — matched against `OMNISIGHT_APPROVED_PATCH_PATHS`
+   (`path_not_approved`).
+
+The extraction / applicability / payload codes are produced by the W2.6
+extractor; see [`week2_code_extraction.md`](week2_code_extraction.md).
 
 ## Configuration
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `OMNISIGHT_PATCH_GENERATOR` | `mock` | replaceable generator; unknown values fail fast |
-| `OMNISIGHT_PATCH_MOCK_SCENARIO` | `ok` | `ok` \| `timeout` \| `error` \| `invalid_json` \| `empty` |
+| `OMNISIGHT_PATCH_MOCK_SCENARIO` | `ok` | `ok` \| `timeout` \| `error` \| `invalid_json` \| `empty` \| `prose_with_fence` \| `two_plain_fences` \| `two_tagged_fences` \| `prose_only` \| `truncated` |
 | `OMNISIGHT_APPROVED_PATCH_PATHS` | *(empty)* | **allow-list**; empty means everything is rejected |
 | `OMNISIGHT_PATCH_ALLOWED_EXTENSIONS` | `.css,.scss,.jsx,.tsx` | patchable extensions |
 | `OMNISIGHT_PATCH_SOURCE_ROOT` | *(empty)* | read-only context root |
 | `OMNISIGHT_MAX_PATCH_FILES` | `5` | max files per proposal |
 | `OMNISIGHT_MAX_PATCH_BYTES` | `4096` | max edit-payload bytes per proposal |
 | `OMNISIGHT_PATCH_CONTEXT_MAX_BYTES` | `4096` | cap on source text sent to the generator |
+| `OMNISIGHT_PATCH_MAX_RESPONSE_BYTES` | `16384` | cap on raw text handed to the extractor (before parsing) |
 
 ## Status of this slice
 
-- **Tested with mocks / against the local application.** With the production
-  default (`StubPatchExtractor`) every proposal is rejected with
-  `extractor_not_implemented`; that is the honest state until W2.6 lands. The
-  `proposed` path is covered by tests that inject a labelled test-double
-  extractor.
+- **Tested with mocks / against the local application.** The production default
+  extractor is now the real `SourcePatchExtractor` (W2.6): it isolates the patch
+  payload from prose and rejects anything unsafe, so a valid MOCK proposal
+  reaches `proposed` and an unsafe one is recorded `rejected` with a reason code.
 - **Blocked on the ShopLite handoff.** No ShopLite source tree exists in this
   repository, so `OMNISIGHT_APPROVED_PATCH_PATHS` defaults to empty and
-  everything is rejected on `path_not_allowed`.
+  everything is rejected on `path_not_approved`.
 - **No apply step.** Approving and applying a patch (isolated worktree, rerun
   of detection, `patch_verified`) is a later slice.

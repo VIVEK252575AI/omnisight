@@ -24,11 +24,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, status
 
-from app.action_engine import ActionEngine, PatchExtractor, StubPatchExtractor
+from app.action_engine import ActionEngine, PatchExtractor
 from app.ai.adapters.patch import PatchGenerator, create_patch_generator
 from app.config import Settings, get_settings
 from app.detection_storage import DetectionStore, get_detection_store
 from app.errors import DomainError, ErrorCode
+from app.patch_extraction import SourcePatchExtractor
 from app.patch_schemas import (
     FindingPatchProposalsResponse,
     PatchProposalResponse,
@@ -48,14 +49,16 @@ def get_patch_generator(settings: Settings = Depends(get_settings)) -> PatchGene
     return create_patch_generator(settings)
 
 
-def get_patch_extractor() -> PatchExtractor:
-    """The structured-output extractor.
+def get_patch_extractor(
+    settings: Settings = Depends(get_settings),
+) -> PatchExtractor:
+    """The structured-output extractor (W2.6).
 
-    Defaults to the explicit W2.6 stub, so today every proposal is rejected with
-    ``extractor_not_implemented``. Tests override this dependency with a
-    labelled test double; production gets the real extractor in W2.6.
+    The production default is the deterministic :class:`SourcePatchExtractor`:
+    it isolates the patch payload from prose and rejects anything unsafe. Tests
+    may override this dependency with a labelled test double.
     """
-    return StubPatchExtractor()
+    return SourcePatchExtractor(settings)
 
 
 def get_action_engine(

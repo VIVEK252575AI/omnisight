@@ -83,12 +83,27 @@ def _token_in_text(token: str, text: str) -> bool:
     return re.search(rf"(?<![\w-]){re.escape(token)}(?![\w-])", text) is not None
 
 
-def _is_within(path: Path, root: Path) -> bool:
+def is_within(path: Path, root: Path) -> bool:
+    """True when ``path`` is inside ``root`` (both should be resolved)."""
     try:
         path.relative_to(root)
         return True
     except ValueError:
         return False
+
+
+def _decode(raw: bytes) -> str:
+    """Decode context bytes and normalise CRLF/CR to LF.
+
+    Files are read as bytes (for an accurate byte count) but the text handed to
+    a generator must be newline-normalised so it matches the extractor's
+    universal-newline reads and exact-match ``old_text``.
+    """
+    return (
+        raw.decode("utf-8", errors="replace")
+        .replace("\r\n", "\n")
+        .replace("\r", "\n")
+    )
 
 
 def _iter_candidates(root: Path):
@@ -133,14 +148,14 @@ def build_source_context(finding: Finding, settings: Settings) -> SourceContext:
         if len(files) >= MAX_CONTEXT_FILES or used >= budget:
             truncated = True
             break
-        if not _is_within(path, root_resolved):
+        if not is_within(path, root_resolved):
             continue
         if path.is_symlink():
             try:
                 resolved = path.resolve()
             except OSError:
                 continue
-            if not _is_within(resolved, root_resolved):
+            if not is_within(resolved, root_resolved):
                 continue
         try:
             rel = path.relative_to(root_resolved).as_posix()
@@ -162,7 +177,7 @@ def build_source_context(finding: Finding, settings: Settings) -> SourceContext:
 
         remaining = budget - used
         if len(raw) > remaining:
-            text = raw[:remaining].decode("utf-8", errors="replace")
+            text = _decode(raw[:remaining])
             files.append(SourceFile(path=rel, text=text, bytes=remaining, truncated=True))
             used = budget
             truncated = True
@@ -170,7 +185,7 @@ def build_source_context(finding: Finding, settings: Settings) -> SourceContext:
         files.append(
             SourceFile(
                 path=rel,
-                text=raw.decode("utf-8", errors="replace"),
+                text=_decode(raw),
                 bytes=len(raw),
             )
         )

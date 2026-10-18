@@ -26,25 +26,59 @@ from app.ids import utcnow
 
 PATCH_SCHEMA_VERSION = 1
 
+# The single fence tag the generator prompt asks for and the extractor accepts.
+# Any other tag (or an untagged code fence) is never treated as a patch.
+PATCH_FENCE_TAG = "omnisight-patch"
+
 
 class RejectionReason(str, Enum):
-    """Closed set of machine-readable reasons a proposal is rejected."""
+    """Closed set of machine-readable reasons a proposal is rejected.
 
+    One code per concept, produced by exactly one layer:
+
+    - **extraction** (W2.6, ``app.patch_extraction``): the raw text could not be
+      turned into a structured proposal — ``no_patch_found``,
+      ``ambiguous_multiple_patches``, ``truncated``, ``schema_invalid``;
+    - **path safety / allow-list** (``app.patch_paths``): ``path_unsafe``,
+      ``forbidden_file``, ``unsupported_file_type``, ``path_not_approved``;
+    - **edit applicability** (``app.patch_extraction``): ``edit_not_applicable``
+      (``old_text`` occurs zero times, or the target file cannot be confirmed),
+      ``edit_ambiguous`` (``old_text`` occurs more than once);
+    - **payload structure** (``app.patch_code_checks``): ``forbidden_construct``;
+    - **size / structure budgets** (``app.patch_validation``):
+      ``too_many_files``, ``too_large``, ``duplicate_path``, ``empty_edit``;
+    - **generator lifecycle** (``app.action_engine``): ``generator_timeout``,
+      ``generator_error``.
+
+    Known names from the W2.6 spec are used verbatim (``path_not_approved``,
+    ``unsupported_file_type``, ``schema_invalid``, ...). ``too_large`` is the
+    single code shared by the extraction input cap and the edit-payload budget;
+    it is reported by whichever layer sees the oversized input.
+    """
+
+    # Extraction (W2.6).
+    no_patch_found = "no_patch_found"
+    ambiguous_multiple_patches = "ambiguous_multiple_patches"
+    truncated = "truncated"
+    schema_invalid = "schema_invalid"
     # Path safety / allow-list.
     path_unsafe = "path_unsafe"
     forbidden_file = "forbidden_file"
-    extension_not_allowed = "extension_not_allowed"
-    path_not_allowed = "path_not_allowed"
+    unsupported_file_type = "unsupported_file_type"
+    path_not_approved = "path_not_approved"
+    # Edit applicability (W2.6).
+    edit_not_applicable = "edit_not_applicable"
+    edit_ambiguous = "edit_ambiguous"
+    # Payload structure (W2.6).
+    forbidden_construct = "forbidden_construct"
     # Size / structure budgets.
     too_many_files = "too_many_files"
     too_large = "too_large"
     duplicate_path = "duplicate_path"
     empty_edit = "empty_edit"
-    invalid_proposal = "invalid_proposal"
-    # Generator / extractor lifecycle.
+    # Generator lifecycle.
     generator_timeout = "generator_timeout"
     generator_error = "generator_error"
-    extractor_not_implemented = "extractor_not_implemented"
 
 
 class PatchProposalStatus(str, Enum):

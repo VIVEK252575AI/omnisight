@@ -1,0 +1,21 @@
+Here is the analysis you asked for:
+
+```json
+{
+  "schema_version": 1,
+  "outcome": "defects_found",
+  "summary": "FIXTURE: JSON delivered inside a fenced block.",
+  "findings": [
+    {
+      "category": "clipped_element",
+      "target_candidate": "#submit",
+      "observation": "The primary button extends past the right viewport edge.",
+      "evidence": "geometry: button.x=380 width=220 viewport.width=390",
+      "severity": "high",
+      "confidence": 0.9
+    }
+  ]
+}
+```
+
+Let me know if you need the root cause explained in more detail.

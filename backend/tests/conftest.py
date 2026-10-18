@@ -6,7 +6,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import main
-from app.action_engine import StubPatchExtractor
 from app.ai.adapters import MockVisionAnalyzer
 from app.ai.adapters.base import VisionAnalyzer
 from app.ai.adapters.patch import MockPatchGenerator
@@ -14,6 +13,7 @@ from app.config import Settings
 from app.detection_storage import DetectionStore, get_detection_store
 from app.evidence_storage import EvidenceStore, get_evidence_store
 from app.event_storage import InMemoryCIEventStore, get_event_store
+from app.patch_extraction import SourcePatchExtractor
 from app.patch_storage import PatchStore, get_patch_store
 from app.routers import detection, patches
 from app.storage import ScanStore, get_store
@@ -147,9 +147,9 @@ def patch_client(scan_store, event_store, evidence_store, detection_store, patch
 
     Every dependency the action engine uses is overridden with a fresh instance
     so proposal records and finding status can never leak between tests. The
-    extractor defaults to the production stub (which rejects with
-    ``extractor_not_implemented``); tests that need the ``proposed`` path inject
-    a labelled test-double extractor.
+    extractor defaults to the production ``SourcePatchExtractor``; tests that
+    need a deterministic ``proposed`` path (or a scripted failure) inject their
+    own labelled generator/extractor.
     """
     def _build(
         *,
@@ -162,7 +162,7 @@ def patch_client(scan_store, event_store, evidence_store, detection_store, patch
         if generator is None:
             generator = MockPatchGenerator(settings.patch_mock_scenario)
         if extractor is None:
-            extractor = StubPatchExtractor()
+            extractor = SourcePatchExtractor(settings)
         main.app.dependency_overrides[get_store] = lambda: scan_store
         main.app.dependency_overrides[get_event_store] = lambda: event_store
         main.app.dependency_overrides[get_evidence_store] = lambda: evidence_store
