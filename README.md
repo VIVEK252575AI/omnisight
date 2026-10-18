@@ -3,13 +3,14 @@ OmniSight — Autonomous UI Engineer
 
 Files
 -----
-- code.html   : Front-end markup and JavaScript.
+- code.html   : Page markup (loads styles.css and script.js).
+- script.js   : All JavaScript (state, VLM/LLM pipeline, rendering, shortcuts).
 - styles.css  : All styling (design system, layout, VLM/LLM components).
 - screen.png  : Landing page screenshot.
 - screen-scan.png / screen-dark.png : Scan dashboard screenshots (light and dark).
 - README.txt  : This file.
 
-Keep code.html and styles.css in the same folder.
+Keep code.html, styles.css and script.js in the same folder.
 
 How to run
 ----------
@@ -109,6 +110,11 @@ Design and motion (latest version)
   - Before/after: drag the slider to compare the two captures.
   - Confetti burst when a scan completes.
   - All motion switches off if your system has "reduce motion" turned on.
+
+Keyboard shortcuts (when not typing in a field)
+-----------------------------------------------
+  /  focus search     n  new scan     h  history     d  toggle dark mode
+  Esc  leave the field you are typing in
 
 Notes
 -----
