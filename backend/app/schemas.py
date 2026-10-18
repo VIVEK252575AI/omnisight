@@ -59,14 +59,23 @@ class ScanCreateRequest(BaseModel):
 class ScanStatus(str, Enum):
     """Scan lifecycle states.
 
-    The workflow advances forward through evidence -> analysis -> patching ->
-    validation -> verification. States with FAILED_*/CANCELLED semantics are
-    terminal. `patch_verified` can only be reached after `validation_passed`
-    AND a successful visual re-check — never from a failed build or test.
+    The workflow advances forward through evidence -> detection -> analysis ->
+    patching -> validation -> verification. States with FAILED_*/CANCELLED
+    semantics are terminal. `patch_verified` can only be reached after
+    `validation_passed` AND a successful visual re-check — never from a failed
+    build or test.
+
+    Detection sub-lifecycle (Week 2): `detecting` -> `detected` (findings, or a
+    clean page), `detection_failed` (adapter or parse failure, with a recorded
+    reason), or `needs_inspection` (the model could not decide).
     """
 
     created = "created"
     evidence_collection = "evidence_collection"
+    detecting = "detecting"
+    detected = "detected"
+    detection_failed = "detection_failed"
+    needs_inspection = "needs_inspection"
     analysis = "analysis"
     patch_proposed = "patch_proposed"
     sandbox_validation = "sandbox_validation"
@@ -88,7 +97,24 @@ LEGAL_TRANSITIONS: dict[ScanStatus, frozenset[ScanStatus]] = {
         {ScanStatus.evidence_collection, ScanStatus.cancelled, ScanStatus.failed}
     ),
     ScanStatus.evidence_collection: frozenset(
-        {ScanStatus.analysis, ScanStatus.failed, ScanStatus.cancelled}
+        # `detecting` is how the VLM detection service starts; `analysis`
+        # remains legal as the manual/legacy entry point.
+        {ScanStatus.detecting, ScanStatus.analysis, ScanStatus.failed, ScanStatus.cancelled}
+    ),
+    ScanStatus.detecting: frozenset(
+        {
+            ScanStatus.detected,
+            ScanStatus.detection_failed,
+            ScanStatus.needs_inspection,
+        }
+    ),
+    ScanStatus.detected: frozenset({ScanStatus.analysis, ScanStatus.failed}),
+    ScanStatus.detection_failed: frozenset(
+        # Bounded retry of the same detection, or escalate for human review.
+        {ScanStatus.detecting, ScanStatus.analysis, ScanStatus.failed}
+    ),
+    ScanStatus.needs_inspection: frozenset(
+        {ScanStatus.detecting, ScanStatus.analysis, ScanStatus.failed}
     ),
     ScanStatus.analysis: frozenset(
         {ScanStatus.patch_proposed, ScanStatus.failed, ScanStatus.cancelled}

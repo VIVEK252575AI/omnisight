@@ -13,11 +13,16 @@ Test (from ``backend/``)::
 
 OpenAPI docs are served at ``/docs`` (and ``/openapi.json``).
 
-Background execution (Playwright worker, patch engine) is deliberately NOT
-wired here yet — those land in their own task slices and are gated by feature
-flags that stay off until the modules actually exist. The VLM adapter is
+The patch-proposal endpoints ARE wired (W2.5), but they only ever produce a
+reviewable proposal record — approving and applying a patch to a source tree is
+a later slice. Background execution (Playwright worker, patch apply) is
+deliberately NOT wired here yet — those land in their own task slices and are
+gated by feature flags that stay off until the modules actually exist. The VLM adapter is
 selected and constructed at startup (fail-fast on unknown ``VLM_ADAPTER``) and
-stored on ``app.state.vision_analyzer``; no request path calls it yet.
+stored on ``app.state.vision_analyzer``. It is an early sanity check only; the
+detection endpoints build their own adapter per run so image resolution targets
+the evidence store in use for that request (see
+``app.routers.detection.get_detection_analyzer``).
 """
 
 import logging
@@ -29,7 +34,7 @@ from app.ai.adapters.factory import create_vision_analyzer
 from app.config import Settings, get_settings
 from app.errors import register_exception_handlers
 from app.evidence_storage import get_evidence_store
-from app.routers import ci_webhooks, evidence, scans
+from app.routers import ci_webhooks, detection, evidence, patches, scans
 
 logger = logging.getLogger("omnisight")
 
@@ -70,6 +75,8 @@ def create_app() -> FastAPI:
     app.include_router(scans.router)
     app.include_router(ci_webhooks.router)
     app.include_router(evidence.router)
+    app.include_router(detection.router)
+    app.include_router(patches.router)
 
     if settings.ci_webhook_secret:
         logger.info("CI webhook receiver: signature verification ENABLED")

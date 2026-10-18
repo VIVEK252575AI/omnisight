@@ -5,7 +5,9 @@ so tests and offline development can drive every outcome deterministically:
 
 - ``clipped_button``  -> a ``defects_found`` result (clipped_element),
 - ``healthy_page``    -> ``no_defects``,
-- ``malformed_text``  -> non-JSON text (shape failure),
+- ``needs_inspection``-> ``needs_inspection`` (model could not decide),
+- ``malformed_text``  -> non-JSON text (not_json failure),
+- ``malformed_schema``-> valid JSON with an invalid finding (schema_invalid),
 - ``empty``           -> empty text (empty-output failure),
 - ``timeout``         -> raises :class:`VisionTimeoutError`,
 - ``provider_error``  -> raises :class:`VisionUnavailableError`.
@@ -37,7 +39,9 @@ MOCK_LABEL = "MOCK"
 SCENARIOS = (
     "clipped_button",
     "healthy_page",
+    "needs_inspection",
     "malformed_text",
+    "malformed_schema",
     "empty",
     "timeout",
     "provider_error",
@@ -116,10 +120,28 @@ class MockVisionAnalyzer:
     def _text_for(self, scenario: str, request: VisionRequest) -> str:
         if scenario == "malformed_text":
             return "I think the button is probably clipped. (not JSON)"
+        if scenario == "malformed_schema":
+            return json.dumps(
+                {
+                    "schema_version": 1,
+                    "outcome": "defects_found",
+                    "summary": "MOCK: malformed finding payload.",
+                    "findings": [{"category": "clipped_element"}],
+                }
+            )
         if scenario == "empty":
             return ""
         if scenario == "healthy_page":
             return json.dumps(self._healthy_payload())
+        if scenario == "needs_inspection":
+            return json.dumps(
+                {
+                    "schema_version": 1,
+                    "outcome": "needs_inspection",
+                    "summary": "MOCK: possible overlap; needs a human look.",
+                    "findings": [],
+                }
+            )
         return json.dumps(self._clipped_button_payload(request))
 
     @staticmethod

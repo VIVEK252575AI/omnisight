@@ -84,9 +84,62 @@ class Settings(BaseSettings):
     ai_max_repair_attempts: int = 1
     ai_max_output_tokens: int = 4096
     ai_max_findings: int = 20
-    # Whether raw provider output may ever be persisted. Off by default;
-    # raw output is untrusted and must not be stored or logged.
+    # Whether raw provider output may ever be persisted to disk. Off by
+    # default; raw output is untrusted and must not be written out.
     ai_allow_raw_output_storage: bool = False
+
+    # VLM detection workflow (W2.4). Bounded so a single detection can never
+    # flood the adapter or pin memory:
+    # - `detection_max_candidates` caps the DOM candidate selectors sent as
+    #   context, keeping only the most relevant elements first.
+    # - `detection_max_raw_output_bytes` caps the raw model text retained
+    #   IN MEMORY for audit (it is never written to disk and never returned by
+    #   an API unless `detection_expose_raw_output` is enabled).
+    # - `detection_expose_raw_output` is the debug flag that opts raw model
+    #   text into API responses; off by default.
+    detection_max_candidates: int = 50
+    detection_max_raw_output_bytes: int = 8192
+    detection_expose_raw_output: bool = False
+
+    # Safe action engine (W2.5). A model proposal is ONLY ever turned into a
+    # stored record here — nothing is written to disk in this slice.
+    #
+    # `patch_generator` selects the replaceable generator ("mock" default);
+    # `patch_mock_scenario` picks the deterministic offline behaviour. No
+    # provider, model name or key is hardcoded anywhere.
+    #
+    # `approved_patch_paths` is the path allow-list (glob patterns matched with
+    # fnmatch semantics against the normalised, repo-relative path). Its
+    # DEFAULT IS EMPTY: with no approved paths every proposal is rejected.
+    # It becomes populated by the ShopLite owner's handoff.
+    patch_generator: str = "mock"
+    patch_mock_scenario: str = "ok"
+    patch_source_root: str = ""
+    approved_patch_paths: Annotated[list[str], NoDecode] = []
+    patch_allowed_extensions: Annotated[list[str], NoDecode] = [
+        ".css",
+        ".scss",
+        ".jsx",
+        ".tsx",
+    ]
+    max_patch_files: int = 5
+    max_patch_bytes: int = 4096
+    patch_context_max_bytes: int = 4096
+    patch_timeout_seconds: float = 30.0
+
+    @field_validator("approved_patch_paths", mode="before")
+    @classmethod
+    def _split_approved_paths(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
+
+    @field_validator("patch_allowed_extensions", mode="before")
+    @classmethod
+    def _split_patch_extensions(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
     # Local directories (configurable; created on demand by later modules).
     artifacts_dir: Path = Path("artifacts")

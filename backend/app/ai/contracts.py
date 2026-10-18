@@ -60,9 +60,17 @@ class VlmOutcome(str, Enum):
 
 
 class FindingStatus(str, Enum):
-    """Lifecycle status of a finding (backend-assigned)."""
+    """Lifecycle status of a finding (backend-assigned).
+
+    ``detected``        — a validated finding, still open for a patch proposal.
+    ``patch_proposed``  — a proposal reached ``proposed``; the finding is not
+                          re-proposable until that proposal is reviewed. A
+                          ``rejected`` proposal leaves the finding ``detected``
+                          so a corrected attempt is allowed.
+    """
 
     detected = "detected"
+    patch_proposed = "patch_proposed"
 
 
 # ---------------------------------------------------------------------------
