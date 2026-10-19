@@ -116,6 +116,14 @@ Keyboard shortcuts (when not typing in a field)
   /  focus search     n  new scan     h  history     d  toggle dark mode
   Esc  leave the field you are typing in
 
+Fonts and appearance
+--------------------
+  - The UI font is Inter, loaded from Google Fonts in code.html. An internet
+    connection is needed the first time; offline it falls back to your system
+    font (Segoe UI on Windows, SF on Mac), so spacing and weight can differ
+    slightly.
+  - Deep scan starts switched on (highlighted), as in the original design.
+
 Notes
 -----
 - The Fix, patch and verify panels still display the sample CheckoutButton.css
