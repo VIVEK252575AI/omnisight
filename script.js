@@ -16,7 +16,7 @@ const Shots = (() => {
 
 const Store = {
   route: 'landing', // 'landing' | 'scan' | 'models'
-  deep: false,
+  deep: true,
   sev: 'all',
   traceTab: null,
   scan: null,
