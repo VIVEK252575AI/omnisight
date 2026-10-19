@@ -98,15 +98,25 @@ The major stages are:
 > This section reflects the **actual repository state**. The rest of this
 > document describes the target design.
 
-The Week 1 backend (FastAPI) is implemented, tested and pushed on the `lakshy`
-branch (`backend/`):
+The Week 1 and Week 2 backend (FastAPI) is implemented, tested and pushed on the
+`lakshy` branch (`backend/`):
 
 | Area | Status |
 |---|---|
 | Scan API + lifecycle state machine | Tested against the local application |
 | Simulated CI/CD webhook receiver (optional HMAC) | Tested against the local application |
 | Evidence API (`observation/v1`) + safe artifact serving | Tested against the local application |
-| Playwright collector, VLM, patch engine, PyGithub, React dashboard | Not implemented |
+| Provider-neutral VLM adapter boundary (W2.2) | Tested with mocks |
+| Structured visual-finding schema + strict parser (W2.3) | Tested with mocks |
+| VLM detection workflow (W2.4) | Tested with mocks |
+| Safe action engine / patch proposals (W2.5) | Tested with mocks |
+| Code-response extraction & rejection (W2.6) | Tested with mocks |
+| Week 2 test matrix: valid / malformed / missing / unsupported / failed (W2.7) | Tested with mocks |
+| Playwright collector, real VLM provider, patch apply + sandbox, PyGithub, React dashboard | Not implemented |
+
+All Week 2 AI work runs against a deterministic, **offline MOCK adapter** — no
+live VLM provider has been selected yet, and raw model output is never executed,
+imported, or written to disk.
 
 Endpoints currently served:
 
@@ -122,6 +132,11 @@ GET      /api/v1/webhooks/events/{event_id}
 POST     /api/v1/scans/{scan_id}/evidence
 GET      /api/v1/scans/{scan_id}/evidence
 GET      /api/v1/artifacts/{artifact_id}
+POST     /api/v1/scans/{scan_id}/detect           # VLM detection (MOCK adapter)
+GET      /api/v1/scans/{scan_id}/findings         # validated findings + run
+GET      /api/v1/findings/{finding_id}
+POST     /api/v1/findings/{finding_id}/patch-proposals   # propose only, no writes
+GET      /api/v1/findings/{finding_id}/patch-proposals
 ```
 
 Run it (from `backend/`):
@@ -131,9 +146,21 @@ Run it (from `backend/`):
 .\.venv\Scripts\python.exe -m pytest tests\ -q        # test
 ```
 
-See `docs/week1_integration_audit.md` for the Week 1 audit report. The CI
-webhook is a **simulation** — there is no real GitHub Actions/Jenkins
-integration, and no VLM provider has been selected yet.
+Test suite: **289 passed, 1 skipped** (offline; the skip is a Windows
+`symlink` test).
+
+Design docs live under `docs/`:
+
+- `docs/week1_integration_audit.md`
+- `docs/week2_finding_schema.md`
+- `docs/week2_detection_api.md`
+- `docs/week2_action_engine.md`
+- `docs/week2_code_extraction.md`
+- `docs/week2_testing_note.md`
+
+The CI webhook is a **simulation** — there is no real GitHub Actions/Jenkins
+integration. The patch-proposal endpoint only **validates and stores** a
+proposal; nothing is written to disk or applied to a repository in this slice.
 
 ---
 
