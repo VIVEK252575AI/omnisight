@@ -285,11 +285,21 @@ OmniSight/
 │
 ├── backend/
 │   ├── app/
-│   │   ├── main.py
-│   │   ├── orchestrator.py
-│   │   ├── schemas.py
-│   │   ├── storage.py
-│   │   └── config.py
+│   │   ├── main.py                 # app factory + router wiring
+│   │   ├── config.py               # env-driven Settings
+│   │   ├── schemas.py              # scan + observation/v1 contracts
+│   │   ├── errors.py               # single error envelope
+│   │   ├── storage.py              # in-memory scan store
+│   │   ├── event_storage.py        # CI event store
+│   │   ├── evidence_storage.py     # evidence + artifact registry
+│   │   ├── artifacts.py            # safe artifact resolution
+│   │   ├── detection_*.py          # VLM detection workflow (W2.4)
+│   │   ├── action_engine.py        # safe patch-proposal engine (W2.5)
+│   │   ├── patch_*.py              # schemas, paths, validation, extraction
+│   │   ├── source_context.py       # read-only approved-source context
+│   │   ├── ai/                     # adapter boundary, gateway, parser, prompts
+│   │   └── routers/                # scans, evidence, detection, patches, ci
+│   ├── tests/                      # pytest suite + FIXTURE corpus
 │   └── requirements.txt
 │
 ├── playwright_worker/
@@ -322,7 +332,7 @@ OmniSight/
 └── .gitignore
 ```
 
-> The exact folder structure can be adjusted during implementation while keeping the same modular architecture.
+> The exact folder structure can be adjusted during implementation while keeping the same modular architecture. In the current repository only `backend/` and `docs/` exist; the `frontend/`, `playwright_worker/`, `vlm_service/`, `patch_engine/` and `validation/` directories are **target modules** — their Week 1–2 backend logic currently lives under `backend/app/` (see `ai/`, `detection_*`, `patch_*`).
 
 ---
 
@@ -380,12 +390,15 @@ Browser evidence is converted into machine-readable context.
 
 ```json
 {
-  "url": "https://staging.shop.example/checkout",
+  "schema_version": "observation/v1",
+  "url": "https://shoplite.local/checkout",
+  "route": "/checkout",
+  "state": "cart-filled",
   "viewport": {
     "width": 390,
     "height": 844
   },
-  "screenshot": "artifacts/checkout-390.png",
+  "screenshot": "screenshots/checkout-390.png",
   "elements": [
     {
       "selector": "#checkout",
@@ -402,11 +415,12 @@ Browser evidence is converted into machine-readable context.
     }
   ],
   "console_errors": [],
-  "network_errors": []
+  "network_errors": [],
+  "captured_at": "2026-01-01T00:00:00Z"
 }
 ```
 
-In this example, the button exists in the DOM but lies outside the 390 px mobile viewport.
+In this example, the button exists in the DOM but lies outside the 390 px mobile viewport. This exact shape is exercised by `backend/tests/fixtures/observation_fixture.json`.
 
 > **Evidence is not the bug report.** Playwright collects evidence and context. The VLM interprets that evidence and returns a structured finding.
 
@@ -426,19 +440,38 @@ Viewport Metadata
 Console / Network Information
 ```
 
-It returns a structured finding such as:
+It returns a validated response (not a bare finding):
 
 ```json
 {
-  "type": "clipped_element",
-  "target": "#checkout",
-  "evidence": "box.x + w = 540 > viewport 390",
-  "severity": "high",
-  "confidence": 0.94
+  "schema_version": 1,
+  "outcome": "defects_found",
+  "summary": "Checkout button is clipped at 390px width.",
+  "findings": [
+    {
+      "finding_id": "<backend-assigned>",
+      "category": "clipped_element",
+      "target_candidate": "#checkout",
+      "target_unverified": false,
+      "observation": "The Checkout button extends past the right viewport edge.",
+      "evidence": "geometry: button.x=420 width=120 viewport.width=390",
+      "potential_causes": ["fixed pixel width"],
+      "severity": "high",
+      "confidence": 0.94,
+      "status": "detected"
+    }
+  ]
 }
 ```
 
-This lets OmniSight combine visual understanding with browser evidence instead of relying only on DOM state.
+`outcome` is one of `defects_found`, `no_defects`, or `needs_inspection`. The
+`category` is drawn from a closed set: `clipped_element`,
+`overlapping_elements`, `low_contrast_text`, `responsive_layout_failure`,
+`hidden_or_unreachable_element`, `needs_inspection`.
+
+`finding_id`, `status` and `target_unverified` are **assigned by the backend** —
+a model-supplied value is ignored. This lets OmniSight combine visual
+understanding with browser evidence instead of relying only on DOM state.
 
 ### VLM Responsibilities in the Pipeline
 
@@ -464,8 +497,8 @@ Cross-checking structured evidence against visual perception is what makes findi
 ### Finding Contract Guarantees
 
 - Raw model output is **always validated against a strict JSON schema** before any downstream stage consumes it.
-- Invalid or truncated model responses are treated as a first-class failure — never silently retried with fabricated values, never guessed into a finding.
-- Each finding carries: `type`, `target`, `evidence`, `severity`, and `confidence`, matching the example above.
+- Invalid, truncated, or contradictory responses become a recorded failure. A repairable shape failure may trigger **one bounded repair re-ask**; values are never fabricated or guessed into a finding.
+- Each finding carries `category`, `target_candidate`, `observation`, `evidence`, `potential_causes`, `severity`, and `confidence`, plus the backend-assigned `finding_id`, `target_unverified`, and `status`.
 - `severity` and `confidence` are read by the orchestrator to gate whether a check proceeds to patch generation.
 
 ### Why a VLM Instead of DOM-Only Checks
