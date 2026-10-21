@@ -19,6 +19,7 @@ from typing import Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
+from pydantic import ValidationError
 
 from app.config import Settings
 from app.patch_schemas import PatchProposal
@@ -191,6 +192,15 @@ def run_shoplite_sandbox(
                 raise SandboxFailure("SANDBOX_RUN_FAILED", "The ShopLite sandbox could not complete its verification")
             try:
                 payload = json.loads(completed.stdout)
+            except ValueError:
+                raise SandboxFailure(
+                    "SANDBOX_INVALID_RESULT", "The ShopLite container did not return JSON"
+                ) from None
+            if not isinstance(payload, dict):
+                raise SandboxFailure(
+                    "SANDBOX_INVALID_RESULT", "The ShopLite container returned a non-object report"
+                )
+            try:
                 if isinstance(payload, dict) and isinstance(payload.get("error"), str):
                     stage = payload.get("stage")
                     error_type = payload["error"]
@@ -207,6 +217,12 @@ def run_shoplite_sandbox(
                     raise SandboxFailure(
                         "SANDBOX_INVALID_RESULT", "The ShopLite sandbox returned an invalid report"
                     )
+                if "checks" not in payload:
+                    keys = ",".join(sorted(str(key) for key in payload.keys())[:8]) or "none"
+                    raise SandboxFailure(
+                        "SANDBOX_INVALID_RESULT",
+                        f"The ShopLite report omitted checks (report fields: {keys})",
+                    )
                 checks = SandboxChecks.model_validate(payload["checks"])
                 passed = (
                     payload["passed"] is True
@@ -219,6 +235,13 @@ def run_shoplite_sandbox(
                 )
             except SandboxFailure:
                 raise
+            except ValidationError as exc:
+                fields = sorted({".".join(str(part) for part in error.get("loc", ())) for error in exc.errors()})
+                summary = ",".join(fields[:8]) or "unknown fields"
+                raise SandboxFailure(
+                    "SANDBOX_INVALID_RESULT",
+                    f"The ShopLite report had invalid checks ({summary})",
+                ) from None
             except (ValueError, KeyError, TypeError):
                 raise SandboxFailure("SANDBOX_INVALID_RESULT", "The ShopLite sandbox returned an invalid report") from None
             if checks.baseline_mobile_overflow_px <= 0:

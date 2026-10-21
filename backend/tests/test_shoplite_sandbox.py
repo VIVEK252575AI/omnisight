@@ -133,6 +133,24 @@ def test_run_returns_verified_report_from_bounded_container(monkeypatch):
     assert "--network=none" in observed["command"]
 
 
+def test_sandbox_surfaces_only_safe_harness_failure_diagnostics(monkeypatch):
+    from app import shoplite_sandbox
+
+    def fake_run(command, **kwargs):
+        return SimpleNamespace(
+            returncode=1,
+            stdout=json.dumps({"passed": False, "error": "PermissionError", "stage": "load_baseline_mobile"}),
+            stderr="",
+        )
+
+    monkeypatch.setattr("app.shoplite_sandbox.shutil.which", lambda _: "docker")
+    monkeypatch.setattr("app.shoplite_sandbox.subprocess.run", fake_run)
+    with pytest.raises(SandboxFailure, match="load_baseline_mobile \\(PermissionError\\)") as failure:
+        run_shoplite_sandbox(_proposal(), proposal_id="proposal-demo", settings=_settings())
+
+    assert failure.value.code == "SANDBOX_BROWSER_FAILED"
+
+
 def test_timeout_explicitly_removes_named_container(monkeypatch):
     calls = []
 
