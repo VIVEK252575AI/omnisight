@@ -227,7 +227,7 @@ stored as `pending`, and only the fixed ShopLite demo can currently be scanned.
 The page also says when a source repository is not connected, so a project
 without GitHub setup is not shown as ready for patch or PR work.
 
-Test suite: **366 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **376 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
