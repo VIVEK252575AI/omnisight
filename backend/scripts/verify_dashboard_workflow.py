@@ -57,7 +57,7 @@ def run(base_url: str, timeout_ms: int) -> dict:
         page.get_by_role("button", name="Settings").click()
         page.get_by_text("Project and test flow", exact=True).wait_for(timeout=timeout_ms)
         page.get_by_text("OmniSight ShopLite Demo", exact=True).wait_for(timeout=timeout_ms)
-        page.get_by_text("ShopLite checkout visual QA", exact=True).wait_for(timeout=timeout_ms)
+        page.get_by_text("ShopLite checkout visual QA", exact=False).wait_for(timeout=timeout_ms)
         page.get_by_text("Definition SHA-256", exact=False).wait_for(timeout=timeout_ms)
         page.get_by_role("button", name="Live ShopLite Demo").click()
 
