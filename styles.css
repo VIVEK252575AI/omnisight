@@ -915,6 +915,13 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .live-finding { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
 .live-evidence-shot img { display: block; width: 100%; max-height: 520px; object-fit: contain; object-position: left top; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; }
 .live-evidence-shot .panel__sub { margin-bottom: 0; }
+.flow-steps-editor { margin-top: 16px; }
+.flow-steps-editor textarea { width: 100%; min-height: 280px; resize: vertical; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; tab-size: 2; }
+.flow-step-results { display: grid; gap: 6px; }
+.flow-step-result { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.flow-step-result:last-child { border-bottom: 0; }
+.flow-step-result .panel__sub { display: block; margin: 3px 0 0; }
+.flow-step-evidence { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
 .live-finding > div { display: flex; align-items: center; gap: 10px; }
 .live-finding h3 { margin: 10px 0 4px; font-size: 14px; }
 .live-finding p { margin: 4px 0; color: var(--text-2); font-size: 12px; }

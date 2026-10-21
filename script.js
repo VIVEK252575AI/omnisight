@@ -30,6 +30,7 @@ const Store = {
   workspaceLoading: false,
   workspaceSaving: false,
   workspaceSaved: false,
+  workspaceStepsDraft: null,
   githubToken: null,
   githubConnection: null,
   githubValidation: null,
@@ -111,6 +112,7 @@ function renderLiveDemo() {
     ${run ? `<div class="panel live-run-status"><div><span class="badge badge--${run.status === 'verified' ? 'success' : run.status === 'failed' || run.status === 'validation_failed' || run.status === 'patch_rejected' || run.status === 'proposal_rejected' ? 'error' : 'info'}">${esc(statusText)}</span><span class="panel__sub">Run ${esc(run.run_id)}</span>${canCancel ? `<button class="btn btn--ghost" onclick="cancelLiveShopLiteRun()">Cancel run</button>` : ''}</div>${run.error ? `<p class="error-note">${esc(run.error)}</p>` : ''}</div>
       <div class="live-stage-grid">${stages.map(({label, done, current}) => `<div class="live-stage ${done ? 'live-stage--done' : current ? 'live-stage--current' : ''}"><span>${done ? '✓' : current ? '…' : '·'}</span>${esc(label)}</div>`).join('')}</div>
       ${capture.screenshot_artifact_id ? `<div class="panel live-evidence-shot"><div class="panel__head"><div class="panel__title">Persisted mobile screenshot evidence</div><span class="panel__sub">${esc(viewport?.button_overflow_px ?? '—')}px horizontal overflow</span></div><div class="panel__body"><img src="/api/v1/artifacts/${encodeURIComponent(capture.screenshot_artifact_id)}" alt="Captured ShopLite checkout at the mobile viewport" loading="lazy" /><p class="panel__sub">Artifact ${esc(capture.screenshot_artifact_id)} · ${esc(viewport?.viewport?.width ?? 390)} × ${esc(viewport?.viewport?.height ?? 844)}</p>${viewport ? `<p class="panel__sub" role="status">Browser diagnostics: ${esc(viewport.console_error_count ?? 0)} console errors · ${esc(viewport.page_error_count ?? 0)} page exceptions · ${esc(viewport.network_error_count ?? 0)} failed or HTTP-error requests</p>` : ''}</div></div>` : ''}
+      ${Array.isArray(capture.flow_steps) ? `<div class="panel"><div class="panel__head"><div class="panel__title">Test-flow step results</div><span class="badge badge--${capture.flow_status === 'passed' ? 'success' : 'error'}">${esc(capture.flow_status || 'unknown')}</span></div><div class="panel__body flow-step-results">${capture.flow_steps.map(step => `<div class="flow-step-result"><div><strong>${esc(step.label)}</strong><span class="panel__sub">${esc(step.viewport)} · ${esc(step.type)} · ${esc(step.duration_ms)} ms</span>${step.evidence ? `<code class="flow-step-evidence">${esc(step.evidence)}</code>` : ''}</div><span class="badge badge--${step.status === 'passed' ? 'success' : 'error'}">${esc(step.status)}</span></div>`).join('')}</div></div>` : ''}
       ${findings.length ? `<div class="panel"><div class="panel__head"><div class="panel__title">Validated visual findings (${findings.length})</div><span class="panel__sub">${result.detection_is_mock ? 'MOCK adapter' : esc(result.detection_adapter || 'Gemini')}</span></div><div class="panel__body">${findings.map(f => `<article class="live-finding"><div><span class="badge badge--high">${esc(f.category || 'visual issue')}</span><span class="mono muted">${Math.round((f.confidence || 0) * 100)}% confidence</span></div><h3>${esc(f.category === 'clipped_element' ? 'Checkout button clipped on mobile' : f.category || 'Visual issue')}</h3><p>Target: <code>${esc(f.target_candidate || 'Needs inspection')}</code></p><p>Capture: mobile ${esc(viewport?.button_overflow_px ?? '—')}px overflow · desktop ${esc(capture.viewports?.desktop?.button_overflow_px ?? '—')}px</p></article>`).join('')}</div></div>` : ''}
       ${proposal ? `<div class="panel"><div class="panel__head"><div class="panel__title">Patch proposal</div><span class="badge badge--${proposal.status === 'proposed' ? 'success' : 'error'}">${esc(proposal.status)}</span></div><div class="panel__body">${(proposal.files || []).map(file => `<div class="live-file"><code>${esc(file.path)}</code><span>${esc(file.edits)} edit${file.edits === 1 ? '' : 's'} · ${esc(file.bytes)} bytes</span></div>`).join('')}${proposal.rejection_reasons?.length ? `<p class="error-note">Review: ${proposal.rejection_reasons.map(esc).join(', ')}${result.proposal_review?.reason ? ` · ${esc(result.proposal_review.reason)}` : ''}</p>` : ''}<p class="panel__sub">Generator: ${esc(proposal.generator_label || 'unknown')}${proposal.is_mock ? ' · simulated provider output' : ' · live provider response'}</p>${run?.status === 'awaiting_sandbox_approval' ? patchPreview ? `<section class="patch-preview"><div class="patch-preview__meta"><strong>Review exact source diff</strong><span>Base ${esc(patchPreview.base_sha256.slice(0, 16))}…</span></div><p class="panel__sub">This bounded diff is what the sandbox will validate. Approval is rejected if the source changes.</p><pre aria-label="Proposed unified CSS diff"><code>${esc(patchPreview.diff)}</code></pre></section>` : `<div class="panel__sub" role="status">${Store.patchPreviewError ? `<span class="error-note">${esc(Store.patchPreviewError)}</span> <button class="btn btn--ghost" onclick="loadShopLitePatchPreview('${esc(run.run_id)}')">Reload diff</button>` : 'Loading the exact source diff for review…'}</div>` : ''}</div></div>` : ''}
       ${canApprove ? `<div class="panel live-approval"><div class="panel__head"><div class="panel__title">Review before sandbox validation</div><span class="panel__sub">Fixed ShopLite demo only</span></div><div class="panel__body"><p>This runs the proposed CSS edit in a disposable container with network access disabled. It does not change the source checkout.</p><div class="field"><label for="live-demo-confirm">Type <code>approve-demo-only</code> to approve this sandbox run</label><input id="live-demo-confirm" autocomplete="off" placeholder="approve-demo-only"></div><button class="btn btn--primary" onclick="validateLiveShopLiteRun()">Approve and validate</button>${canReject ? `<div class="field live-rejection-field"><label for="live-demo-reject-reason">Or reject the proposal with a reason</label><textarea id="live-demo-reject-reason" maxlength="500" rows="2" placeholder="Explain what needs to change"></textarea></div><button class="btn btn--ghost" onclick="rejectLiveShopLiteProposal()">Reject proposal</button>` : ''}</div></div>` : ''}
@@ -339,6 +341,7 @@ async function loadShopLiteWorkspace() {
   render();
   try {
     Store.workspace = await liveDemoRequest('/workspace');
+    Store.workspaceStepsDraft = JSON.stringify(Store.workspace.test_flow?.definition?.steps || [], null, 2);
   } catch (error) {
     Store.workspaceError = error.message;
   } finally {
@@ -354,6 +357,16 @@ async function publishShopLiteFlowVersion() {
     { width: Number(document.getElementById('flow-mobile-width')?.value), height: Number(document.getElementById('flow-mobile-height')?.value) },
     { width: Number(document.getElementById('flow-desktop-width')?.value), height: Number(document.getElementById('flow-desktop-height')?.value) }
   ];
+  let steps;
+  try {
+    steps = JSON.parse(document.getElementById('flow-steps-json')?.value || '');
+    if (!Array.isArray(steps)) throw new Error('Steps must be a JSON array.');
+  } catch (error) {
+    Store.workspaceError = `Invalid flow JSON: ${error.message}`;
+    render();
+    return;
+  }
+  Store.workspaceStepsDraft = JSON.stringify(steps, null, 2);
   Store.workspaceSaving = true;
   Store.workspaceSaved = false;
   Store.workspaceError = null;
@@ -361,8 +374,9 @@ async function publishShopLiteFlowVersion() {
   try {
     Store.workspace = await liveDemoRequest('/workspace/test-flow', {
       method: 'PUT',
-      body: JSON.stringify({ expected_version: flow.version, viewports })
+      body: JSON.stringify({ expected_version: flow.version, viewports, steps })
     });
+    Store.workspaceStepsDraft = JSON.stringify(Store.workspace.test_flow.definition.steps, null, 2);
     Store.workspaceSaved = true;
   } catch (error) {
     Store.workspaceError = error.message;
@@ -611,7 +625,7 @@ function renderModels() {
   return `
   <div class="models-view">
     <div class="panel">
-      <div class="panel__head"><div class="panel__title">Project and test flow</div><span class="panel__sub">${workspace ? 'Persisted backend workspace · read-only' : 'Fixed ShopLite demo'}</span></div>
+      <div class="panel__head"><div class="panel__title">Project and test flow</div><span class="panel__sub">${workspace ? 'Persisted backend workspace · versioned' : 'Fixed ShopLite demo'}</span></div>
       <div class="panel__body">
         ${Store.workspaceError ? `<p class="error-note" role="alert">${esc(Store.workspaceError)}</p>` : ''}
         ${Store.workspaceLoading ? '<p class="panel__sub" role="status">Loading the saved ShopLite workspace…</p>' : ''}
@@ -627,7 +641,8 @@ function renderModels() {
           <div class="field"><label for="flow-desktop-width">Desktop width</label><input id="flow-desktop-width" type="number" min="800" max="1920" value="${esc(definition?.viewports?.[1]?.width ?? 1440)}" ${Store.workspaceSaving ? 'disabled' : ''}></div>
           <div class="field"><label for="flow-desktop-height">Desktop height</label><input id="flow-desktop-height" type="number" min="480" max="2160" value="${esc(definition?.viewports?.[1]?.height ?? 900)}" ${Store.workspaceSaving ? 'disabled' : ''}></div>
         </div>
-        <p class="panel__sub">Saving publishes a new immutable flow version. New runs use its saved viewport sizes; previous runs keep their original version.</p>
+        <div class="field flow-steps-editor"><label for="flow-steps-json">Executable test steps (JSON)</label><textarea id="flow-steps-json" rows="18" spellcheck="false" oninput="Store.workspaceStepsDraft=this.value" ${Store.workspaceSaving ? 'disabled' : ''}>${esc(Store.workspaceStepsDraft ?? JSON.stringify(definition?.steps || [], null, 2))}</textarea><p class="panel__sub">Up to 20 structured steps: navigate, click, fill, select_option, wait_for, assert_visible, assert_text, assert_url, screenshot, capture_dom. Navigation is restricted to the local ShopLite routes (<code>/</code> and <code>/checkout</code>); arbitrary code and external URLs are rejected.</p></div>
+        <p class="panel__sub">Saving publishes a new immutable flow version. New runs use its saved viewports and steps; previous runs keep their pinned version.</p>
         ${Store.workspaceSaved ? '<p class="success-note" role="status">New test-flow version published.</p>' : ''}
         <button class="btn btn--primary" onclick="publishShopLiteFlowVersion()" ${Store.workspaceSaving ? 'disabled' : ''}>${Store.workspaceSaving ? 'Publishing…' : 'Publish test-flow version'}</button>` : ''}
         <button class="btn" onclick="loadShopLiteWorkspace()">Refresh workspace</button>

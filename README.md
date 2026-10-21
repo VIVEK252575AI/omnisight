@@ -205,11 +205,14 @@ the run page; the cancellation request is persisted and the worker process tree
 is stopped. Sandbox validation remains a separate, explicitly approved action.
 Apply the Alembic migrations before starting the workflow.
 
-In **Settings → Project and test flow**, you can adjust the fixed demo's mobile
-and desktop viewport sizes and publish a new immutable flow version. New runs
-pin that version and use its saved sizes during browser capture; earlier runs
-retain their original version. The checkout route and supported assertions
-remain fixed to the controlled ShopLite demo.
+In **Settings → Project and test flow**, you can adjust mobile and desktop
+viewports and edit a bounded JSON list of structured browser steps. Supported
+steps include navigation within the local ShopLite routes, locator actions,
+assertions, screenshots, and structural DOM capture. Timeouts and viewport
+dimensions are bounded; each flow can capture at most four compressed viewport
+screenshots. Arbitrary scripts and external navigation are rejected. Publishing creates an immutable version;
+each run pins and revalidates that version, and persists per-step outcomes.
+Earlier runs retain their original flow version.
 
 After a successful sandbox run, the same page can verify the server-configured
 GitHub App repository, validate the proposal again against the current remote
@@ -227,7 +230,7 @@ stored as `pending`, and only the fixed ShopLite demo can currently be scanned.
 The page also says when a source repository is not connected, so a project
 without GitHub setup is not shown as ready for patch or PR work.
 
-Test suite: **376 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **386 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
