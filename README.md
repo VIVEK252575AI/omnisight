@@ -109,15 +109,17 @@ The Week 1 and Week 2 backend (FastAPI) is implemented and tested (`backend/`):
 | Structured visual-finding schema + strict parser (W2.3) | Tested with mocks |
 | VLM detection workflow (W2.4) | Tested with mocks |
 | Safe action engine / patch proposals (W2.5) | Tested with mocks |
-| Gemini patch generator in the standard safe-proposal workflow | Integration-tested with a mocked provider; live API call not yet verified |
+| Gemini visual analyzer and safe patch generator | Integration-tested with mocked provider responses; live API calls need a configured key |
 | Code-response extraction & rejection (W2.6) | Tested with mocks |
 | Week 2 test matrix: valid / malformed / missing / unsupported / failed (W2.7) | Tested with mocks |
-| Playwright collector, real VLM provider, patch apply + sandbox, PyGithub, React dashboard | Not implemented |
+| Local Playwright checkout capture and scan runner | Tested with the local demo and backend |
+| Patch application + sandbox validation, GitHub PR delivery, React dashboard | Not implemented |
 
-VLM detection still uses the deterministic, offline **MOCK adapter**; no live
-vision provider has been selected yet. Gemini text generation is available for
-patch proposals when explicitly configured, but the live provider has not yet
-been verified. Raw model output is never executed, imported, or written to disk.
+VLM detection and patch generation default to deterministic offline **MOCK**
+adapters. Gemini can be selected for screenshot analysis and patch proposals;
+provider requests are covered by mocked integration tests, but a live request
+needs a configured key and quota. Raw model output is validated and never
+executed or applied automatically.
 
 Endpoints currently served:
 
@@ -133,7 +135,7 @@ GET      /api/v1/webhooks/events/{event_id}
 POST     /api/v1/scans/{scan_id}/evidence
 GET      /api/v1/scans/{scan_id}/evidence
 GET      /api/v1/artifacts/{artifact_id}
-POST     /api/v1/scans/{scan_id}/detect           # VLM detection (MOCK adapter)
+POST     /api/v1/scans/{scan_id}/detect           # VLM detection (MOCK or Gemini)
 GET      /api/v1/scans/{scan_id}/findings         # validated findings + run
 GET      /api/v1/findings/{finding_id}
 POST     /api/v1/findings/{finding_id}/patch-proposals   # propose only, no writes
@@ -147,7 +149,7 @@ Run it (from `backend/`):
 .\.venv\Scripts\python.exe -m pytest tests\ -q        # test
 ```
 
-Test suite: **295 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **302 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
