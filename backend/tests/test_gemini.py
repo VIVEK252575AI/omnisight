@@ -96,14 +96,14 @@ def test_gemini_patch_suggestion_rejects_non_matching_old_text(client, monkeypat
     response = client.post("/api/ai/patch-suggestions", json=_request_body())
 
     assert response.status_code == 422
-    assert "exact, unique source edit" in response.json()["detail"]
+    assert "exact, unique source edit" in response.json()["error"]["message"]
 
 
 def test_gemini_patch_suggestion_requires_server_key(client):
     response = client.post("/api/ai/patch-suggestions", json=_request_body())
 
     assert response.status_code == 503
-    assert "OMNISIGHT_GEMINI_API_KEY" in response.json()["detail"]
+    assert "OMNISIGHT_GEMINI_API_KEY" in response.json()["error"]["message"]
 
 
 def test_gemini_patch_suggestion_rejects_traversal_path(client):

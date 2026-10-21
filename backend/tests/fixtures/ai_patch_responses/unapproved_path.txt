@@ -1,0 +1,14 @@
+{
+  "finding_id": "__FINDING_ID__",
+  "files": [
+    {
+      "path": "src/app.tsx",
+      "edits": [
+        { "old_text": "null", "new_text": "<div/>" }
+      ]
+    }
+  ],
+  "rationale": "FIXTURE: src/** is not in the allow-list.",
+  "generator_label": "MOCK",
+  "schema_version": 1
+}

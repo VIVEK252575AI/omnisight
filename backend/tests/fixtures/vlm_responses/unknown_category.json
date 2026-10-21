@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "outcome": "defects_found",
+  "summary": "FIXTURE: category outside the closed vocabulary.",
+  "findings": [
+    {
+      "category": "layout_overflow",
+      "observation": "Something looks off here."
+    }
+  ]
+}

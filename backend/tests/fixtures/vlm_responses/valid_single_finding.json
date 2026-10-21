@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "outcome": "defects_found",
+  "summary": "FIXTURE: the primary button is clipped at this viewport.",
+  "findings": [
+    {
+      "category": "clipped_element",
+      "target_candidate": "#submit",
+      "observation": "The primary button extends past the right viewport edge.",
+      "evidence": "geometry: button.x=380 width=220 viewport.width=390",
+      "potential_causes": ["fixed pixel width"],
+      "severity": "high",
+      "confidence": 0.9,
+      "region": { "x": 380, "y": 690, "width": 220, "height": 48 }
+    }
+  ]
+}

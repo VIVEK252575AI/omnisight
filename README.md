@@ -93,6 +93,77 @@ The major stages are:
 
 ---
 
+## 🧪 Backend Implementation Status
+
+> This section reflects the **actual repository state**. The rest of this
+> document describes the target design.
+
+The Week 1 and Week 2 backend (FastAPI) is implemented, tested and pushed on the
+`lakshy` branch (`backend/`):
+
+| Area | Status |
+|---|---|
+| Scan API + lifecycle state machine | Tested against the local application |
+| Simulated CI/CD webhook receiver (optional HMAC) | Tested against the local application |
+| Evidence API (`observation/v1`) + safe artifact serving | Tested against the local application |
+| Provider-neutral VLM adapter boundary (W2.2) | Tested with mocks |
+| Structured visual-finding schema + strict parser (W2.3) | Tested with mocks |
+| VLM detection workflow (W2.4) | Tested with mocks |
+| Safe action engine / patch proposals (W2.5) | Tested with mocks |
+| Code-response extraction & rejection (W2.6) | Tested with mocks |
+| Week 2 test matrix: valid / malformed / missing / unsupported / failed (W2.7) | Tested with mocks |
+| Playwright collector, real VLM provider, patch apply + sandbox, PyGithub, React dashboard | Not implemented |
+
+All Week 2 AI work runs against a deterministic, **offline MOCK adapter** — no
+live VLM provider has been selected yet, and raw model output is never executed,
+imported, or written to disk.
+
+Endpoints currently served:
+
+```text
+GET      /health
+GET      /api/scans
+POST     /api/scans
+GET      /api/scans/{scan_id}
+POST     /api/scans/{scan_id}/transition
+POST     /api/v1/webhooks/ci              # SIMULATED CI only
+GET      /api/v1/webhooks/events
+GET      /api/v1/webhooks/events/{event_id}
+POST     /api/v1/scans/{scan_id}/evidence
+GET      /api/v1/scans/{scan_id}/evidence
+GET      /api/v1/artifacts/{artifact_id}
+POST     /api/v1/scans/{scan_id}/detect           # VLM detection (MOCK adapter)
+GET      /api/v1/scans/{scan_id}/findings         # validated findings + run
+GET      /api/v1/findings/{finding_id}
+POST     /api/v1/findings/{finding_id}/patch-proposals   # propose only, no writes
+GET      /api/v1/findings/{finding_id}/patch-proposals
+```
+
+Run it (from `backend/`):
+
+```powershell
+.\.venv\Scripts\uvicorn.exe app.main:app --reload     # serve
+.\.venv\Scripts\python.exe -m pytest tests\ -q        # test
+```
+
+Test suite: **289 passed, 1 skipped** (offline; the skip is a Windows
+`symlink` test).
+
+Design docs live under `docs/`:
+
+- `docs/week1_integration_audit.md`
+- `docs/week2_finding_schema.md`
+- `docs/week2_detection_api.md`
+- `docs/week2_action_engine.md`
+- `docs/week2_code_extraction.md`
+- `docs/week2_testing_note.md`
+
+The CI webhook is a **simulation** — there is no real GitHub Actions/Jenkins
+integration. The patch-proposal endpoint only **validates and stores** a
+proposal; nothing is written to disk or applied to a repository in this slice.
+
+---
+
 ## 🏗️ System Architecture
 
 OmniSight follows a modular architecture with stable JSON/API contracts between components.
@@ -214,11 +285,21 @@ OmniSight/
 │
 ├── backend/
 │   ├── app/
-│   │   ├── main.py
-│   │   ├── orchestrator.py
-│   │   ├── schemas.py
-│   │   ├── storage.py
-│   │   └── config.py
+│   │   ├── main.py                 # app factory + router wiring
+│   │   ├── config.py               # env-driven Settings
+│   │   ├── schemas.py              # scan + observation/v1 contracts
+│   │   ├── errors.py               # single error envelope
+│   │   ├── storage.py              # in-memory scan store
+│   │   ├── event_storage.py        # CI event store
+│   │   ├── evidence_storage.py     # evidence + artifact registry
+│   │   ├── artifacts.py            # safe artifact resolution
+│   │   ├── detection_*.py          # VLM detection workflow (W2.4)
+│   │   ├── action_engine.py        # safe patch-proposal engine (W2.5)
+│   │   ├── patch_*.py              # schemas, paths, validation, extraction
+│   │   ├── source_context.py       # read-only approved-source context
+│   │   ├── ai/                     # adapter boundary, gateway, parser, prompts
+│   │   └── routers/                # scans, evidence, detection, patches, ci
+│   ├── tests/                      # pytest suite + FIXTURE corpus
 │   └── requirements.txt
 │
 ├── playwright_worker/
@@ -251,7 +332,7 @@ OmniSight/
 └── .gitignore
 ```
 
-> The exact folder structure can be adjusted during implementation while keeping the same modular architecture.
+> The exact folder structure can be adjusted during implementation while keeping the same modular architecture. In the current repository only `backend/` and `docs/` exist; the `frontend/`, `playwright_worker/`, `vlm_service/`, `patch_engine/` and `validation/` directories are **target modules** — their Week 1–2 backend logic currently lives under `backend/app/` (see `ai/`, `detection_*`, `patch_*`).
 
 ---
 
@@ -309,12 +390,15 @@ Browser evidence is converted into machine-readable context.
 
 ```json
 {
-  "url": "https://staging.shop.example/checkout",
+  "schema_version": "observation/v1",
+  "url": "https://shoplite.local/checkout",
+  "route": "/checkout",
+  "state": "cart-filled",
   "viewport": {
     "width": 390,
     "height": 844
   },
-  "screenshot": "artifacts/checkout-390.png",
+  "screenshot": "screenshots/checkout-390.png",
   "elements": [
     {
       "selector": "#checkout",
@@ -331,11 +415,12 @@ Browser evidence is converted into machine-readable context.
     }
   ],
   "console_errors": [],
-  "network_errors": []
+  "network_errors": [],
+  "captured_at": "2026-01-01T00:00:00Z"
 }
 ```
 
-In this example, the button exists in the DOM but lies outside the 390 px mobile viewport.
+In this example, the button exists in the DOM but lies outside the 390 px mobile viewport. This exact shape is exercised by `backend/tests/fixtures/observation_fixture.json`.
 
 > **Evidence is not the bug report.** Playwright collects evidence and context. The VLM interprets that evidence and returns a structured finding.
 
@@ -355,19 +440,38 @@ Viewport Metadata
 Console / Network Information
 ```
 
-It returns a structured finding such as:
+It returns a validated response (not a bare finding):
 
 ```json
 {
-  "type": "clipped_element",
-  "target": "#checkout",
-  "evidence": "box.x + w = 540 > viewport 390",
-  "severity": "high",
-  "confidence": 0.94
+  "schema_version": 1,
+  "outcome": "defects_found",
+  "summary": "Checkout button is clipped at 390px width.",
+  "findings": [
+    {
+      "finding_id": "<backend-assigned>",
+      "category": "clipped_element",
+      "target_candidate": "#checkout",
+      "target_unverified": false,
+      "observation": "The Checkout button extends past the right viewport edge.",
+      "evidence": "geometry: button.x=420 width=120 viewport.width=390",
+      "potential_causes": ["fixed pixel width"],
+      "severity": "high",
+      "confidence": 0.94,
+      "status": "detected"
+    }
+  ]
 }
 ```
 
-This lets OmniSight combine visual understanding with browser evidence instead of relying only on DOM state.
+`outcome` is one of `defects_found`, `no_defects`, or `needs_inspection`. The
+`category` is drawn from a closed set: `clipped_element`,
+`overlapping_elements`, `low_contrast_text`, `responsive_layout_failure`,
+`hidden_or_unreachable_element`, `needs_inspection`.
+
+`finding_id`, `status` and `target_unverified` are **assigned by the backend** —
+a model-supplied value is ignored. This lets OmniSight combine visual
+understanding with browser evidence instead of relying only on DOM state.
 
 ### VLM Responsibilities in the Pipeline
 
@@ -393,8 +497,8 @@ Cross-checking structured evidence against visual perception is what makes findi
 ### Finding Contract Guarantees
 
 - Raw model output is **always validated against a strict JSON schema** before any downstream stage consumes it.
-- Invalid or truncated model responses are treated as a first-class failure — never silently retried with fabricated values, never guessed into a finding.
-- Each finding carries: `type`, `target`, `evidence`, `severity`, and `confidence`, matching the example above.
+- Invalid, truncated, or contradictory responses become a recorded failure. A repairable shape failure may trigger **one bounded repair re-ask**; values are never fabricated or guessed into a finding.
+- Each finding carries `category`, `target_candidate`, `observation`, `evidence`, `potential_causes`, `severity`, and `confidence`, plus the backend-assigned `finding_id`, `target_unverified`, and `status`.
 - `severity` and `confidence` are read by the orchestrator to gate whether a check proceeds to patch generation.
 
 ### Why a VLM Instead of DOM-Only Checks
@@ -908,58 +1012,150 @@ GitHub + CI/CD     → Creates a reviewable engineering workflow
 **Core Loop:** Detect · Fix · Verify  
 **Team Size:** 4 Members  
 **Implementation Duration:** 1 Month  
-**Domain:** Generative AI · RPA · Quality Assurance · Web Development · DevOps
+**Domain:** Generative AI · RPA · Quality Assurance · Web Development · DevOps  
+**Frontend:** React, JavaScript, HTML5, CSS3, Vite  
+**Backend:** Python, FastAPI, REST/JSON  
+**Browser automation:** Playwright  
+**AI:** Vision-Language Model and Large Language Model
 
 ---
 
+## 🖥️ Frontend Dashboard (React + Vite)
+
+> Contributed by the frontend team. The dashboard operates the workflow and
+> reviews its evidence.
+
+### Frontend Features
+
+The dashboard should provide the following screens and user actions:
+
+- **Scans:** submit a target URL, choose viewports, start a scan, and track its status.
+- **Findings:** review visual defects such as clipped controls, overlapping elements, low-contrast text, and responsive-layout failures.
+- **Finding details:** show severity, confidence, target selector, evidence, and remediation status.
+- **Before / After:** compare screenshots from the original and patched UI.
+- **Pull Requests:** display branch, commit, PR status, and links to reviewable changes.
+- **Logs:** show scan events, validation output, retries, and errors.
+- **Approval controls:** approve, reject, or retry proposed fixes. A human approval step is required before merge.
+
+The dashboard should communicate that evidence is collected by Playwright, defects are interpreted by a Vision-Language Model (VLM), patches are proposed by an LLM/fix engine, and changes are validated in an isolated workspace.
+
+### Frontend Technology Stack
+
+- React
+- JavaScript
+- HTML5
+- CSS3
+- Vite
+- REST/JSON API integration with the FastAPI backend
+
+### Suggested Frontend Structure
+
+```text
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── Sidebar.jsx
+│   │   ├── ScanForm.jsx
+│   │   ├── Findings.jsx
+│   │   ├── FindingCard.jsx
+│   │   ├── BeforeAfter.jsx
+│   │   ├── PullRequests.jsx
+│   │   ├── Logs.jsx
+│   │   └── ApprovalControls.jsx
+│   ├── services/
+│   │   └── api.js
+│   ├── App.jsx
+│   ├── main.jsx
+│   └── styles.css
+├── index.html
+├── package.json
+└── vite.config.js
+```
+
+Adjust component names to match the actual implementation, while keeping the UI organized by responsibility.
+
+### Dashboard Workflow
+
+1. The user submits a target URL from the dashboard.
+2. The backend starts a Playwright run and captures screenshots, DOM information, console errors, and network evidence.
+3. The VLM returns structured findings.
+4. The fix engine proposes a minimal code patch.
+5. The backend applies the patch in an isolated workspace and runs build/tests.
+6. Playwright captures the patched UI and the VLM verifies the original defect is gone.
+7. The dashboard displays before/after evidence and validation status.
+8. A reviewable GitHub PR is created only after successful verification.
+9. A human reviews and approves the change before merge.
+
+### Local Development
+
+#### Prerequisites
+
+- Node.js and npm
+- The OmniSight FastAPI backend, if you want live API data
+
+#### Install and run
+
+From the frontend directory:
+
+```bash
+npm install
+npm run dev
+```
+
+Vite prints the local development URL in the terminal.
+
+#### Backend integration
+
+Configure the frontend API base URL to point to your FastAPI orchestrator. Keep API calls in `src/services/api.js` rather than embedding fetch logic throughout UI components. Use validated JSON contracts for scan status, findings, screenshots, validation results, and pull-request information.
+
+If the backend is not running, the frontend can use clearly labelled mock/demo data for presentation, but must not imply that real scans, AI fixes, or GitHub PRs have occurred.
+
+### UX and Safety Principles
+
+- **Evidence first:** show screenshots and relevant DOM context for each finding.
+- **Clear states:** distinguish queued, running, failed, fixed, verified, and awaiting review.
+- **Minimal patches:** show what changed and why.
+- **Safe execution:** backend changes are validated in an isolated environment.
+- **Bounded retries:** failed patches are rolled back; repeated failures are escalated.
+- **Human approval:** automation proposes changes; people approve before merge.
+- **Accessible responsive UI:** maintain readable contrast, keyboard access, and mobile-friendly layouts.
+
+### Frontend System Context
+
+The frontend is one part of a modular system:
+
+```text
+React Dashboard
+      │
+      ▼
+FastAPI Orchestrator
+      ├── Playwright Worker ── Screenshots + DOM
+      ├── VLM Service ──────── Visual defect findings
+      ├── LLM / Patch Engine ─ Minimal source-code patch
+      ├── Validation Sandbox ─ Build + tests + re-check
+      └── GitHub + CI/CD ───── Branch, commit, PR, checks
+```
+
+The backend and worker services are separate from the frontend and need their own implementation and configuration.
+
+### MVP Demo
+
+Demonstrate one known visual defect end to end:
+
+1. Submit the ShopLite checkout URL.
+2. Capture the mobile viewport (for example, 390 × 844).
+3. Detect the clipped Checkout button.
+4. Propose and apply a minimal CSS fix.
+5. Re-capture and verify the UI.
+6. Show the before/after evidence and validation status.
+7. Display the resulting reviewable PR and wait for human review.
+
+> **Demo success:** Detect → Fix → Verify → Reviewable PR.
+
 ## Gemini patch suggestions (backend)
 
-The backend exposes `POST /api/ai/patch-suggestions`. It sends a validated
-finding and up to five caller-supplied CSS/SCSS/JSX/TSX excerpts to Gemini, then
-checks that every suggested edit matches text in one of those files exactly
-once. It returns a reviewable proposal only; it does not write or execute code.
+The backend also exposes `POST /api/ai/patch-suggestions` for a review-only Gemini proposal. It accepts a validated finding and up to five caller-supplied CSS, SCSS, JSX, or TSX excerpts. The response is checked against those exact excerpts and never writes or executes code.
 
-To configure it locally, copy `backend/.env.example` to `backend/.env`, add
-your Gemini API key to `OMNISIGHT_GEMINI_API_KEY`, then start the API from
-`backend/` using the run instructions above. The key is read by the backend and
-sent in the `x-goog-api-key` header. Never add it to frontend code or commit
-`backend/.env`.
+Copy `backend/.env.example` to `backend/.env` and set `OMNISIGHT_GEMINI_API_KEY`. The key remains on the backend and is sent to Google in the `x-goog-api-key` header. Keep it out of frontend code and source control. Set `OMNISIGHT_GEMINI_MODEL` if a different model is enabled for your key.
 
-Example request body (save as `patch-request.json`):
-
-```json
-{
-  "finding": {
-    "finding_id": "demo-clipped-button",
-    "type": "clipped_element",
-    "target": "#submit",
-    "route": "/checkout",
-    "viewport": {"width": 390, "height": 844},
-    "evidence": "The button extends beyond the 390px viewport.",
-    "explanation": "The fixed width prevents the button from shrinking.",
-    "severity": "high",
-    "confidence": 0.9
-  },
-  "source_files": [
-    {
-      "path": "styles/checkout.css",
-      "text": "#submit {\n  width: 520px;\n  padding: 12px;\n}\n"
-    }
-  ]
-}
-```
-
-Send it to the local API with:
-
-```powershell
-curl.exe -X POST http://127.0.0.1:8000/api/ai/patch-suggestions `
-  -H "Content-Type: application/json" `
-  --data-binary "@patch-request.json"
-```
-
-Review the returned `rationale` and `files[].edits` before applying anything.
-An HTTP 429 means the provider rate limit or account quota was reached; a 502,
-503, or 504 identifies a provider, key/configuration, or timeout problem.
-Gemini API availability and free-tier quotas depend on the Google AI Studio
-account and current model access. Change `OMNISIGHT_GEMINI_MODEL` if the model
-configured in the example is not enabled for your key.
+See the API docs at `http://127.0.0.1:8000/docs` after starting the backend. Returned edits are proposals; review them before applying anything. A 429 response indicates a provider quota/rate limit, while 502–504 responses indicate provider, configuration, or timeout failures.

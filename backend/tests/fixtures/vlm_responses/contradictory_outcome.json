@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "outcome": "no_defects",
+  "summary": "FIXTURE: contradictory - claims no defects but returns a finding.",
+  "findings": [
+    {
+      "category": "clipped_element",
+      "observation": "The button is clipped."
+    }
+  ]
+}

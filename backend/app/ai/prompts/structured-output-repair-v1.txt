@@ -1,0 +1,6 @@
+Your previous reply could not be parsed as valid JSON matching the required
+schema.
+
+Re-answer the SAME task. Output ONLY a single valid JSON object with exactly
+the required fields and enums. Do not add commentary, markdown, or code fences.
+Every required field must be present; use null only where the schema allows it.

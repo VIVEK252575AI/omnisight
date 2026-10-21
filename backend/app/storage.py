@@ -11,8 +11,9 @@ long-running execution.
 """
 
 import threading
-from uuid import UUID, uuid4
+from uuid import UUID
 
+from app.ids import new_uuid, utcnow
 from app.schemas import ScanCreateRequest, ScanStatus, ScanResponse
 
 
@@ -26,7 +27,7 @@ class ScanStore:
     def create(self, request: ScanCreateRequest) -> ScanResponse:
         """Create a scan record in its initial state."""
         record = ScanResponse(
-            scan_id=uuid4(),
+            scan_id=new_uuid(),
             status=ScanStatus.created,
             target_url=request.target_url,
             viewports=request.viewports,
@@ -52,3 +53,36 @@ class ScanStore:
             if record.scan_id not in self._scans:
                 raise KeyError(f"scan {record.scan_id} does not exist")
             self._scans[record.scan_id] = record
+
+    def compare_and_transition(
+        self,
+        scan_id: UUID,
+        *,
+        expected: frozenset[ScanStatus],
+        to_status: ScanStatus,
+        error: str | None = None,
+    ) -> ScanResponse | None:
+        """Atomically transition only if the scan is in one of ``expected``.
+
+        Returns the updated record, or ``None`` when the scan is unknown or its
+        status is no longer one of ``expected`` (a lost race or an illegal
+        start). This is the single-writer guard that keeps two concurrent
+        triggers from starting the same detection twice.
+        """
+        with self._lock:
+            current = self._scans.get(scan_id)
+            if current is None or current.status not in expected:
+                return None
+            updated = current.model_copy(
+                update={"status": to_status, "error": error, "updated_at": utcnow()}
+            )
+            self._scans[scan_id] = updated
+            return updated
+
+
+_store = ScanStore()
+
+
+def get_store() -> ScanStore:
+    """Return the process-wide scan store (FastAPI dependency)."""
+    return _store

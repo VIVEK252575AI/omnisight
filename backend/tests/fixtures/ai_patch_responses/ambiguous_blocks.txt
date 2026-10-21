@@ -1,0 +1,31 @@
+Sure - here are two options:
+
+```omnisight-patch
+{
+  "finding_id": "__FINDING_ID__",
+  "files": [
+    {
+      "path": "styles/checkout.css",
+      "edits": [{ "old_text": "color: red;", "new_text": "color: blue;" }]
+    }
+  ],
+  "rationale": "FIXTURE option A.",
+  "generator_label": "MOCK",
+  "schema_version": 1
+}
+```
+
+```omnisight-patch
+{
+  "finding_id": "__FINDING_ID__",
+  "files": [
+    {
+      "path": "styles/checkout.css",
+      "edits": [{ "old_text": "width: 220px;", "new_text": "width: 100%;" }]
+    }
+  ],
+  "rationale": "FIXTURE option B.",
+  "generator_label": "MOCK",
+  "schema_version": 1
+}
+```
