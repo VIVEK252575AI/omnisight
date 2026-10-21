@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import re
+import time
 from pathlib import Path
 from urllib.parse import quote
 
@@ -13,6 +14,9 @@ from app.config import Settings
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 MAX_RESPONSE_BYTES = 32_768
+MAX_TRANSIENT_RETRIES = 2
+RETRYABLE_STATUS_CODES = frozenset({500, 502, 503, 504})
+RETRY_BACKOFF_SECONDS = 1.0
 _MODEL_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
 
@@ -101,29 +105,57 @@ class GeminiTextAdapter:
         if not _MODEL_RE.fullmatch(model):
             raise GeminiProviderError("configuration", "Gemini model name is invalid")
 
-        try:
-            response = httpx.post(
-                f"{GEMINI_API_BASE}/{quote(model, safe='')}:generateContent",
-                headers={"x-goog-api-key": key},
-                json={
-                    "systemInstruction": {"parts": [{"text": system_instruction}]},
-                    "contents": [{"role": "user", "parts": parts}],
-                    "generationConfig": {
-                        "responseMimeType": "application/json",
-                        "maxOutputTokens": (
-                            max_output_tokens or self._settings.gemini_max_output_tokens
-                        ),
-                        "temperature": 0.1,
-                    },
-                },
-                timeout=timeout_seconds or self._settings.gemini_timeout_seconds,
-            )
-        except httpx.TimeoutException:
-            raise GeminiProviderError("timeout", "Gemini request timed out") from None
-        except httpx.RequestError as exc:
-            raise GeminiProviderError(
-                "unavailable", f"Gemini request failed ({type(exc).__name__})"
-            ) from None
+        request_timeout = (
+            timeout_seconds
+            if timeout_seconds is not None
+            else self._settings.gemini_timeout_seconds
+        )
+        deadline = time.monotonic() + request_timeout
+        request_url = f"{GEMINI_API_BASE}/{quote(model, safe='')}:generateContent"
+        request_payload = {
+            "systemInstruction": {"parts": [{"text": system_instruction}]},
+            "contents": [{"role": "user", "parts": parts}],
+            "generationConfig": {
+                "responseMimeType": "application/json",
+                "maxOutputTokens": (
+                    max_output_tokens or self._settings.gemini_max_output_tokens
+                ),
+                "temperature": 0.1,
+            },
+        }
+        response = None
+        for attempt in range(MAX_TRANSIENT_RETRIES + 1):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise GeminiProviderError("timeout", "Gemini request timed out")
+            try:
+                response = httpx.post(
+                    request_url,
+                    headers={"x-goog-api-key": key},
+                    json=request_payload,
+                    timeout=min(request_timeout, remaining),
+                )
+            except httpx.TimeoutException:
+                # A timed-out request may have been processed remotely. Do not
+                # repeat it and risk an unbounded duplicate provider charge.
+                raise GeminiProviderError("timeout", "Gemini request timed out") from None
+            except httpx.RequestError as exc:
+                raise GeminiProviderError(
+                    "unavailable", f"Gemini request failed ({type(exc).__name__})"
+                ) from None
+
+            if (
+                response.status_code not in RETRYABLE_STATUS_CODES
+                or attempt >= MAX_TRANSIENT_RETRIES
+            ):
+                break
+            remaining = deadline - time.monotonic()
+            backoff = RETRY_BACKOFF_SECONDS * (2**attempt)
+            if remaining <= backoff:
+                break
+            time.sleep(backoff)
+
+        assert response is not None
 
         if response.status_code == 429:
             raise GeminiProviderError("rate_limited", "Gemini quota or rate limit was reached")

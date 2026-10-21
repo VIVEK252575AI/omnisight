@@ -48,8 +48,10 @@ KNOWN_PATCH_GENERATORS = (
 #   two_tagged_fences   two `omnisight-patch` blocks (ambiguous_multiple_patches)
 #   prose_only          no JSON at all (no_patch_found)
 #   truncated           cut-off JSON (truncated)
+#   shoplite_checkout_fix minimal deterministic fix for the fixed ShopLite demo
 SCENARIOS = (
     "ok",
+    "shoplite_checkout_fix",
     "timeout",
     "error",
     "invalid_json",
@@ -196,6 +198,29 @@ class MockPatchGenerator:
             return base
 
         source_file = _pick_source_file(source_context)
+        if self.scenario == "shoplite_checkout_fix":
+            path = source_file.path if source_file is not None else self.fallback_path
+            old_text = "width: 520px;"
+            if (
+                path == "styles/checkout.css"
+                and source_file is not None
+                and source_file.text.count(old_text) == 1
+            ):
+                base["files"] = [{
+                    "path": path,
+                    "edits": [{
+                        "old_text": old_text,
+                        "new_text": "width: 100%; max-width: 100%;",
+                    }],
+                }]
+                return base
+            # A special demo fixture must fail closed if its expected source
+            # declaration is absent or ambiguous.
+            base["files"] = [{
+                "path": path,
+                "edits": [{"old_text": old_text, "new_text": "width: 100%; max-width: 100%;"}],
+            }]
+            return base
         if source_file is None or not source_file.text.strip():
             path, old_text = self.fallback_path, "color: red;"
         else:

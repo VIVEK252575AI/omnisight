@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 
 import httpx
+import pytest
 from pydantic import SecretStr
 
+from app.ai.adapters.gemini import GeminiProviderError, GeminiTextAdapter
 from app.config import Settings, get_settings
 
 
@@ -113,3 +115,53 @@ def test_gemini_patch_suggestion_rejects_traversal_path(client):
     response = client.post("/api/ai/patch-suggestions", json=body)
 
     assert response.status_code == 422
+
+
+def test_gemini_retries_one_transient_service_error(monkeypatch):
+    adapter = GeminiTextAdapter(Settings(gemini_api_key=SecretStr("test-secret")))
+    responses = iter(
+        [
+            httpx.Response(503, json={"error": {"message": "temporarily overloaded"}}),
+            httpx.Response(200, json=_provider_response()),
+        ]
+    )
+    calls = []
+    delays = []
+
+    def fake_post(url, **kwargs):
+        calls.append((url, kwargs))
+        return next(responses)
+
+    monkeypatch.setattr("app.ai.adapters.gemini.httpx.post", fake_post)
+    monkeypatch.setattr("app.ai.adapters.gemini.time.sleep", delays.append)
+
+    result = adapter.generate_json(
+        system_instruction="Return JSON.", user_content="Test request."
+    )
+
+    assert json.loads(result)["finding_id"] == "finding-demo"
+    assert len(calls) == 2
+    assert delays == [1.0]
+    assert all(call[1]["headers"]["x-goog-api-key"] == "test-secret" for call in calls)
+
+
+def test_gemini_stops_after_bounded_transient_retries(monkeypatch):
+    adapter = GeminiTextAdapter(Settings(gemini_api_key=SecretStr("test-secret")))
+    calls = []
+    delays = []
+
+    def fake_post(*args, **kwargs):
+        calls.append(kwargs)
+        return httpx.Response(503, json={"error": {"message": "busy"}})
+
+    monkeypatch.setattr("app.ai.adapters.gemini.httpx.post", fake_post)
+    monkeypatch.setattr("app.ai.adapters.gemini.time.sleep", delays.append)
+
+    with pytest.raises(GeminiProviderError) as error:
+        adapter.generate_json(
+            system_instruction="Return JSON.", user_content="Test request."
+        )
+
+    assert error.value.kind == "unavailable"
+    assert len(calls) == 3
+    assert delays == [1.0, 2.0]

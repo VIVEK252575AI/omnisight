@@ -30,9 +30,9 @@ Copy backend/.env.example to backend/.env and configure:
     # Optional; defaults to the repository's configured default branch.
     OMNISIGHT_GITHUB_TARGET_BRANCH=main
 
-The target owner/repository/branch variables are read by the local verification
-script and are not application settings. The private key is read only by the
-backend. Keep backend/.env out of source control.
+The target owner/repository/branch variables are fixed server-side settings;
+the API does not accept an arbitrary repository from the browser. The private
+key is read only by the backend. Keep backend/.env out of source control.
 
 ## Verify the installation
 
@@ -49,22 +49,46 @@ contents: read token. The publisher requests a single-repository token with
 contents: write and pull_requests: write; it verifies GitHub's returned
 repository scope and permissions before proceeding.
 
-## Draft publishing boundary
+## Local owner flow
 
-This repository does not yet have project-level user authentication or durable
-repository-connection storage. For that reason, both operations remain backend
-commands/internal adapter methods and are not exposed as an unauthenticated
-public API. The publisher accepts only one exact edit to
-styles/checkout.css, rechecks the repository ID and validated base SHA, and
-requires an explicit confirmation flag from its caller. It creates Git blobs,
-a tree, a commit, and a dedicated ref with the Git Database API. A retry checks
-the deterministic branch's tree and reuses the matching open draft PR; a branch
-collision or changed base fails closed. Ambiguous network outcomes return a
-retry-safe error so the same operation can reconcile the remote state.
+The HTTP flow is disabled unless every gate is configured: PostgreSQL,
+`OMNISIGHT_ENABLE_GITHUB_PUBLISH_API=true`,
+`OMNISIGHT_AUTH_MODE=local_single_user`, a random
+`OMNISIGHT_LOCAL_AUTH_TOKEN` of at least 32 characters, the GitHub App settings,
+and the ShopLite sandbox token/image. Requests also have to arrive from
+loopback. This is a controlled local demo profile, not multi-user or public
+hosting authentication.
 
-The publisher unit tests use mocked GitHub responses. They cover write scopes,
-Git Database object construction, confirmation, stale-base rejection, and
-idempotent draft PR creation. No live GitHub write has been run. A user-facing
-workflow still needs authenticated project membership, durable operation
-records, a verified sandbox report bound to the proposal/base SHA, and a
-confirmation screen before it can call this adapter.
+Install PostgreSQL, create a database and user, set `OMNISIGHT_DATABASE_URL`,
+then apply the schema from `backend/`:
+
+    .\.venv\Scripts\alembic.exe upgrade head
+
+The API flow is:
+
+1. `POST /api/v1/local/github/connection/verify` checks the server-configured
+   repository and stores the project and repository connection.
+2. `POST /api/v1/local/shoplite/proposals/{proposal_id}/validate` reads the
+   fixed ShopLite runtime files at the current GitHub base SHA, stages them in
+   the no-network Docker sandbox, and saves a report with the base SHA, diff
+   hash, policy version, and checks.
+3. Review the saved base SHA and diff hash. Then
+   `POST /api/v1/local/github/draft-prs` requires the exact confirmation string
+   `create-draft-pr` and an `Idempotency-Key`. It creates a branch, commit, and
+   draft PR with the Git Database API. It never merges or deploys.
+4. `GET /api/v1/local/github/operations/{operation_id}` reads the durable
+   operation state. Reuse the same idempotency key to reconcile an unknown
+   remote outcome.
+
+Every call uses the `X-OmniSight-Local-Token` header. The Models page has a
+local publishing panel for verification, validation, review, and confirmation.
+The main scan screen is still simulated and does not create backend proposal
+IDs; generate a real proposal through the backend patch flow first. The patch
+proposal store itself is currently process-memory, so a server restart loses
+the editable proposal even though its validation and publication records are
+durable. Generate and publish within one backend process.
+
+The existing provider tests use mocked GitHub responses. No live App
+credentials, PostgreSQL instance, or sandbox image are configured here, so a
+real repository write has not been run. Configure local secrets and use a
+disposable test repository before enabling the publishing flag.

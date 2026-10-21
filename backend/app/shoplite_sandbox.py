@@ -24,6 +24,7 @@ from pydantic import ValidationError
 
 from app.config import Settings
 from app.patch_schemas import PatchProposal
+from app.patch_integrity import shoplite_diff_hash
 from app.patch_validation import validate_patch_proposal
 
 SANDBOX_IMAGE = "omnisight-shoplite-sandbox:1"
@@ -50,6 +51,10 @@ class ShopLiteSandboxReport(BaseModel):
     status: Literal["verified", "failed"]
     target: str = "ShopLite checkout demo"
     proposal_id: str
+    report_id: str = ""
+    base_revision: str | None = None
+    diff_hash: str | None = None
+    policy_version: str = "shoplite-docker-v1"
     checks: SandboxChecks
 
 
@@ -73,11 +78,22 @@ def _tree_size(root: Path) -> int:
     return total
 
 
-def _stage_demo(proposal: PatchProposal, stage_root: Path, settings: Settings) -> None:
+def _stage_demo(
+    proposal: PatchProposal,
+    stage_root: Path,
+    settings: Settings,
+    *,
+    source_files: dict[str, str] | None = None,
+) -> None:
     """Copy the fixed demo twice and apply one exact-match CSS edit to candidate."""
-    if not DEMO_ROOT.is_dir():
-        raise SandboxFailure("SANDBOX_SOURCE_MISSING", "The local ShopLite demo directory is missing")
-    _tree_size(DEMO_ROOT)
+    if source_files is None:
+        if not DEMO_ROOT.is_dir():
+            raise SandboxFailure("SANDBOX_SOURCE_MISSING", "The local ShopLite demo directory is missing")
+        _tree_size(DEMO_ROOT)
+    else:
+        allowed = {"index.html", "checkout/index.html", "styles/checkout.css", "app.js"}
+        if set(source_files) != allowed or any(not isinstance(value, str) for value in source_files.values()):
+            raise SandboxFailure("SANDBOX_UNSAFE_SOURCE", "GitHub returned an incomplete ShopLite source set")
 
     if len(proposal.files) != 1 or proposal.files[0].path != "styles/checkout.css":
         raise SandboxFailure("SANDBOX_TARGET_REJECTED", "Only demo-app/styles/checkout.css is permitted")
@@ -90,8 +106,15 @@ def _stage_demo(proposal: PatchProposal, stage_root: Path, settings: Settings) -
 
     baseline = stage_root / "baseline"
     candidate = stage_root / "candidate"
-    shutil.copytree(DEMO_ROOT, baseline, symlinks=True)
-    shutil.copytree(DEMO_ROOT, candidate, symlinks=True)
+    if source_files is None:
+        shutil.copytree(DEMO_ROOT, baseline, symlinks=True)
+        shutil.copytree(DEMO_ROOT, candidate, symlinks=True)
+    else:
+        for root in (baseline, candidate):
+            for relative_path, contents in source_files.items():
+                target_path = root / relative_path
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                target_path.write_text(contents, encoding="utf-8")
     # TemporaryDirectory uses mode 0700. The sandbox runs as UID 10001, so it
     # cannot traverse the bind-mounted workspace unless the staged root is
     # readable/searchable by that user. Its contents are only the fixed demo.
@@ -169,6 +192,8 @@ def run_shoplite_sandbox(
     *,
     proposal_id: str,
     settings: Settings,
+    base_revision: str | None = None,
+    source_files: dict[str, str] | None = None,
 ) -> ShopLiteSandboxReport:
     """Run the isolated browser check after validating the fixed demo edit."""
     if not settings.enable_shoplite_sandbox:
@@ -180,7 +205,7 @@ def run_shoplite_sandbox(
     try:
         with tempfile.TemporaryDirectory(prefix="omnisight-shoplite-") as temporary:
             stage_root = Path(temporary)
-            _stage_demo(proposal, stage_root, settings)
+            _stage_demo(proposal, stage_root, settings, source_files=source_files)
             container_name = f"omni-shoplite-{uuid4().hex[:16]}"
             command = _docker_command(stage_root, container_name)
             try:
@@ -271,7 +296,13 @@ def run_shoplite_sandbox(
             if checks.baseline_mobile_overflow_px <= 0:
                 raise SandboxFailure("SANDBOX_BASELINE_INVALID", "The demo no longer reproduces its expected mobile defect")
             if not passed:
-                return ShopLiteSandboxReport(status="failed", proposal_id=proposal_id, checks=checks)
-            return ShopLiteSandboxReport(status="verified", proposal_id=proposal_id, checks=checks)
+                return ShopLiteSandboxReport(
+                    status="failed", proposal_id=proposal_id, report_id=str(uuid4()),
+                    base_revision=base_revision, diff_hash=shoplite_diff_hash(proposal), checks=checks
+                )
+            return ShopLiteSandboxReport(
+                status="verified", proposal_id=proposal_id, report_id=str(uuid4()),
+                base_revision=base_revision, diff_hash=shoplite_diff_hash(proposal), checks=checks
+            )
     finally:
         _RUN_LOCK.release()

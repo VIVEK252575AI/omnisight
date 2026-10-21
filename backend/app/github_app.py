@@ -14,7 +14,6 @@ from base64 import b64decode
 from binascii import Error as Base64DecodeError
 from dataclasses import dataclass
 from datetime import datetime
-from hashlib import sha256
 from urllib.parse import quote
 
 import httpx
@@ -24,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, SecretStr
 from app.config import Settings
 from app.patch_schemas import PatchProposal
 from app.patch_validation import validate_patch_proposal
+from app.patch_integrity import shoplite_diff_hash
 
 GITHUB_API_URL = "https://api.github.com"
 GITHUB_API_VERSION = "2026-03-10"
@@ -243,6 +243,111 @@ class GitHubAppClient:
             )
         return token
 
+    async def read_shoplite_source(
+        self, owner: str, repository: str, *, base_sha: str
+    ) -> dict[str, str]:
+        """Read only the fixed ShopLite runtime files from an exact commit."""
+        credentials = _credentials(self._settings)
+        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", base_sha):
+            raise GitHubIntegrationFailure("GITHUB_BASE_REVISION_INVALID", "The validated base revision is invalid")
+        if (
+            owner in {".", ".."}
+            or repository in {".", ".."}
+            or not _NAME_PATTERN.fullmatch(owner)
+            or not _NAME_PATTERN.fullmatch(repository)
+        ):
+            raise GitHubIntegrationFailure("GITHUB_REPOSITORY_INVALID", "Use a valid GitHub owner and repository name")
+
+        own_client = self._http_client is None
+        client = self._http_client or httpx.AsyncClient(
+            base_url=GITHUB_API_URL,
+            timeout=httpx.Timeout(15.0, connect=5.0),
+            headers={
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": GITHUB_API_VERSION,
+                "User-Agent": "OmniSight-GitHub-App",
+            },
+        )
+        try:
+            token = await self._installation_token(client, credentials, owner, repository)
+            headers = {"Authorization": f"Bearer {token}"}
+            tree_response = await client.get(
+                f"/repos/{owner}/{repository}/git/trees/{base_sha}",
+                params={"recursive": "1"},
+                headers=headers,
+            )
+            self._check_response(tree_response)
+            tree_payload = tree_response.json()
+            if tree_payload.get("truncated") is not False or not isinstance(tree_payload.get("tree"), list):
+                raise GitHubIntegrationFailure(
+                    "GITHUB_SOURCE_UNAVAILABLE", "GitHub did not return a complete ShopLite source tree"
+                )
+            required_paths = {
+                "demo-app/index.html": "index.html",
+                "demo-app/checkout/index.html": "checkout/index.html",
+                "demo-app/styles/checkout.css": "styles/checkout.css",
+                "demo-app/app.js": "app.js",
+            }
+            entries = {
+                entry.get("path"): entry
+                for entry in tree_payload["tree"]
+                if isinstance(entry, dict) and entry.get("path") in required_paths
+            }
+            if set(entries) != set(required_paths):
+                raise GitHubIntegrationFailure(
+                    "GITHUB_SOURCE_UNAVAILABLE", "The selected revision does not contain the complete ShopLite demo"
+                )
+            source: dict[str, str] = {}
+            total_bytes = 0
+            for remote_path, relative_path in required_paths.items():
+                entry = entries[remote_path]
+                if entry.get("type") != "blob" or entry.get("mode") != "100644":
+                    raise GitHubIntegrationFailure(
+                        "GITHUB_SOURCE_UNAVAILABLE", "ShopLite source contains an unsupported file type"
+                    )
+                size = entry.get("size")
+                blob_sha = entry.get("sha")
+                if not isinstance(size, int) or size < 0 or size > 100_000 or not isinstance(blob_sha, str):
+                    raise GitHubIntegrationFailure(
+                        "GITHUB_SOURCE_UNAVAILABLE", "ShopLite source exceeds the fixed file size policy"
+                    )
+                total_bytes += size
+                if total_bytes > 400_000:
+                    raise GitHubIntegrationFailure(
+                        "GITHUB_SOURCE_UNAVAILABLE", "ShopLite source exceeds the fixed workspace size policy"
+                    )
+                blob_response = await client.get(
+                    f"/repos/{owner}/{repository}/git/blobs/{blob_sha}", headers=headers
+                )
+                self._check_response(blob_response)
+                blob_payload = blob_response.json()
+                if blob_payload.get("encoding") != "base64" or blob_payload.get("size") != size:
+                    raise GitHubIntegrationFailure(
+                        "GITHUB_SOURCE_UNAVAILABLE", "GitHub returned an inconsistent ShopLite source blob"
+                    )
+                try:
+                    encoded = blob_payload.get("content")
+                    if not isinstance(encoded, str):
+                        raise ValueError("missing base64 blob")
+                    content = b64decode("".join(encoded.split()), validate=True).decode("utf-8")
+                except (Base64DecodeError, UnicodeDecodeError, ValueError):
+                    raise GitHubIntegrationFailure(
+                        "GITHUB_SOURCE_UNAVAILABLE", "ShopLite source contains invalid UTF-8 text"
+                    ) from None
+                if len(content.encode("utf-8")) != size:
+                    raise GitHubIntegrationFailure(
+                        "GITHUB_SOURCE_UNAVAILABLE", "GitHub returned a ShopLite blob with the wrong size"
+                    )
+                source[relative_path] = content
+            return source
+        except httpx.TimeoutException:
+            raise GitHubIntegrationFailure("GITHUB_TIMEOUT", "GitHub did not respond before the request timed out") from None
+        except httpx.RequestError:
+            raise GitHubIntegrationFailure("GITHUB_UNAVAILABLE", "GitHub could not be reached") from None
+        finally:
+            if own_client:
+                await client.aclose()
+
     async def publish_shoplite_draft_pr(
         self,
         owner: str,
@@ -363,8 +468,7 @@ class GitHubAppClient:
                     "GITHUB_PATCH_STALE", "The validated ShopLite edit no longer matches the base stylesheet exactly once"
                 )
             candidate_content = base_content.replace(edit.old_text, edit.new_text, 1)
-            patch_material = f"{remote_path}\0{edit.old_text}\0{edit.new_text}".encode("utf-8")
-            diff_hash = sha256(patch_material).hexdigest()
+            diff_hash = shoplite_diff_hash(proposal)
             base_commit_response = await client.get(
                 f"/repos/{owner}/{repository}/git/commits/{expected_base_sha}", headers=headers
             )
