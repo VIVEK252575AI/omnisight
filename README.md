@@ -909,3 +909,57 @@ GitHub + CI/CD     → Creates a reviewable engineering workflow
 **Team Size:** 4 Members  
 **Implementation Duration:** 1 Month  
 **Domain:** Generative AI · RPA · Quality Assurance · Web Development · DevOps
+
+---
+
+## Gemini patch suggestions (backend)
+
+The backend exposes `POST /api/ai/patch-suggestions`. It sends a validated
+finding and up to five caller-supplied CSS/SCSS/JSX/TSX excerpts to Gemini, then
+checks that every suggested edit matches text in one of those files exactly
+once. It returns a reviewable proposal only; it does not write or execute code.
+
+To configure it locally, copy `backend/.env.example` to `backend/.env`, add
+your Gemini API key to `OMNISIGHT_GEMINI_API_KEY`, then start the API from
+`backend/` using the run instructions above. The key is read by the backend and
+sent in the `x-goog-api-key` header. Never add it to frontend code or commit
+`backend/.env`.
+
+Example request body (save as `patch-request.json`):
+
+```json
+{
+  "finding": {
+    "finding_id": "demo-clipped-button",
+    "type": "clipped_element",
+    "target": "#submit",
+    "route": "/checkout",
+    "viewport": {"width": 390, "height": 844},
+    "evidence": "The button extends beyond the 390px viewport.",
+    "explanation": "The fixed width prevents the button from shrinking.",
+    "severity": "high",
+    "confidence": 0.9
+  },
+  "source_files": [
+    {
+      "path": "styles/checkout.css",
+      "text": "#submit {\n  width: 520px;\n  padding: 12px;\n}\n"
+    }
+  ]
+}
+```
+
+Send it to the local API with:
+
+```powershell
+curl.exe -X POST http://127.0.0.1:8000/api/ai/patch-suggestions `
+  -H "Content-Type: application/json" `
+  --data-binary "@patch-request.json"
+```
+
+Review the returned `rationale` and `files[].edits` before applying anything.
+An HTTP 429 means the provider rate limit or account quota was reached; a 502,
+503, or 504 identifies a provider, key/configuration, or timeout problem.
+Gemini API availability and free-tier quotas depend on the Google AI Studio
+account and current model access. Change `OMNISIGHT_GEMINI_MODEL` if the model
+configured in the example is not enabled for your key.
