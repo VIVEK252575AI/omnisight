@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -158,6 +158,12 @@ class Settings(BaseSettings):
     # Max size of a referenced image / json artifact on disk (bytes).
     artifact_max_image_bytes: int = 5_242_880
     artifact_max_json_bytes: int = 1_048_576
+
+    # Gemini-backed, review-only patch suggestions. The key stays server-side.
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-3.6-flash"
+    gemini_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
+    gemini_max_output_tokens: int = Field(default=4096, ge=128, le=8192)
 
 
 @lru_cache

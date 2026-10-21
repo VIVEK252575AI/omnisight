@@ -1151,3 +1151,11 @@ Demonstrate one known visual defect end to end:
 7. Display the resulting reviewable PR and wait for human review.
 
 > **Demo success:** Detect → Fix → Verify → Reviewable PR.
+
+## Gemini patch suggestions (backend)
+
+The backend also exposes `POST /api/ai/patch-suggestions` for a review-only Gemini proposal. It accepts a validated finding and up to five caller-supplied CSS, SCSS, JSX, or TSX excerpts. The response is checked against those exact excerpts and never writes or executes code.
+
+Copy `backend/.env.example` to `backend/.env` and set `OMNISIGHT_GEMINI_API_KEY`. The key remains on the backend and is sent to Google in the `x-goog-api-key` header. Keep it out of frontend code and source control. Set `OMNISIGHT_GEMINI_MODEL` if a different model is enabled for your key.
+
+See the API docs at `http://127.0.0.1:8000/docs` after starting the backend. Returned edits are proposals; review them before applying anything. A 429 response indicates a provider quota/rate limit, while 502–504 responses indicate provider, configuration, or timeout failures.
