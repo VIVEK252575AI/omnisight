@@ -11,9 +11,9 @@ into RAW TEXT. Like the VLM adapter it mirrors:
   :func:`app.patch_validation.validate_patch_proposal` approves it.
 
 The factory selects the implementation from ``OMNISIGHT_PATCH_GENERATOR``;
-``mock`` (deterministic, offline, labelled ``MOCK``) is the default and the
-only one implemented. An unknown value fails fast rather than silently
-falling back.
+``mock`` (deterministic, offline, labelled ``MOCK``) is the default, and
+``gemini`` is the optional server-side Google Gemini implementation. An
+unknown value fails fast rather than silently falling back.
 
 Interface, errors, the mock and the factory share this module because the
 boundary is deliberately tiny — unlike the VLM adapter there is no image
@@ -34,7 +34,12 @@ MOCK_LABEL = "MOCK"
 FENCE_TAG = PATCH_FENCE_TAG
 MOCK_PATCH_GENERATOR = "mock"
 TEAMMATE_PATCH_GENERATOR = "teammate"
-KNOWN_PATCH_GENERATORS = (MOCK_PATCH_GENERATOR, TEAMMATE_PATCH_GENERATOR)
+GEMINI_PATCH_GENERATOR = "gemini"
+KNOWN_PATCH_GENERATORS = (
+    MOCK_PATCH_GENERATOR,
+    GEMINI_PATCH_GENERATOR,
+    TEAMMATE_PATCH_GENERATOR,
+)
 
 # Offline, deterministic scenarios for :class:`MockPatchGenerator`. The extras
 # exist so the W2.6 extraction rules can be exercised without a provider:
@@ -214,6 +219,11 @@ def create_patch_generator(settings: Settings) -> PatchGenerator:
             settings.patch_mock_scenario,
             timeout_seconds=settings.patch_timeout_seconds,
         )
+
+    if name == GEMINI_PATCH_GENERATOR:
+        from app.ai.adapters.gemini_patch import GeminiPatchGenerator
+
+        return GeminiPatchGenerator(settings)
 
     if name == TEAMMATE_PATCH_GENERATOR:
         raise PatchGeneratorError(

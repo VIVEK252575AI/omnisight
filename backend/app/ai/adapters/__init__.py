@@ -14,6 +14,7 @@ from app.ai.adapters.factory import (
 )
 from app.ai.adapters.mock import MOCK_LABEL, MockVisionAnalyzer
 from app.ai.adapters.patch import (
+    GEMINI_PATCH_GENERATOR,
     KNOWN_PATCH_GENERATORS,
     MOCK_PATCH_GENERATOR,
     TEAMMATE_PATCH_GENERATOR,
@@ -23,6 +24,7 @@ from app.ai.adapters.patch import (
     PatchGeneratorTimeoutError,
     create_patch_generator,
 )
+from app.ai.adapters.gemini_patch import GeminiPatchGenerator
 from app.ai.adapters.teammate import TeammateVisionAnalyzer
 
 __all__ = [
@@ -37,10 +39,12 @@ __all__ = [
     "KNOWN_ADAPTERS",
     "PatchGenerator",
     "MockPatchGenerator",
+    "GeminiPatchGenerator",
     "PatchGeneratorError",
     "PatchGeneratorTimeoutError",
     "create_patch_generator",
     "MOCK_PATCH_GENERATOR",
+    "GEMINI_PATCH_GENERATOR",
     "TEAMMATE_PATCH_GENERATOR",
     "KNOWN_PATCH_GENERATORS",
 ]

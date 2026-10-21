@@ -98,8 +98,7 @@ The major stages are:
 > This section reflects the **actual repository state**. The rest of this
 > document describes the target design.
 
-The Week 1 and Week 2 backend (FastAPI) is implemented, tested and pushed on the
-`lakshy` branch (`backend/`):
+The Week 1 and Week 2 backend (FastAPI) is implemented and tested (`backend/`):
 
 | Area | Status |
 |---|---|
@@ -110,13 +109,15 @@ The Week 1 and Week 2 backend (FastAPI) is implemented, tested and pushed on the
 | Structured visual-finding schema + strict parser (W2.3) | Tested with mocks |
 | VLM detection workflow (W2.4) | Tested with mocks |
 | Safe action engine / patch proposals (W2.5) | Tested with mocks |
+| Gemini patch generator in the standard safe-proposal workflow | Integration-tested with a mocked provider; live API call not yet verified |
 | Code-response extraction & rejection (W2.6) | Tested with mocks |
 | Week 2 test matrix: valid / malformed / missing / unsupported / failed (W2.7) | Tested with mocks |
 | Playwright collector, real VLM provider, patch apply + sandbox, PyGithub, React dashboard | Not implemented |
 
-All Week 2 AI work runs against a deterministic, **offline MOCK adapter** — no
-live VLM provider has been selected yet, and raw model output is never executed,
-imported, or written to disk.
+VLM detection still uses the deterministic, offline **MOCK adapter**; no live
+vision provider has been selected yet. Gemini text generation is available for
+patch proposals when explicitly configured, but the live provider has not yet
+been verified. Raw model output is never executed, imported, or written to disk.
 
 Endpoints currently served:
 
@@ -146,7 +147,7 @@ Run it (from `backend/`):
 .\.venv\Scripts\python.exe -m pytest tests\ -q        # test
 ```
 
-Test suite: **289 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **295 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
@@ -1154,8 +1155,8 @@ Demonstrate one known visual defect end to end:
 
 ## Gemini patch suggestions (backend)
 
-The backend also exposes `POST /api/ai/patch-suggestions` for a review-only Gemini proposal. It accepts a validated finding and up to five caller-supplied CSS, SCSS, JSX, or TSX excerpts. The response is checked against those exact excerpts and never writes or executes code.
+The backend exposes `POST /api/ai/patch-suggestions` for a direct, review-only Gemini proposal. It also supports Gemini through the standard finding workflow: set `OMNISIGHT_PATCH_GENERATOR=gemini`, then call `POST /api/v1/findings/{finding_id}/patch-proposals`. That workflow loads only backend-approved source files and runs the existing extractor, path allowlist, edit applicability, and code checks before recording a proposal. Neither endpoint writes or executes code.
 
-Copy `backend/.env.example` to `backend/.env` and set `OMNISIGHT_GEMINI_API_KEY`. The key remains on the backend and is sent to Google in the `x-goog-api-key` header. Keep it out of frontend code and source control. Set `OMNISIGHT_GEMINI_MODEL` if a different model is enabled for your key.
+Copy `backend/.env.example` to `backend/.env`, set `OMNISIGHT_GEMINI_API_KEY`, and configure `OMNISIGHT_PATCH_SOURCE_ROOT` plus `OMNISIGHT_APPROVED_PATCH_PATHS` for the source checkout being tested. The key remains on the backend and is sent to Google in the `x-goog-api-key` header. Keep it out of frontend code and source control. Set `OMNISIGHT_GEMINI_MODEL` if a different model is enabled for your key. The default generator remains `mock` until you explicitly switch it to `gemini`.
 
 See the API docs at `http://127.0.0.1:8000/docs` after starting the backend. Returned edits are proposals; review them before applying anything. A 429 response indicates a provider quota/rate limit, while 502–504 responses indicate provider, configuration, or timeout failures.
