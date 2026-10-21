@@ -91,13 +91,15 @@ function renderLiveDemo() {
     awaiting_sandbox_approval: 'Patch proposal ready for your review',
     validating: 'Running isolated Docker verification', verified: 'Verified',
     patch_rejected: 'Patch rejected by safety checks', proposal_rejected: 'Proposal rejected by reviewer', needs_inspection: 'Needs human inspection',
-    validation_failed: 'Sandbox checks did not pass', completed: 'Completed', failed: 'Run failed'
+    validation_failed: 'Sandbox checks did not pass', completed: 'Completed', failed: 'Run failed', canceled: 'Run canceled'
   }[run?.status] || 'Ready to run';
   const viewport = capture.viewports?.mobile;
   const overflowBefore = checks.baseline_mobile_overflow_px ?? viewport?.button_overflow_px;
   const overflowAfter = checks.patched_mobile_overflow_px;
   const canApprove = run?.status === 'awaiting_sandbox_approval' && proposal?.status === 'proposed' && !!patchPreview;
   const canReject = canApprove;
+  const canCancel = ['queued', 'running'].includes(run?.status) && !run?.cancellation_requested;
+  const statusText = run?.cancellation_requested ? 'Cancellation requested' : stateLabel;
   return `<div class="live-demo-view">
     <div class="panel live-demo-intro">
       <div><div class="eyebrow">Connected backend workflow</div><h1>ShopLite live demo</h1>
@@ -106,7 +108,7 @@ function renderLiveDemo() {
     </div>
     ${Store.demoError ? `<div class="error-note" role="alert">${esc(Store.demoError)}</div>` : ''}
     ${detectionIssue ? `<div class="error-note" role="alert"><strong>AI analysis did not complete:</strong> ${esc(detectionIssue)}${result.detection_reason_code === 'rate_limited' ? ' Check the Gemini project quota in Google AI Studio, wait for the limit to reset, or configure a model enabled for this API key.' : ''}</div>` : ''}
-    ${run ? `<div class="panel live-run-status"><div><span class="badge badge--${run.status === 'verified' ? 'success' : run.status === 'failed' || run.status === 'validation_failed' || run.status === 'patch_rejected' || run.status === 'proposal_rejected' ? 'error' : 'info'}">${esc(stateLabel)}</span><span class="panel__sub">Run ${esc(run.run_id)}</span></div>${run.error ? `<p class="error-note">${esc(run.error)}</p>` : ''}</div>
+    ${run ? `<div class="panel live-run-status"><div><span class="badge badge--${run.status === 'verified' ? 'success' : run.status === 'failed' || run.status === 'validation_failed' || run.status === 'patch_rejected' || run.status === 'proposal_rejected' ? 'error' : 'info'}">${esc(statusText)}</span><span class="panel__sub">Run ${esc(run.run_id)}</span>${canCancel ? `<button class="btn btn--ghost" onclick="cancelLiveShopLiteRun()">Cancel run</button>` : ''}</div>${run.error ? `<p class="error-note">${esc(run.error)}</p>` : ''}</div>
       <div class="live-stage-grid">${stages.map(({label, done, current}) => `<div class="live-stage ${done ? 'live-stage--done' : current ? 'live-stage--current' : ''}"><span>${done ? '✓' : current ? '…' : '·'}</span>${esc(label)}</div>`).join('')}</div>
       ${capture.screenshot_artifact_id ? `<div class="panel live-evidence-shot"><div class="panel__head"><div class="panel__title">Persisted mobile screenshot evidence</div><span class="panel__sub">${esc(viewport?.button_overflow_px ?? '—')}px horizontal overflow</span></div><div class="panel__body"><img src="/api/v1/artifacts/${encodeURIComponent(capture.screenshot_artifact_id)}" alt="Captured ShopLite checkout at the mobile viewport" loading="lazy" /><p class="panel__sub">Artifact ${esc(capture.screenshot_artifact_id)} · ${esc(viewport?.viewport?.width ?? 390)} × ${esc(viewport?.viewport?.height ?? 844)}</p>${viewport ? `<p class="panel__sub" role="status">Browser diagnostics: ${esc(viewport.console_error_count ?? 0)} console errors · ${esc(viewport.page_error_count ?? 0)} page exceptions · ${esc(viewport.network_error_count ?? 0)} failed or HTTP-error requests</p>` : ''}</div></div>` : ''}
       ${findings.length ? `<div class="panel"><div class="panel__head"><div class="panel__title">Validated visual findings (${findings.length})</div><span class="panel__sub">${result.detection_is_mock ? 'MOCK adapter' : esc(result.detection_adapter || 'Gemini')}</span></div><div class="panel__body">${findings.map(f => `<article class="live-finding"><div><span class="badge badge--high">${esc(f.category || 'visual issue')}</span><span class="mono muted">${Math.round((f.confidence || 0) * 100)}% confidence</span></div><h3>${esc(f.category === 'clipped_element' ? 'Checkout button clipped on mobile' : f.category || 'Visual issue')}</h3><p>Target: <code>${esc(f.target_candidate || 'Needs inspection')}</code></p><p>Capture: mobile ${esc(viewport?.button_overflow_px ?? '—')}px overflow · desktop ${esc(capture.viewports?.desktop?.button_overflow_px ?? '—')}px</p></article>`).join('')}</div></div>` : ''}
@@ -384,6 +386,20 @@ async function startLiveShopLiteRun() {
   } catch (error) {
     Store.demoError = error.message;
     render();
+  }
+}
+
+async function cancelLiveShopLiteRun() {
+  const runId = Store.demoRunId;
+  if (!runId || !['queued', 'running'].includes(Store.demoRun?.status)) return;
+  try {
+    Store.demoRun = await liveDemoRequest(`/runs/${encodeURIComponent(runId)}/cancel`, { method: 'POST', body: '{}' });
+    rememberDemoRun(Store.demoRun);
+    render();
+    pollLiveShopLiteRun(runId);
+  } catch (error) {
+    Store.demoError = error.message;
+    if (Store.route === 'live-demo') render();
   }
 }
 

@@ -166,6 +166,7 @@ GET      /api/v1/scans/{scan_id}/findings         # validated findings + run
 POST     /api/v1/demo/shoplite/runs               # local fixed-target real scan
 GET      /api/v1/demo/shoplite/runs               # list current local demo runs
 GET      /api/v1/demo/shoplite/runs/{run_id}      # poll run and proposal status
+POST     /api/v1/demo/shoplite/runs/{run_id}/cancel # cancel queued/running browser pipeline
 GET      /api/v1/demo/shoplite/runs/{run_id}/patch-preview # exact source diff + base hash
 POST     /api/v1/demo/shoplite/runs/{run_id}/validate # explicit confirmation + Docker sandbox
 POST     /api/v1/demo/shoplite/runs/{run_id}/reject-proposal # record human rejection + reason
@@ -199,7 +200,10 @@ published. This UI and its API only accept the fixed local
 ShopLite target; arbitrary URL scans are not exposed as supported UI actions.
 History and Recent Scans show real backend ShopLite runs. Run records, step
 summaries, and validated patch proposals are stored in PostgreSQL and survive
-backend restarts. Apply the Alembic migrations before starting the workflow.
+backend restarts. A queued or running browser/AI pipeline can be canceled from
+the run page; the cancellation request is persisted and the worker process tree
+is stopped. Sandbox validation remains a separate, explicitly approved action.
+Apply the Alembic migrations before starting the workflow.
 
 In **Settings → Project and test flow**, you can adjust the fixed demo's mobile
 and desktop viewport sizes and publish a new immutable flow version. New runs
