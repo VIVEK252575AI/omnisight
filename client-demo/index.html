@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0c1119">
-  <meta name="description" content="A client-ready walkthrough of OmniSight's live Gemini visual QA and isolated ShopLite patch verification demo.">
+  <meta name="description" content="A client-ready walkthrough of OmniSight's mock-provider ShopLite workflow and isolated patch verification, with Gemini integration ready for live credentials.">
   <title>OmniSight — From visual bug to verified fix</title>
   <style>
     :root{color-scheme:dark;--bg:#0c1119;--panel:#111a25;--panel2:#151f2c;--line:#263342;--text:#edf3fa;--muted:#9aa9ba;--purple:#a78bfa;--green:#56d6a2;--red:#ff9c9c;--blue:#8bb8ff;--mono:ui-monospace,SFMono-Regular,Consolas,monospace;--sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -15,17 +15,17 @@
   </style>
 </head>
 <body>
-  <header class="top"><div class="wrap nav"><a class="brand" href="#top"><span class="mark">◉</span> OmniSight</a><div class="nav-right"><span class="hide-mobile">Client demo · ShopLite</span><span class="pill"><i class="dot"></i> Verified run</span></div></div></header>
+  <header class="top"><div class="wrap nav"><a class="brand" href="#top"><span class="mark">◉</span> OmniSight</a><div class="nav-right"><span class="hide-mobile">Client demo · ShopLite</span><span class="pill"><i class="dot"></i> Dashboard E2E · MOCK AI</span></div></div></header>
   <main id="top" class="wrap">
     <section class="hero">
       <div class="eyebrow">Visual QA · AI-assisted repair · Safe verification</div>
       <h1>From a visual bug<br>to a verified fix.</h1>
-      <p>OmniSight found a checkout button cut off on mobile, proposed a focused CSS change with Gemini, and checked the fix inside an isolated browser sandbox.</p>
+      <p>OmniSight reproduced a checkout button clipped on mobile, created a constrained CSS proposal, and verified it in an isolated browser sandbox. This demonstrated run used the deterministic mock AI provider; the Gemini adapters are implemented, but a successful live Gemini run still needs a rotated key and available quota.</p>
       <div class="actions"><button class="button primary" onclick="document.getElementById('proof').scrollIntoView({behavior:'smooth'})">See the verified result ↓</button><button class="button" onclick="window.print()">Print / save as PDF</button></div>
     </section>
 
     <section id="proof" class="section" aria-labelledby="proof-title">
-      <div class="section-title"><div><h2 id="proof-title">The result, measured in a real browser</h2><p>ShopLite checkout · 390 × 844 mobile viewport · Live Gemini run</p></div><span class="pill"><i class="dot"></i> Docker sandbox passed</span></div>
+      <div class="section-title"><div><h2 id="proof-title">The result, measured in a real browser</h2><p>ShopLite checkout · 390 × 844 mobile viewport · Dashboard E2E with mock AI</p></div><span class="pill"><i class="dot"></i> Docker sandbox passed</span></div>
       <div class="metrics">
         <article class="metric"><div class="metric-label">Before · CTA overflow</div><div class="metric-value">167<span style="font-size:16px">px</span></div><div class="metric-note">Reproduced on mobile</div></article>
         <article class="metric"><div class="metric-label">After · CTA overflow</div><div class="metric-value good">0<span style="font-size:16px">px</span></div><div class="metric-note">Mobile and desktop</div></article>
@@ -41,8 +41,8 @@
         <article class="card case-copy">
           <h3>Mobile checkout action is clipped</h3>
           <p>At 390px wide, the order button extends outside its card. Desktop remains healthy, so the fix must improve mobile without regressing desktop.</p>
-          <div class="finding"><div class="finding-head"><strong>Gemini visual finding</strong><span class="severity">HIGH · 0.95 confidence</span></div><p>Clipped element detected at <span class="mono">#place-order</span>. The model analyzed captured screenshot and page evidence; its output was validated before becoming a finding.</p></div>
-          <div class="file"><div class="file-head"><span>PROPOSED CHANGE</span><span>1 file · 1 edit</span></div><div class="file-body"><span class="line">›</span><span>styles/checkout.css</span><span class="line">✓</span><span class="plus">Reviewable CSS proposal · 353 bytes</span></div><p class="file-note">The model output was checked against the approved file path and current source before sandbox validation.</p></div>
+          <div class="finding"><div class="finding-head"><strong>Mock-provider visual finding</strong><span class="severity">HIGH · 0.90 confidence</span></div><p>Clipped element detected at <span class="mono">#place-order</span>. The deterministic mock adapter exercises structured finding validation without contacting Gemini.</p></div>
+          <div class="file"><div class="file-head"><span>PROPOSED CHANGE</span><span>1 file · 1 edit</span></div><div class="file-body"><span class="line">›</span><span>styles/checkout.css</span><span class="line">✓</span><span class="plus">Reviewable CSS proposal · 42 bytes</span></div><p class="file-note">The proposal passed the approved-path and exact-source checks before sandbox validation.</p></div>
         </article>
       </div>
     </section>
@@ -51,7 +51,7 @@
       <div class="section-title"><div><h2 id="flow-title">How OmniSight handled it</h2><p>Four observable stages, with a human approval boundary before sandbox validation.</p></div></div>
       <div class="flow">
         <article class="step"><span class="step-num">1</span><h3>Capture</h3><p>Playwright records desktop and mobile screenshots plus page evidence.</p><div class="step-status">✓ MOBILE + DESKTOP</div></article>
-        <article class="step"><span class="step-num">2</span><h3>Detect</h3><p>Gemini identifies the clipped checkout action from real captured evidence.</p><div class="step-status">✓ LIVE GEMINI · NOT MOCK</div></article>
+        <article class="step"><span class="step-num">2</span><h3>Detect</h3><p>The mock adapter returns a structured clipped-action finding from the captured page evidence.</p><div class="step-status">✓ MOCK PROVIDER · GEMINI ADAPTER IMPLEMENTED</div></article>
         <article class="step"><span class="step-num">3</span><h3>Propose</h3><p>A constrained patch is checked for approved path, exact match and size.</p><div class="step-status">✓ REVIEWABLE · 1 CSS EDIT</div></article>
         <article class="step"><span class="step-num">4</span><h3>Verify</h3><p>Docker checks the proposal in a disposable, resource-limited container.</p><div class="step-status">✓ NETWORK DISABLED · PASSED</div></article>
       </div>
@@ -60,11 +60,11 @@
     <section class="section" aria-labelledby="scope-title">
       <div class="section-title"><div><h2 id="scope-title">What is ready today</h2><p>A focused proof of concept with clear boundaries.</p></div></div>
       <div class="scope">
-        <article class="card"><h3>Implemented and demonstrated</h3><ul><li>Live Gemini visual finding and patch proposal</li><li>Safe patch extraction and approved-path validation</li><li>Isolated ShopLite Docker verification</li><li>Repeatable desktop / mobile browser checks</li><li>Backend suite: 334 passed, 1 skipped</li></ul></article>
-        <article class="card next"><h3>Next step to make it client-specific</h3><ul><li>Connect the client's GitHub App and PostgreSQL instance</li><li>Run the explicit-confirmation draft PR workflow</li><li>Replace the fixed ShopLite target with the client's approved app</li><li>Build persistent scan history and the production dashboard</li></ul></article>
+        <article class="card"><h3>Implemented and verified</h3><ul><li>Gemini visual and patch adapters with mocked provider tests</li><li>Safe patch extraction and approved-path validation</li><li>Dashboard-driven ShopLite workflow through Docker sandbox</li><li>Before / after browser checks and persistent run history</li><li>Backend suite: 341 passed, 1 skipped</li></ul></article>
+        <article class="card next"><h3>Next step to make it client-specific</h3><ul><li>Verify a successful live Gemini call with a rotated key and available quota</li><li>Configure the client's GitHub App and run draft publishing in a test repository</li><li>Replace the fixed ShopLite target with the client's approved app</li><li>Build project and test-flow management for the production dashboard</li></ul></article>
       </div>
     </section>
-    <footer class="footer"><span>OmniSight · ShopLite proof of concept · Results from a live Gemini + isolated Docker run</span><span>Demo checkout collects no payment. No source checkout was modified by sandbox verification.</span></footer>
+    <footer class="footer"><span>OmniSight · ShopLite proof of concept · Dashboard E2E and isolated Docker verification with mock AI</span><span>Live Gemini and GitHub App publishing still require credentialed verification. No source checkout was modified by sandbox verification.</span></footer>
   </main>
 </body>
 </html>

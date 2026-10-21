@@ -9,9 +9,10 @@ OmniSight is an **AI-powered autonomous QA workflow** designed to detect visual 
 ### Client demo
 
 Open the [OmniSight client demo](client-demo/index.html) for a concise
-walkthrough of the live Gemini + ShopLite sandbox result. To rerun that flow
-locally, use the [client demo instructions](client-demo/README.md); Docker
-Desktop and local Gemini / sandbox settings are required.
+walkthrough of the mock-provider ShopLite workflow and verified sandbox run.
+The interactive dashboard can be run with the
+[client demo instructions](client-demo/README.md); Docker Desktop, a rotated
+Gemini key, and local sandbox settings are required for a live-provider run.
 
 Traditional UI tests mainly inspect the DOM and depend on hardcoded selectors. However, users experience an application visually through pixels. A test may therefore pass functionally while problems such as clipping, overlap, poor contrast, and broken responsive layouts remain visible.
 
