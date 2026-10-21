@@ -113,7 +113,8 @@ The Week 1 and Week 2 backend (FastAPI) is implemented and tested (`backend/`):
 | Code-response extraction & rejection (W2.6) | Tested with mocks |
 | Week 2 test matrix: valid / malformed / missing / unsupported / failed (W2.7) | Tested with mocks |
 | Local Playwright checkout capture and scan runner | Tested with the local demo and backend |
-| Patch application + sandbox validation, GitHub PR delivery, React dashboard | Not implemented |
+| ShopLite-only Docker patch verification | Implemented behind explicit local approval; live Docker execution must be run on a host with Docker Engine |
+| Applying changes to a repository, GitHub PR delivery, React dashboard | Not implemented |
 
 VLM detection and patch generation default to deterministic offline **MOCK**
 adapters. Gemini can be selected for screenshot analysis and patch proposals;
@@ -140,6 +141,7 @@ GET      /api/v1/scans/{scan_id}/findings         # validated findings + run
 GET      /api/v1/findings/{finding_id}
 POST     /api/v1/findings/{finding_id}/patch-proposals   # propose only, no writes
 GET      /api/v1/findings/{finding_id}/patch-proposals
+POST     /api/v1/demo/shoplite/patch-proposals/{proposal_id}/validate  # approved, fixed-target Docker check
 ```
 
 Run it (from `backend/`):
@@ -149,7 +151,7 @@ Run it (from `backend/`):
 .\.venv\Scripts\python.exe -m pytest tests\ -q        # test
 ```
 
-Test suite: **302 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **309 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
@@ -160,10 +162,15 @@ Design docs live under `docs/`:
 - `docs/week2_action_engine.md`
 - `docs/week2_code_extraction.md`
 - `docs/week2_testing_note.md`
+- `docs/week3_shoplite_sandbox.md`
 
 The CI webhook is a **simulation** — there is no real GitHub Actions/Jenkins
-integration. The patch-proposal endpoint only **validates and stores** a
-proposal; nothing is written to disk or applied to a repository in this slice.
+integration. Patch proposals are never applied to the source repository. The
+opt-in ShopLite endpoint copies one reviewed CSS proposal into a temporary
+staging tree and verifies it in a restricted Docker container; see
+[`docs/week3_shoplite_sandbox.md`](docs/week3_shoplite_sandbox.md). It is a
+local demo milestone, not a general repository sandbox or production security
+boundary.
 
 ---
 
