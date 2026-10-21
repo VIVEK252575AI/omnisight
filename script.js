@@ -21,6 +21,8 @@ const Store = {
   traceTab: null,
   scan: null,
   activeFindingId: 'f-1',
+  githubValidation: null,
+  githubIdempotencyKey: null,
   history: [
     { id: '1041', url: 'https://shoplite.local', status: 'completed', findings: 3, fixed: 3, pr: 127 },
     { id: '1040', url: 'https://staging.acme.io/dashboard', status: 'failed', findings: 2, fixed: 0, pr: null },
@@ -480,7 +482,86 @@ function renderModels() {
         <ul class="proc-list">${STAGES.map(st => `<li>${kindTag(st.kind)}<span><b>${st.label}.</b> ${st.role}.</span></li>`).join('')}</ul>
       </div>
     </div>
+    ${renderLocalGithubPanel()}
   </div>`;
+}
+
+function renderLocalGithubPanel() {
+  const report = Store.githubValidation;
+  return `<div class="panel">
+    <div class="panel__head"><div class="panel__title">Local ShopLite GitHub publishing</div><span class="panel__sub">Loopback API · draft only</span></div>
+    <div class="panel__body">
+      <p class="panel__sub">Connects to the repository configured on the backend. The owner token is used for this action only and is not saved by this page.</p>
+      <div class="field-grid">
+        <div class="field"><label for="gh-local-token">Local owner token</label><input id="gh-local-token" type="password" autocomplete="off" placeholder="Paste local API token" /></div>
+        <div class="field"><label for="gh-proposal-id">Patch proposal ID</label><input id="gh-proposal-id" value="${esc(report?.proposal_id || '')}" placeholder="proposal ID returned by backend" /></div>
+      </div>
+      <div class="field-grid">
+        <button class="btn" onclick="verifyLocalGithub()">Verify configured repository</button>
+        <button class="btn" onclick="validateLocalProposal()">Validate proposal at current base</button>
+      </div>
+      ${report ? `<section class="panel" style="margin-top:18px" aria-labelledby="validation-summary-heading">
+        <div class="panel__head"><div id="validation-summary-heading" class="panel__title">Validation ${esc(report.status)}</div><span class="panel__sub">${esc(report.repository)}</span></div>
+        <div class="panel__body">
+          <p><b>Base:</b> <code>${esc(report.base_revision)}</code></p>
+          <p><b>Patch SHA-256:</b> <code>${esc(report.diff_hash)}</code></p>
+          <p><b>Report:</b> <code>${esc(report.report_id)}</code></p>
+          <p>${esc(JSON.stringify(report.checks))}</p>
+          ${report.status === 'verified' ? `<div class="field"><label for="gh-confirmation">Type <code>create-draft-pr</code> to confirm opening this draft PR</label><input id="gh-confirmation" autocomplete="off" placeholder="create-draft-pr" /></div>
+            <button class="btn btn--primary" onclick="createLocalDraftPR()">Create draft pull request</button>` : '<p class="error-note">This report did not pass. Run validation again after correcting the proposal.</p>'}
+        </div>
+      </section>` : ''}
+      <div id="gh-publish-result" class="panel__sub" role="status" aria-live="polite"></div>
+      <p class="panel__sub">The current visual scan page is a simulation. It does not generate a backend proposal or validation report; those IDs must come from the backend workflow.</p>
+    </div>
+  </div>`;
+}
+
+function localGithubHeaders() {
+  const token = document.getElementById('gh-local-token')?.value.trim();
+  if (!token) throw new Error('Enter the local owner token.');
+  return { 'Content-Type': 'application/json', 'X-OmniSight-Local-Token': token };
+}
+
+async function localGithubRequest(path, options = {}) {
+  const response = await fetch('http://127.0.0.1:8000' + path, { ...options, headers: { ...localGithubHeaders(), ...(options.headers || {}) } });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error?.message || `Backend returned HTTP ${response.status}`);
+  return body;
+}
+
+async function verifyLocalGithub() {
+  const result = document.getElementById('gh-publish-result');
+  try {
+    const value = await localGithubRequest('/api/v1/local/github/connection/verify', { method: 'POST', body: '{}' });
+    result.textContent = `Verified ${value.repository} at ${value.base_branch} (${value.base_sha}).`;
+  } catch (error) { result.textContent = error.message; }
+}
+
+async function validateLocalProposal() {
+  const result = document.getElementById('gh-publish-result');
+  const proposalId = document.getElementById('gh-proposal-id')?.value.trim();
+  if (!proposalId) { result.textContent = 'Enter a backend patch proposal ID.'; return; }
+  try {
+    Store.githubValidation = await localGithubRequest(`/api/v1/local/shoplite/proposals/${encodeURIComponent(proposalId)}/validate`, { method: 'POST', body: '{}' });
+    Store.githubIdempotencyKey = crypto.randomUUID();
+    render();
+    document.getElementById('gh-publish-result').textContent = 'Validation report saved. Review the base revision and patch hash before confirming.';
+  } catch (error) { result.textContent = error.message; }
+}
+
+async function createLocalDraftPR() {
+  const result = document.getElementById('gh-publish-result');
+  const confirmation = document.getElementById('gh-confirmation')?.value;
+  if (confirmation !== 'create-draft-pr') { result.textContent = 'Type create-draft-pr to confirm.'; return; }
+  if (!Store.githubValidation || !Store.githubIdempotencyKey) { result.textContent = 'Validate the proposal first.'; return; }
+  try {
+    const operation = await localGithubRequest('/api/v1/local/github/draft-prs', {
+      method: 'POST', headers: { 'Idempotency-Key': Store.githubIdempotencyKey },
+      body: JSON.stringify({ validation_report_id: Store.githubValidation.report_id, confirmation })
+    });
+    result.textContent = operation.pull_request_url ? `Draft PR #${operation.pull_request_number} created: ${operation.pull_request_url}` : `Operation ${operation.operation_id}: ${operation.status}${operation.safe_error_code ? ' (' + operation.safe_error_code + ')' : ''}`;
+  } catch (error) { result.textContent = error.message; }
 }
 
 function render() {
@@ -499,7 +580,7 @@ function render() {
           <div class="topbar__actions">
             <button class="btn" onclick="toggleTheme()" aria-label="Toggle dark mode">${document.documentElement.dataset.theme === 'dark' ? '☀ Light' : '☾ Dark'}</button>
             ${canShip ? `<button class="btn" onclick="downloadReport()">Export report</button>` : ''}
-            ${canShip ? `<button class="btn btn--primary" onclick="toast('PR #128 drafted (simulated). Connect a backend to open real pull requests.')">Ship PR #128</button>` : ''}
+            ${canShip ? `<button class="btn btn--primary" onclick="Store.route='models';render();document.querySelector('.panel__title')?.scrollIntoView({behavior:'smooth'})">Open GitHub publishing</button>` : ''}
           </div>
         </header>
         <div class="main-content">

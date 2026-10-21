@@ -114,8 +114,8 @@ The Week 1 and Week 2 backend (FastAPI) is implemented and tested (`backend/`):
 | Week 2 test matrix: valid / malformed / missing / unsupported / failed (W2.7) | Tested with mocks |
 | Local Playwright checkout capture and scan runner | Tested with the local demo and backend |
 | ShopLite-only Docker patch verification | Implemented behind explicit local approval; live sandbox smoke is configured in GitHub Actions |
-| GitHub App authentication and ShopLite draft PR publisher | Backend adapter implemented with mocked GitHub tests; not exposed to users until project auth and durable confirmation workflow exist ([setup and boundary](docs/week4_github_app_connection.md)) |
-| Applying changes to a repository, GitHub PR delivery, React dashboard | Not implemented |
+| GitHub App authentication and ShopLite draft PR publisher | Local loopback-only owner flow with PostgreSQL-backed project, validation, idempotent operation, event, and draft PR records. Requires explicit confirmation and remains disabled by default ([setup and workflow](docs/week4_github_app_connection.md)) |
+| General repository patching, PR merge/deploy, React dashboard | Not implemented; publishing is limited to the fixed ShopLite CSS demo and draft PRs |
 
 VLM detection and patch generation default to deterministic offline **MOCK**
 adapters. Gemini can be selected for screenshot analysis and patch proposals;
@@ -143,6 +143,10 @@ GET      /api/v1/findings/{finding_id}
 POST     /api/v1/findings/{finding_id}/patch-proposals   # propose only, no writes
 GET      /api/v1/findings/{finding_id}/patch-proposals
 POST     /api/v1/demo/shoplite/patch-proposals/{proposal_id}/validate  # approved, fixed-target Docker check
+POST     /api/v1/local/github/connection/verify                        # local owner; server-configured repo only
+POST     /api/v1/local/shoplite/proposals/{proposal_id}/validate        # remote base SHA + Docker report
+POST     /api/v1/local/github/draft-prs                                 # explicit confirmation + idempotency key
+GET      /api/v1/local/github/operations/{operation_id}
 ```
 
 Run it (from `backend/`):
@@ -152,7 +156,7 @@ Run it (from `backend/`):
 .\.venv\Scripts\python.exe -m pytest tests\ -q        # test
 ```
 
-Test suite: **311 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **322 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
