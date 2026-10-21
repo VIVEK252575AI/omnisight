@@ -96,7 +96,23 @@ def run(base_url: str, timeout_ms: int) -> dict:
                     sort_keys=True,
                 )[:2_000]
             )
-        page.locator(".live-evidence-shot").get_by_text("400 × 844", exact=True).wait_for(timeout=5_000)
+        evidence_panel = page.locator(".live-evidence-shot")
+        evidence_panel_count = evidence_panel.count()
+        evidence_panel_text = evidence_panel.first.inner_text() if evidence_panel_count else ""
+        if "400 × 844" not in evidence_panel_text:
+            capture = persisted_run.get("body", {}).get("result", {}).get("capture", {})
+            raise RuntimeError(
+                "The dashboard did not render the persisted capture viewport: "
+                + json.dumps(
+                    {
+                        "evidence_panel_count": evidence_panel_count,
+                        "evidence_panel_text": evidence_panel_text[:1_000],
+                        "screenshot_artifact_id": capture.get("screenshot_artifact_id"),
+                        "capture_viewports": capture.get("viewports"),
+                    },
+                    sort_keys=True,
+                )[:2_000]
+            )
 
         page.reload(wait_until="domcontentloaded")
         page.get_by_role("button", name=re.compile("History")).click()
