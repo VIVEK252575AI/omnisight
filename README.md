@@ -174,8 +174,10 @@ the configured provider (MOCK by default; Gemini when explicitly configured).
 Review the proposal, type `approve-demo-only`, and confirm before the API starts
 the restricted Docker sandbox. This UI and its API only accept the fixed local
 ShopLite target. The existing scan composer remains a sample walkthrough.
-History and Recent Scans show real backend ShopLite runs. Run state currently
-lives in process memory and is cleared when the backend restarts.
+History and Recent Scans show real backend ShopLite runs. Run records and
+validated patch proposals are stored in the local SQLite file under
+`backend/data/` and survive backend restarts. PostgreSQL remains required for
+durable GitHub publishing records.
 
 After a successful sandbox run, the same page can verify the server-configured
 GitHub App repository, validate the proposal again against the current remote
@@ -184,7 +186,7 @@ base in Docker, and create a draft pull request after you type
 PostgreSQL plus the local owner and GitHub App configuration in
 [`docs/week4_github_app_connection.md`](docs/week4_github_app_connection.md).
 
-Test suite: **329 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **331 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:

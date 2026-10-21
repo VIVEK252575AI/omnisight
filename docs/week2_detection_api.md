@@ -101,8 +101,9 @@ output can never be mistaken for a real inference.
 
 ## Limitations
 
-- Persistence is in-memory (same as every other store in the backend); runs and
-  findings are lost on restart.
+- Detection findings and scan records are still in-memory and are lost on
+  restart. The fixed ShopLite demo uses a separate SQLite store for run
+  summaries and validated patch payloads.
 - `OMNISIGHT_ENABLE_VLM_DETECTION` exists but does not gate these endpoints
   yet — the workflow is exercised directly so it can be verified before the
   flag has a consumer.
