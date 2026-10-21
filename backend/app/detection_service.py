@@ -22,6 +22,8 @@ from uuid import UUID
 
 from app.ai.adapters.base import VisionAnalyzer
 from app.ai.contracts import (
+    BrowserDiagnostics,
+    BrowserNetworkSignal,
     DeterministicMeasurement,
     FindingCategory,
     PageContext,
@@ -128,6 +130,51 @@ def build_measurements(
             )
         )
     return measurements
+
+
+def build_browser_diagnostics(observation: Observation) -> BrowserDiagnostics:
+    """Pass only bounded, content-free browser signals to the vision model."""
+    method_allowlist = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+    resource_allowlist = {
+        "document",
+        "stylesheet",
+        "image",
+        "media",
+        "font",
+        "script",
+        "texttrack",
+        "xhr",
+        "fetch",
+        "eventsource",
+        "websocket",
+        "manifest",
+        "other",
+    }
+    network_errors: list[BrowserNetworkSignal] = []
+    for item in observation.network_errors[:20]:
+        status = (
+            item.status
+            if item.status is not None and 100 <= item.status <= 599
+            else None
+        )
+        normalized_method = item.method.upper() if item.method else None
+        method = normalized_method if normalized_method in method_allowlist else None
+        resource_type = (
+            item.resource_type if item.resource_type in resource_allowlist else None
+        )
+        network_errors.append(
+            BrowserNetworkSignal(
+                kind="http_error" if status is not None else "request_failed",
+                method=method,
+                status=status,
+                resource_type=resource_type,
+            )
+        )
+    return BrowserDiagnostics(
+        console_error_count=min(len(observation.console_errors), 20),
+        page_exception_count=min(len(observation.page_errors), 20),
+        network_errors=network_errors,
+    )
 
 
 def choose_evidence(scan: ScanResponse, records: list[EvidenceRecord]) -> EvidenceRecord:
@@ -260,7 +307,11 @@ class DetectionService:
         return VisionRequest(
             run_id=str(scan.scan_id),
             prompt_version=VISUAL_ANALYSIS_PROMPT_VERSION,
-            page_context=PageContext(route=observation.route, viewport=observation.viewport),
+            page_context=PageContext(
+                route=observation.route,
+                viewport=observation.viewport,
+                browser_diagnostics=build_browser_diagnostics(observation),
+            ),
             screenshots=screenshots,
             measurements=build_measurements(observation, candidates),
             expected_behavior=None,
