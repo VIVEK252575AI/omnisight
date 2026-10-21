@@ -151,6 +151,18 @@ def test_sandbox_surfaces_only_safe_harness_failure_diagnostics(monkeypatch):
     assert failure.value.code == "SANDBOX_BROWSER_FAILED"
 
 
+def test_sandbox_classifies_docker_mount_startup_failure(monkeypatch):
+    def fake_run(command, **kwargs):
+        return SimpleNamespace(returncode=1, stdout="", stderr="docker mount denied: source unavailable")
+
+    monkeypatch.setattr("app.shoplite_sandbox.shutil.which", lambda _: "docker")
+    monkeypatch.setattr("app.shoplite_sandbox.subprocess.run", fake_run)
+    with pytest.raises(SandboxFailure, match="mount failure") as failure:
+        run_shoplite_sandbox(_proposal(), proposal_id="proposal-demo", settings=_settings())
+
+    assert failure.value.code == "SANDBOX_CONTAINER_START_FAILED"
+
+
 def test_timeout_explicitly_removes_named_container(monkeypatch):
     calls = []
 

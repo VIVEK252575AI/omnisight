@@ -140,6 +140,25 @@ def _docker_command(stage_root: Path, container_name: str) -> list[str]:
     ]
 
 
+def _container_start_failure(stderr: str) -> SandboxFailure:
+    """Classify Docker startup errors without returning raw host diagnostics."""
+    diagnostic = (stderr or "").lower()
+    if "no such image" in diagnostic:
+        return SandboxFailure("SANDBOX_IMAGE_MISSING", "Build the documented ShopLite sandbox image first")
+    if "mount" in diagnostic and any(word in diagnostic for word in ("denied", "invalid", "failed", "error")):
+        category = "mount failure"
+    elif "permission denied" in diagnostic or "operation not permitted" in diagnostic:
+        category = "permission failure"
+    elif "executable file not found" in diagnostic or "no such file or directory" in diagnostic:
+        category = "missing container executable or path"
+    else:
+        category = "Docker runtime failure"
+    return SandboxFailure(
+        "SANDBOX_CONTAINER_START_FAILED",
+        f"Docker could not start the ShopLite container ({category})",
+    )
+
+
 def run_shoplite_sandbox(
     proposal: PatchProposal,
     *,
@@ -187,9 +206,9 @@ def run_shoplite_sandbox(
                 raise SandboxFailure("SANDBOX_DOCKER_UNAVAILABLE", "Docker could not start the ShopLite sandbox") from None
             if completed.returncode not in {0, 1}:
                 # Keep provider/container diagnostics out of API responses.
-                if "No such image" in (completed.stderr or ""):
-                    raise SandboxFailure("SANDBOX_IMAGE_MISSING", "Build the documented ShopLite sandbox image first")
-                raise SandboxFailure("SANDBOX_RUN_FAILED", "The ShopLite sandbox could not complete its verification")
+                raise _container_start_failure(completed.stderr or "")
+            if not completed.stdout.strip():
+                raise _container_start_failure(completed.stderr or "")
             try:
                 payload = json.loads(completed.stdout)
             except ValueError:
