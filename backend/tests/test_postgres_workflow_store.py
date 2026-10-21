@@ -323,6 +323,10 @@ def test_demo_runs_survive_store_restart_in_domain_tables():
         "proposal-human-reviewed",
         reason="Please narrow the CSS selector.",
     )
+    recovered_before_run_update = restarted.get(rejected_run.run_id)
+    assert recovered_before_run_update is not None
+    assert recovered_before_run_update.status == "proposal_rejected"
+    assert recovered_before_run_update.result["proposal_review"]["reason"] == "Please narrow the CSS selector."
     first.update(rejected_run.run_id, status="proposal_rejected", result={
         "scan_id": str(scan.scan_id),
         "findings": [{"finding_id": "finding-1"}],

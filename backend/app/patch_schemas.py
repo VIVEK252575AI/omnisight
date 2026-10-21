@@ -157,6 +157,7 @@ class PatchProposalRecord(BaseModel):
         max_length=50,
         description="Closed-set reason codes (RejectionReason); empty when proposed.",
     )
+    human_review_reason: str | None = Field(default=None, max_length=500)
     files: list[PatchFileSummary] = Field(default_factory=list, max_length=200)
     generator_label: str = Field(min_length=1, max_length=100)
     is_mock: bool = False
@@ -178,6 +179,7 @@ class PatchProposalResponse(BaseModel):
     scan_id: UUID | None = None
     status: PatchProposalStatus
     rejection_reasons: list[str] = []
+    human_review_reason: str | None = Field(default=None, max_length=500)
     files: list[PatchFileSummary] = []
     generator_label: str
     is_mock: bool = False

@@ -234,7 +234,14 @@ class DemoRunStore:
             proposal_summary = dict(patch.proposal_record_json)
             proposal_summary["status"] = patch.policy_check_result.get("status", proposal_summary.get("status", "proposed"))
             proposal_summary["rejection_reasons"] = patch.policy_check_result.get("rejection_reasons", [])
+            proposal_summary["human_review_reason"] = patch.policy_check_result.get("human_review_reason")
             result.update({"proposal": proposal_summary})
+            if "human_rejected" in proposal_summary["rejection_reasons"]:
+                result["proposal_review"] = {
+                    "decision": "rejected",
+                    "reason": proposal_summary["human_review_reason"],
+                    "reviewed_at": patch.finished_at.isoformat() if patch.finished_at else None,
+                }
         if run.failure_code:
             result["failure_code"] = run.failure_code
         return DemoRun(

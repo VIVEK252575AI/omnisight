@@ -202,6 +202,7 @@ def test_reviewer_can_reject_proposal_with_a_persisted_reason():
         assert rejected.json()["result"]["proposal_review"]["reason"] == "The proposed selector is too broad."
         assert patch_store.get("proposal-review").status == PatchProposalStatus.rejected
         assert patch_store.get("proposal-review").rejection_reasons == ["human_rejected"]
+        assert patch_store.get("proposal-review").human_review_reason == "The proposed selector is too broad."
         assert duplicate.status_code == 409
     finally:
         main.app.dependency_overrides.clear()

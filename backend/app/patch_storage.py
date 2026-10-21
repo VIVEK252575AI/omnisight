@@ -103,6 +103,7 @@ class PatchStore:
         data["created_at"] = row.created_at
         data["status"] = row.policy_check_result.get("status", "rejected")
         data["rejection_reasons"] = row.policy_check_result.get("rejection_reasons", [])
+        data["human_review_reason"] = row.policy_check_result.get("human_review_reason")
         data["proposal"] = None
         return PatchProposalRecord.model_validate(data)
 
@@ -115,6 +116,7 @@ class PatchStore:
         rejected = record.model_copy(update={
             "status": PatchProposalStatus.rejected,
             "rejection_reasons": ["human_rejected"],
+            "human_review_reason": reason,
         })
         if self._database is not None:
             with self._database() as session:
@@ -128,6 +130,10 @@ class PatchStore:
                     **(row.policy_check_result or {}),
                     "status": "rejected",
                     "rejection_reasons": ["human_rejected"],
+                    "human_review_reason": reason,
+                }
+                row.proposal_record_json = {
+                    **(row.proposal_record_json or {}),
                     "human_review_reason": reason,
                 }
                 row.updated_at = now
