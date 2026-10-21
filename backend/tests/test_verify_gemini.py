@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -72,3 +73,20 @@ def test_verify_gemini_fails_before_network_call_when_unconfigured(monkeypatch, 
     captured = capsys.readouterr()
     assert "OMNISIGHT_GEMINI_API_KEY" in captured.err
     assert "api_key" not in captured.out.lower()
+
+
+def test_verify_gemini_script_runs_directly_without_backend_pythonpath(tmp_path):
+    script = Path(__file__).resolve().parents[1] / "scripts" / "verify_gemini.py"
+
+    result = subprocess.run(
+        [sys.executable, str(script)],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert result.returncode == 1
+    assert "OMNISIGHT_GEMINI_API_KEY" in result.stderr
+    assert "ModuleNotFoundError" not in result.stderr
