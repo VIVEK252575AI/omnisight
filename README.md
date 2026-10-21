@@ -1197,4 +1197,40 @@ The backend exposes `POST /api/ai/patch-suggestions` for a direct, review-only G
 
 Copy `backend/.env.example` to `backend/.env`, set `OMNISIGHT_GEMINI_API_KEY`, and configure `OMNISIGHT_PATCH_SOURCE_ROOT` plus `OMNISIGHT_APPROVED_PATCH_PATHS` for the source checkout being tested. The key remains on the backend and is sent to Google in the `x-goog-api-key` header. Keep it out of frontend code and source control. Set `OMNISIGHT_GEMINI_MODEL` if a different model is enabled for your key. The default generator remains `mock` until you explicitly switch it to `gemini`.
 
+### Gemini visual detection
+
+The visual analyzer can also use Gemini. Set `OMNISIGHT_VLM_ADAPTER=gemini` in
+`backend/.env`; it uses the same server-side Gemini key and model setting as
+patch generation. The adapter sends the stored screenshot and bounded page
+measurements to Gemini, then the existing AI gateway validates the returned
+JSON before it can become a finding. The default remains the offline `mock`
+adapter. Google documents `generateContent` multimodal input and the
+`x-goog-api-key` header in its [Gemini API docs](https://ai.google.dev/gemini-api/docs/generate-content).
+
+With the local browser fixture and backend running, use PowerShell from
+`backend/` to upload its mobile observation and request real visual analysis:
+
+```powershell
+$scan = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/scans `
+  -ContentType 'application/json' `
+  -Body '{"target_url":"http://127.0.0.1:4173/checkout","viewports":[{"width":390,"height":844}],"routes":["/checkout"]}'
+
+Invoke-RestMethod -Method Post `
+  -Uri "http://127.0.0.1:8000/api/v1/scans/$($scan.scan_id)/evidence" `
+  -ContentType 'application/json' `
+  -InFile 'artifacts/demo-checkout/mobile/observation.json'
+
+Invoke-RestMethod -Method Post `
+  -Uri "http://127.0.0.1:8000/api/v1/scans/$($scan.scan_id)/detect"
+
+Invoke-RestMethod -Method Get `
+  -Uri "http://127.0.0.1:8000/api/v1/scans/$($scan.scan_id)/findings"
+```
+
+The detection response records `GEMINI` provenance when the live adapter ran.
+If the key has no quota, the model is not enabled, or the provider is
+unavailable, the run records a failure reason instead of claiming a finding.
+Patch generation stays a separate explicit step, and proposals still require
+review; no model output is applied automatically.
+
 See the API docs at `http://127.0.0.1:8000/docs` after starting the backend. Returned edits are proposals; review them before applying anything. A 429 response indicates a provider quota/rate limit, while 502–504 responses indicate provider, configuration, or timeout failures.
