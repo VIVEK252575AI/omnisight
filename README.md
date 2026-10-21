@@ -501,6 +501,7 @@ Browser evidence is converted into machine-readable context.
     }
   ],
   "console_errors": [],
+  "page_errors": [],
   "network_errors": [],
   "captured_at": "2026-01-01T00:00:00Z"
 }
@@ -1270,6 +1271,9 @@ cd backend
 The fixed flow checks the checkout heading and summary, exercises the simulated
 order action, records console errors, measures the button, and writes
 `observation/v1` JSON plus screenshots under `backend/artifacts/demo-checkout/`.
+The live collector records console errors, uncaught page exceptions, and failed
+or HTTP-error requests separately. Network evidence omits URL credentials,
+query strings, and fragments so common tokens are not copied into run records.
 By default it expects the deliberate mobile overflow and exits successfully
 when it detects it. After fixing the CSS, run
 `scripts\capture_demo_checkout.py --expected no-overflow`; it succeeds only
