@@ -71,9 +71,10 @@ class Settings(BaseSettings):
 
     # VLM adapter boundary (Week 2) — provider-neutral, config-selected.
     # `vlm_adapter` selects the replaceable implementation: "mock" (default,
-    # deterministic offline) or "teammate" (wraps the teammate VLM module once
-    # its callable is injected). An unknown value fails fast at startup. No
-    # provider, model name, key, or endpoint is hardcoded anywhere.
+    # deterministic offline), "gemini" (server-side multimodal API), or
+    # "teammate" (wraps the teammate VLM module once its callable is injected).
+    # An unknown value fails fast at startup. Credentials and model selection
+    # stay configurable and server-side.
     vlm_adapter: str = "mock"
     vlm_mock_scenario: str = "clipped_button"
     vlm_timeout_seconds: float = 30.0
