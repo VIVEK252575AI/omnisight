@@ -69,7 +69,34 @@ def run(base_url: str, timeout_ms: int) -> dict:
         run_id = _start_and_verify_run(
             page, start_button=re.compile("Start ShopLite scan"), timeout_ms=timeout_ms
         )
-        page.locator(".live-evidence-shot").get_by_text("400 × 844", exact=True).wait_for(timeout=timeout_ms)
+        persisted_run = page.evaluate(
+            """async (runId) => {
+              const response = await fetch(`/api/v1/demo/shoplite/runs/${encodeURIComponent(runId)}`);
+              return { status: response.status, body: await response.json() };
+            }""",
+            run_id,
+        )
+        mobile_viewport = (
+            persisted_run.get("body", {})
+            .get("result", {})
+            .get("capture", {})
+            .get("viewports", {})
+            .get("mobile", {})
+            .get("viewport")
+        )
+        if persisted_run.get("status") != 200 or mobile_viewport != {"width": 400, "height": 844}:
+            raise RuntimeError(
+                "The persisted browser capture did not use the published 400x844 viewport: "
+                + json.dumps(
+                    {
+                        "http_status": persisted_run.get("status"),
+                        "mobile_viewport": mobile_viewport,
+                        "capture": persisted_run.get("body", {}).get("result", {}).get("capture"),
+                    },
+                    sort_keys=True,
+                )[:2_000]
+            )
+        page.locator(".live-evidence-shot").get_by_text("400 × 844", exact=True).wait_for(timeout=5_000)
 
         page.reload(wait_until="domcontentloaded")
         page.get_by_role("button", name=re.compile("History")).click()
