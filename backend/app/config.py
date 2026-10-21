@@ -68,12 +68,20 @@ class Settings(BaseSettings):
     enable_vlm_detection: bool = False
     enable_patch_engine: bool = False
     enable_github_delivery: bool = False
+    enable_github_app: bool = False
+
+    # GitHub App installation credentials (server-side only). These values
+    # configure the local integration worker; they are never returned by APIs.
+    github_app_id: str | None = None
+    github_app_installation_id: str | None = None
+    github_app_private_key: SecretStr | None = None
 
     # VLM adapter boundary (Week 2) — provider-neutral, config-selected.
     # `vlm_adapter` selects the replaceable implementation: "mock" (default,
-    # deterministic offline) or "teammate" (wraps the teammate VLM module once
-    # its callable is injected). An unknown value fails fast at startup. No
-    # provider, model name, key, or endpoint is hardcoded anywhere.
+    # deterministic offline), "gemini" (server-side multimodal API), or
+    # "teammate" (wraps the teammate VLM module once its callable is injected).
+    # An unknown value fails fast at startup. Credentials and model selection
+    # stay configurable and server-side.
     vlm_adapter: str = "mock"
     vlm_mock_scenario: str = "clipped_button"
     vlm_timeout_seconds: float = 30.0
@@ -130,6 +138,12 @@ class Settings(BaseSettings):
     # BEFORE parsing so a giant response cannot pin memory or drive a
     # pathological regex; an oversized response is rejected ``too_large``.
     patch_max_response_bytes: int = 16384
+
+    # Opt-in, fixed-target ShopLite sandbox. The approval token is required
+    # before the API may start a Docker run; the sandbox itself has no network.
+    enable_shoplite_sandbox: bool = False
+    shoplite_sandbox_token: SecretStr | None = None
+    shoplite_sandbox_timeout_seconds: float = Field(default=45.0, gt=0, le=120)
 
     @field_validator("approved_patch_paths", mode="before")
     @classmethod

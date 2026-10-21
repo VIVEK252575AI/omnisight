@@ -98,8 +98,7 @@ The major stages are:
 > This section reflects the **actual repository state**. The rest of this
 > document describes the target design.
 
-The Week 1 and Week 2 backend (FastAPI) is implemented, tested and pushed on the
-`lakshy` branch (`backend/`):
+The Week 1 and Week 2 backend (FastAPI) is implemented and tested (`backend/`):
 
 | Area | Status |
 |---|---|
@@ -110,13 +109,19 @@ The Week 1 and Week 2 backend (FastAPI) is implemented, tested and pushed on the
 | Structured visual-finding schema + strict parser (W2.3) | Tested with mocks |
 | VLM detection workflow (W2.4) | Tested with mocks |
 | Safe action engine / patch proposals (W2.5) | Tested with mocks |
+| Gemini visual analyzer and safe patch generator | Integration-tested with mocked provider responses; live API calls need a configured key |
 | Code-response extraction & rejection (W2.6) | Tested with mocks |
 | Week 2 test matrix: valid / malformed / missing / unsupported / failed (W2.7) | Tested with mocks |
-| Playwright collector, real VLM provider, patch apply + sandbox, PyGithub, React dashboard | Not implemented |
+| Local Playwright checkout capture and scan runner | Tested with the local demo and backend |
+| ShopLite-only Docker patch verification | Implemented behind explicit local approval; live sandbox smoke is configured in GitHub Actions |
+| GitHub App authentication and ShopLite draft PR publisher | Backend adapter implemented with mocked GitHub tests; not exposed to users until project auth and durable confirmation workflow exist ([setup and boundary](docs/week4_github_app_connection.md)) |
+| Applying changes to a repository, GitHub PR delivery, React dashboard | Not implemented |
 
-All Week 2 AI work runs against a deterministic, **offline MOCK adapter** — no
-live VLM provider has been selected yet, and raw model output is never executed,
-imported, or written to disk.
+VLM detection and patch generation default to deterministic offline **MOCK**
+adapters. Gemini can be selected for screenshot analysis and patch proposals;
+provider requests are covered by mocked integration tests, but a live request
+needs a configured key and quota. Raw model output is validated and never
+executed or applied automatically.
 
 Endpoints currently served:
 
@@ -132,11 +137,12 @@ GET      /api/v1/webhooks/events/{event_id}
 POST     /api/v1/scans/{scan_id}/evidence
 GET      /api/v1/scans/{scan_id}/evidence
 GET      /api/v1/artifacts/{artifact_id}
-POST     /api/v1/scans/{scan_id}/detect           # VLM detection (MOCK adapter)
+POST     /api/v1/scans/{scan_id}/detect           # VLM detection (MOCK or Gemini)
 GET      /api/v1/scans/{scan_id}/findings         # validated findings + run
 GET      /api/v1/findings/{finding_id}
 POST     /api/v1/findings/{finding_id}/patch-proposals   # propose only, no writes
 GET      /api/v1/findings/{finding_id}/patch-proposals
+POST     /api/v1/demo/shoplite/patch-proposals/{proposal_id}/validate  # approved, fixed-target Docker check
 ```
 
 Run it (from `backend/`):
@@ -146,7 +152,7 @@ Run it (from `backend/`):
 .\.venv\Scripts\python.exe -m pytest tests\ -q        # test
 ```
 
-Test suite: **289 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **311 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
@@ -157,10 +163,15 @@ Design docs live under `docs/`:
 - `docs/week2_action_engine.md`
 - `docs/week2_code_extraction.md`
 - `docs/week2_testing_note.md`
+- `docs/week3_shoplite_sandbox.md`
 
 The CI webhook is a **simulation** — there is no real GitHub Actions/Jenkins
-integration. The patch-proposal endpoint only **validates and stores** a
-proposal; nothing is written to disk or applied to a repository in this slice.
+integration. Patch proposals are never applied to the source repository. The
+opt-in ShopLite endpoint copies one reviewed CSS proposal into a temporary
+staging tree and verifies it in a restricted Docker container; see
+[`docs/week3_shoplite_sandbox.md`](docs/week3_shoplite_sandbox.md). It is a
+local demo milestone, not a general repository sandbox or production security
+boundary.
 
 ---
 
@@ -1152,10 +1163,95 @@ Demonstrate one known visual defect end to end:
 
 > **Demo success:** Detect → Fix → Verify → Reviewable PR.
 
+### Local checkout browser fixture
+
+`demo-app/` is a deterministic, local-only ShopLite checkout used to exercise
+the browser evidence step. Its mobile Place Order button is intentionally too
+wide so the runner has a known defect to find. The order action is simulated;
+it does not collect payment or send order data.
+
+From the repository root, install the backend dependencies and Chromium once:
+
+```powershell
+cd backend
+..\.venv\Scripts\python.exe -m pip install -r requirements.txt
+..\.venv\Scripts\python.exe -m playwright install chromium
+```
+
+In one PowerShell window, serve the fixture from the repository root:
+
+```powershell
+cd demo-app
+python -m http.server 4173 --bind 127.0.0.1
+```
+
+In another PowerShell window, capture desktop and mobile evidence:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe scripts\capture_demo_checkout.py
+```
+
+The fixed flow checks the checkout heading and summary, exercises the simulated
+order action, records console errors, measures the button, and writes
+`observation/v1` JSON plus screenshots under `backend/artifacts/demo-checkout/`.
+By default it expects the deliberate mobile overflow and exits successfully
+when it detects it. After fixing the CSS, run
+`scripts\capture_demo_checkout.py --expected no-overflow`; it succeeds only
+when the button fits the mobile viewport. The runner only accepts HTTP loopback
+URLs and does not execute supplied flow data or modify application files.
+
+To capture the page and also upload the mobile evidence to a running backend,
+trigger detection, and wait for the result, run this from `backend/`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_demo_detection.py
+```
+
+The output labels the analyzer as `MOCK` or `GEMINI`. The default mock uses the
+captured element bounds, so it can demonstrate both the broken and fixed state
+without a provider key.
+
 ## Gemini patch suggestions (backend)
 
-The backend also exposes `POST /api/ai/patch-suggestions` for a review-only Gemini proposal. It accepts a validated finding and up to five caller-supplied CSS, SCSS, JSX, or TSX excerpts. The response is checked against those exact excerpts and never writes or executes code.
+The backend exposes `POST /api/ai/patch-suggestions` for a direct, review-only Gemini proposal. It also supports Gemini through the standard finding workflow: set `OMNISIGHT_PATCH_GENERATOR=gemini`, then call `POST /api/v1/findings/{finding_id}/patch-proposals`. That workflow loads only backend-approved source files and runs the existing extractor, path allowlist, edit applicability, and code checks before recording a proposal. Neither endpoint writes or executes code.
 
-Copy `backend/.env.example` to `backend/.env` and set `OMNISIGHT_GEMINI_API_KEY`. The key remains on the backend and is sent to Google in the `x-goog-api-key` header. Keep it out of frontend code and source control. Set `OMNISIGHT_GEMINI_MODEL` if a different model is enabled for your key.
+Copy `backend/.env.example` to `backend/.env`, set `OMNISIGHT_GEMINI_API_KEY`, and configure `OMNISIGHT_PATCH_SOURCE_ROOT` plus `OMNISIGHT_APPROVED_PATCH_PATHS` for the source checkout being tested. The key remains on the backend and is sent to Google in the `x-goog-api-key` header. Keep it out of frontend code and source control. Set `OMNISIGHT_GEMINI_MODEL` if a different model is enabled for your key. The default generator remains `mock` until you explicitly switch it to `gemini`.
+
+### Gemini visual detection
+
+The visual analyzer can also use Gemini. Set `OMNISIGHT_VLM_ADAPTER=gemini` in
+`backend/.env`; it uses the same server-side Gemini key and model setting as
+patch generation. The adapter sends the stored screenshot and bounded page
+measurements to Gemini, then the existing AI gateway validates the returned
+JSON before it can become a finding. The default remains the offline `mock`
+adapter. Google documents `generateContent` multimodal input and the
+`x-goog-api-key` header in its [Gemini API docs](https://ai.google.dev/gemini-api/docs/generate-content).
+
+With the local browser fixture and backend running, use PowerShell from
+`backend/` to upload its mobile observation and request real visual analysis:
+
+```powershell
+$scan = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/scans `
+  -ContentType 'application/json' `
+  -Body '{"target_url":"http://127.0.0.1:4173/checkout","viewports":[{"width":390,"height":844}],"routes":["/checkout"]}'
+
+Invoke-RestMethod -Method Post `
+  -Uri "http://127.0.0.1:8000/api/v1/scans/$($scan.scan_id)/evidence" `
+  -ContentType 'application/json' `
+  -InFile 'artifacts/demo-checkout/mobile/observation.json'
+
+Invoke-RestMethod -Method Post `
+  -Uri "http://127.0.0.1:8000/api/v1/scans/$($scan.scan_id)/detect"
+
+Invoke-RestMethod -Method Get `
+  -Uri "http://127.0.0.1:8000/api/v1/scans/$($scan.scan_id)/findings"
+```
+
+The detection response records `GEMINI` provenance when the live adapter ran.
+If the key has no quota, the model is not enabled, or the provider is
+unavailable, the run records a failure reason instead of claiming a finding.
+Patch generation stays a separate explicit step, and proposals still require
+review; no model output is applied automatically.
 
 See the API docs at `http://127.0.0.1:8000/docs` after starting the backend. Returned edits are proposals; review them before applying anything. A 429 response indicates a provider quota/rate limit, while 502–504 responses indicate provider, configuration, or timeout failures.

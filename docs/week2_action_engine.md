@@ -96,7 +96,9 @@ extractor; see [`week2_code_extraction.md`](week2_code_extraction.md).
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `OMNISIGHT_PATCH_GENERATOR` | `mock` | replaceable generator; unknown values fail fast |
+| `OMNISIGHT_PATCH_GENERATOR` | `mock` | `mock` (offline) or `gemini` (server-side API); unknown values fail fast |
+| `OMNISIGHT_GEMINI_API_KEY` | *(unset)* | server-side Gemini credential; required when generator is `gemini` |
+| `OMNISIGHT_GEMINI_MODEL` | `gemini-3.6-flash` | configured Gemini text model |
 | `OMNISIGHT_PATCH_MOCK_SCENARIO` | `ok` | `ok` \| `timeout` \| `error` \| `invalid_json` \| `empty` \| `prose_with_fence` \| `two_plain_fences` \| `two_tagged_fences` \| `prose_only` \| `truncated` |
 | `OMNISIGHT_APPROVED_PATCH_PATHS` | *(empty)* | **allow-list**; empty means everything is rejected |
 | `OMNISIGHT_PATCH_ALLOWED_EXTENSIONS` | `.css,.scss,.jsx,.tsx` | patchable extensions |
@@ -112,6 +114,11 @@ extractor; see [`week2_code_extraction.md`](week2_code_extraction.md).
   extractor is now the real `SourcePatchExtractor` (W2.6): it isolates the patch
   payload from prose and rejects anything unsafe, so a valid MOCK proposal
   reaches `proposed` and an unsafe one is recorded `rejected` with a reason code.
+- **Gemini is integrated behind the same generator boundary.** When selected,
+  it receives only the backend-built approved source context; its output still
+  passes through extraction, exact-match applicability, path allow-list, size,
+  and code-safety checks. Provider calls are mocked in tests; a live API call
+  has not yet been verified.
 - **Blocked on the ShopLite handoff.** No ShopLite source tree exists in this
   repository, so `OMNISIGHT_APPROVED_PATCH_PATHS` defaults to empty and
   everything is rejected on `path_not_approved`.

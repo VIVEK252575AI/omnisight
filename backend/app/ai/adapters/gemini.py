@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import re
+from pathlib import Path
 from urllib.parse import quote
 
 import httpx
@@ -23,14 +25,71 @@ class GeminiProviderError(Exception):
 
 
 class GeminiTextAdapter:
-    """One bounded Gemini text-generation call for the patch-proposal gateway."""
+    """Bounded Gemini JSON generation for text and screenshot inputs."""
 
     provider_label = "GEMINI"
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
 
-    def generate_json(self, *, system_instruction: str, user_content: str) -> str:
+    def generate_json(
+        self,
+        *,
+        system_instruction: str,
+        user_content: str,
+        timeout_seconds: float | None = None,
+    ) -> str:
+        return self._generate_json(
+            system_instruction=system_instruction,
+            parts=[{"text": user_content}],
+            timeout_seconds=timeout_seconds,
+        )
+
+    def generate_json_with_images(
+        self,
+        *,
+        system_instruction: str,
+        user_content: str,
+        image_paths: list[Path],
+        max_output_tokens: int | None = None,
+        timeout_seconds: float | None = None,
+    ) -> str:
+        """Send local screenshots as inline image parts with bounded JSON text."""
+        parts: list[dict] = [{"text": user_content}]
+        for path in image_paths:
+            mime_type = {
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+            }.get(path.suffix.lower())
+            if mime_type is None:
+                raise GeminiProviderError(
+                    "configuration", "Gemini vision accepts PNG or JPEG screenshots"
+                )
+            try:
+                encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+            except OSError:
+                raise GeminiProviderError(
+                    "configuration", "Gemini could not read a stored screenshot"
+                ) from None
+            parts.append(
+                {"inlineData": {"mimeType": mime_type, "data": encoded}}
+            )
+        return self._generate_json(
+            system_instruction=system_instruction,
+            parts=parts,
+            max_output_tokens=max_output_tokens,
+            timeout_seconds=timeout_seconds,
+        )
+
+    def _generate_json(
+        self,
+        *,
+        system_instruction: str,
+        parts: list[dict],
+        max_output_tokens: int | None = None,
+        timeout_seconds: float | None = None,
+    ) -> str:
         key = (
             self._settings.gemini_api_key.get_secret_value()
             if self._settings.gemini_api_key
@@ -48,14 +107,16 @@ class GeminiTextAdapter:
                 headers={"x-goog-api-key": key},
                 json={
                     "systemInstruction": {"parts": [{"text": system_instruction}]},
-                    "contents": [{"role": "user", "parts": [{"text": user_content}]}],
+                    "contents": [{"role": "user", "parts": parts}],
                     "generationConfig": {
                         "responseMimeType": "application/json",
-                        "maxOutputTokens": self._settings.gemini_max_output_tokens,
+                        "maxOutputTokens": (
+                            max_output_tokens or self._settings.gemini_max_output_tokens
+                        ),
                         "temperature": 0.1,
                     },
                 },
-                timeout=self._settings.gemini_timeout_seconds,
+                timeout=timeout_seconds or self._settings.gemini_timeout_seconds,
             )
         except httpx.TimeoutException:
             raise GeminiProviderError("timeout", "Gemini request timed out") from None

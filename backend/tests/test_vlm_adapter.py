@@ -19,6 +19,7 @@ from app.ai.adapters import (
     create_vision_analyzer,
 )
 from app.ai.contracts import (
+    DeterministicMeasurement,
     FindingCategory,
     PageContext,
     RawVisionResult,
@@ -107,6 +108,47 @@ def test_mock_clipped_button_scenario():
     payload = json.loads(raw.text)
     assert payload["outcome"] == "defects_found"
     assert payload["findings"][0]["category"] == "clipped_element"
+
+
+def test_mock_clipped_button_uses_candidate_geometry_and_respects_a_fix():
+    analyzer = MockVisionAnalyzer("clipped_button")
+    request = make_request().model_copy(
+        update={
+            "measurements": [
+                DeterministicMeasurement(
+                    name="box.#place-order",
+                    value="x=37,y=483,w=520,h=48",
+                    unit="px",
+                ),
+                DeterministicMeasurement(
+                    name="box.#checkout-summary",
+                    value="x=16,y=568,w=358,h=278",
+                    unit="px",
+                ),
+            ]
+        }
+    )
+
+    broken = json.loads(analyzer.analyze(request).text)
+    assert broken["outcome"] == "defects_found"
+    assert broken["findings"][0]["target_candidate"] == "#place-order"
+    assert "right edge=557px" in broken["findings"][0]["evidence"]
+
+    fixed_request = request.model_copy(
+        update={
+            "measurements": [
+                DeterministicMeasurement(
+                    name="box.#place-order",
+                    value="x=37,y=483,w=318,h=48",
+                    unit="px",
+                ),
+                request.measurements[1],
+            ]
+        }
+    )
+    fixed = json.loads(analyzer.analyze(fixed_request).text)
+    assert fixed["outcome"] == "no_defects"
+    assert fixed["findings"] == []
 
 
 def test_mock_healthy_page_scenario():

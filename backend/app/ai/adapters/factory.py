@@ -12,6 +12,7 @@ adapter name changes the implementation without touching any caller.
 from __future__ import annotations
 
 from app.ai.adapters.base import ImageResolver, VisionAnalyzer
+from app.ai.adapters.gemini_vision import GeminiVisionAnalyzer
 from app.ai.adapters.mock import MockVisionAnalyzer
 from app.ai.adapters.teammate import TeammateCall, TeammateVisionAnalyzer
 from app.ai.errors import VisionConfigurationError
@@ -19,8 +20,9 @@ from app.config import Settings
 
 MOCK_ADAPTER = "mock"
 TEAMMATE_ADAPTER = "teammate"
+GEMINI_ADAPTER = "gemini"
 
-KNOWN_ADAPTERS = (MOCK_ADAPTER, TEAMMATE_ADAPTER)
+KNOWN_ADAPTERS = (MOCK_ADAPTER, GEMINI_ADAPTER, TEAMMATE_ADAPTER)
 
 
 def create_vision_analyzer(
@@ -39,6 +41,9 @@ def create_vision_analyzer(
             max_image_bytes=settings.vlm_max_image_bytes,
             max_images=settings.vlm_max_images_per_analysis,
         )
+
+    if name == GEMINI_ADAPTER:
+        return GeminiVisionAnalyzer(settings, resolver=resolver)
 
     if name == TEAMMATE_ADAPTER:
         if teammate_call is None:
