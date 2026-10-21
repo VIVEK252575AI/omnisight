@@ -1272,6 +1272,18 @@ The backend exposes `POST /api/ai/patch-suggestions` for a direct, review-only G
 
 Copy `backend/.env.example` to `backend/.env`, set `OMNISIGHT_GEMINI_API_KEY`, and configure `OMNISIGHT_PATCH_SOURCE_ROOT` plus `OMNISIGHT_APPROVED_PATCH_PATHS` for the source checkout being tested. The key remains on the backend and is sent to Google in the `x-goog-api-key` header. Keep it out of frontend code and source control. Set `OMNISIGHT_GEMINI_MODEL` if a different model is enabled for your key. The default generator remains `mock` until you explicitly switch it to `gemini`.
 
+To verify the configured key and model with one small, bounded request, run
+from `backend/` after rotating any key that was shared outside the local
+`.env`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_gemini.py
+```
+
+The command prints only the provider, model, and connection result. It never
+prints the key or the provider response body; Gemini quota and authentication
+errors are reported with sanitized messages.
+
 ### Gemini visual detection
 
 The visual analyzer can also use Gemini. Set `OMNISIGHT_VLM_ADAPTER=gemini` in

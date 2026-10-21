@@ -25,6 +25,8 @@ and database container stop, while PostgreSQL data remains in its Docker volume.
 Docker Desktop must be running. The `.env` must contain a Gemini key and ShopLite
 sandbox token; the script never prints credential values. If you shared an API
 key in chat, rotate it and put the replacement in `.env` before a client demo.
+Before running the live provider flow, verify the replacement key from
+`backend/` with `\.venv\Scripts\python.exe scripts\verify_gemini.py`.
 
 ## Accurate scope
 

@@ -41,11 +41,13 @@ class GeminiTextAdapter:
         *,
         system_instruction: str,
         user_content: str,
+        max_output_tokens: int | None = None,
         timeout_seconds: float | None = None,
     ) -> str:
         return self._generate_json(
             system_instruction=system_instruction,
             parts=[{"text": user_content}],
+            max_output_tokens=max_output_tokens,
             timeout_seconds=timeout_seconds,
         )
 
