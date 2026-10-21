@@ -26,18 +26,21 @@ the evidence store in use for that request (see
 """
 
 import logging
+from pathlib import Path
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from app.ai.adapters.factory import create_vision_analyzer
 from app.config import Settings, get_settings
 from app.errors import register_exception_handlers
 from app.evidence_storage import get_evidence_store
 from app.gemini import router as ai_router
-from app.routers import ci_webhooks, detection, evidence, github_publish, patches, scans
+from app.routers import ci_webhooks, demo_runs, detection, evidence, github_publish, patches, scans
 
 logger = logging.getLogger("omnisight")
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 def create_app() -> FastAPI:
@@ -55,7 +58,7 @@ def create_app() -> FastAPI:
     # misconfigured deployment never starts. The adapter is stored on app.state
     # for later orchestration to consume; nothing calls it on a request yet.
     vision_analyzer = create_vision_analyzer(
-        settings, resolver=get_evidence_store().get_artifact
+        settings, resolver=get_evidence_store(settings).get_artifact
     )
     app.state.vision_analyzer = vision_analyzer
     logger.info(
@@ -77,6 +80,7 @@ def create_app() -> FastAPI:
     app.include_router(ci_webhooks.router)
     app.include_router(evidence.router)
     app.include_router(detection.router)
+    app.include_router(demo_runs.router)
     app.include_router(patches.router)
     app.include_router(github_publish.router)
     app.include_router(ai_router)
@@ -97,6 +101,19 @@ def create_app() -> FastAPI:
             "service": settings.app_name,
             "version": settings.app_version,
         }
+
+    @app.get("/", include_in_schema=False)
+    def dashboard() -> FileResponse:
+        """Serve the local dashboard from the same origin as the API."""
+        return FileResponse(REPOSITORY_ROOT / "code.html", media_type="text/html")
+
+    @app.get("/styles.css", include_in_schema=False)
+    def dashboard_styles() -> FileResponse:
+        return FileResponse(REPOSITORY_ROOT / "styles.css", media_type="text/css")
+
+    @app.get("/script.js", include_in_schema=False)
+    def dashboard_script() -> FileResponse:
+        return FileResponse(REPOSITORY_ROOT / "script.js", media_type="text/javascript")
 
     return app
 

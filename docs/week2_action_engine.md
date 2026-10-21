@@ -127,11 +127,12 @@ the request.
   has also verified detection and patch generation against the local ShopLite
   demo.
 - **Controlled ShopLite validation is implemented.** The demo runner captures
-  desktop/mobile behavior, requests a Gemini finding and proposal, then applies
-  only the in-memory proposal in a disposable Docker container with no network
-  and bounded resources. The verified run reduced mobile overflow from 167px to
+  desktop/mobile behavior, requests a finding and proposal, then applies only
+  the stored validated proposal in a disposable Docker container with no
+  network and bounded resources. The verified run reduced mobile overflow from 167px to
   0px; desktop overflow remained 0px, the order confirmation worked, and the
   browser reported no errors or attempted external requests.
 - **No host apply step.** Sandbox verification does not write the proposal to
-  the host checkout. GitHub publishing remains a separate explicitly approved
-  step.
+  the host checkout. Validated edit payloads are stored in PostgreSQL so they
+  can be reviewed after an API restart; raw model output is not stored. GitHub publishing remains a separate explicitly
+  approved step.

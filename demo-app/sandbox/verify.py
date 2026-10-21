@@ -10,6 +10,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 WORKSPACE = Path("/workspace")
+OUTPUT = Path("/output")
 ORIGIN = "http://127.0.0.1:4173"
 VIEWPORTS = {"mobile": {"width": 390, "height": 844}, "desktop": {"width": 1440, "height": 900}}
 
@@ -81,6 +82,11 @@ def main() -> int:
                         results[f"{tree}_{device}_overflow_px"] = round(
                             max(0.0, box["x"] + box["width"] - viewport["width"]), 2
                         )
+                        if device == "mobile":
+                            screenshot_name = (
+                                "baseline-mobile.png" if tree == "baseline" else "candidate-mobile.png"
+                            )
+                            page.screenshot(path=str(OUTPUT / screenshot_name), full_page=False)
                         if tree == "candidate" and device == "mobile":
                             stage = "click_place_order"
                             button.click(timeout=2_000)

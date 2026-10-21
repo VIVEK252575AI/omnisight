@@ -16,7 +16,7 @@ import subprocess
 import tempfile
 import threading
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
@@ -54,6 +54,8 @@ class ShopLiteSandboxReport(BaseModel):
     report_id: str = ""
     base_revision: str | None = None
     diff_hash: str | None = None
+    baseline_screenshot_artifact_id: str | None = None
+    candidate_screenshot_artifact_id: str | None = None
     policy_version: str = "shoplite-docker-v1"
     checks: SandboxChecks
 
@@ -131,12 +133,13 @@ def _stage_demo(
     target.write_text(source.replace(edit.old_text, edit.new_text, 1), encoding="utf-8")
 
 
-def _docker_command(stage_root: Path, container_name: str) -> list[str]:
+def _docker_command(stage_root: Path, output_root: Path, container_name: str) -> list[str]:
     docker = shutil.which("docker")
     if not docker:
         raise SandboxFailure("SANDBOX_DOCKER_UNAVAILABLE", "Docker CLI was not found on the API host")
     source = str(stage_root.resolve())
-    if "," in source:
+    output = str(output_root.resolve())
+    if "," in source or "," in output:
         raise SandboxFailure("SANDBOX_INVALID_STAGE_PATH", "The temporary sandbox path contains unsupported characters")
     return [
         docker,
@@ -160,6 +163,8 @@ def _docker_command(stage_root: Path, container_name: str) -> list[str]:
         "--user=10001:10001",
         "--mount",
         f"type=bind,source={source},target=/workspace,readonly",
+        "--mount",
+        f"type=bind,source={output},target=/output",
         SANDBOX_IMAGE,
     ]
 
@@ -194,6 +199,7 @@ def run_shoplite_sandbox(
     settings: Settings,
     base_revision: str | None = None,
     source_files: dict[str, str] | None = None,
+    screenshot_store: Callable[[bytes, str], str] | None = None,
 ) -> ShopLiteSandboxReport:
     """Run the isolated browser check after validating the fixed demo edit."""
     if not settings.enable_shoplite_sandbox:
@@ -204,10 +210,13 @@ def run_shoplite_sandbox(
         raise SandboxFailure("SANDBOX_BUSY", "A ShopLite sandbox run is already in progress")
     try:
         with tempfile.TemporaryDirectory(prefix="omnisight-shoplite-") as temporary:
-            stage_root = Path(temporary)
+            stage_root = Path(temporary) / "workspace"
+            output_root = Path(temporary) / "output"
+            output_root.mkdir(parents=True)
+            output_root.chmod(0o777)
             _stage_demo(proposal, stage_root, settings, source_files=source_files)
             container_name = f"omni-shoplite-{uuid4().hex[:16]}"
-            command = _docker_command(stage_root, container_name)
+            command = _docker_command(stage_root, output_root, container_name)
             try:
                 completed = subprocess.run(
                     command,
@@ -293,16 +302,41 @@ def run_shoplite_sandbox(
                 ) from None
             except (ValueError, KeyError, TypeError):
                 raise SandboxFailure("SANDBOX_INVALID_RESULT", "The ShopLite sandbox returned an invalid report") from None
+            screenshot_ids: dict[str, str] = {}
+            if screenshot_store is not None:
+                for name, filename in (
+                    ("baseline_screenshot_artifact_id", "baseline-mobile.png"),
+                    ("candidate_screenshot_artifact_id", "candidate-mobile.png"),
+                ):
+                    screenshot_path = output_root / filename
+                    try:
+                        screenshot_bytes = screenshot_path.read_bytes()
+                    except OSError:
+                        raise SandboxFailure(
+                            "SANDBOX_EVIDENCE_MISSING",
+                            "The sandbox did not produce both before-and-after screenshots",
+                        ) from None
+                    if (
+                        not screenshot_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+                        or len(screenshot_bytes) > settings.artifact_max_image_bytes
+                    ):
+                        raise SandboxFailure(
+                            "SANDBOX_EVIDENCE_INVALID",
+                            "The sandbox produced an invalid or oversized screenshot",
+                        )
+                    screenshot_ids[name] = screenshot_store(screenshot_bytes, name)
             if checks.baseline_mobile_overflow_px <= 0:
                 raise SandboxFailure("SANDBOX_BASELINE_INVALID", "The demo no longer reproduces its expected mobile defect")
             if not passed:
                 return ShopLiteSandboxReport(
                     status="failed", proposal_id=proposal_id, report_id=str(uuid4()),
-                    base_revision=base_revision, diff_hash=shoplite_diff_hash(proposal), checks=checks
+                    base_revision=base_revision, diff_hash=shoplite_diff_hash(proposal),
+                    **screenshot_ids, checks=checks
                 )
             return ShopLiteSandboxReport(
                 status="verified", proposal_id=proposal_id, report_id=str(uuid4()),
-                base_revision=base_revision, diff_hash=shoplite_diff_hash(proposal), checks=checks
+                base_revision=base_revision, diff_hash=shoplite_diff_hash(proposal),
+                **screenshot_ids, checks=checks
             )
     finally:
         _RUN_LOCK.release()

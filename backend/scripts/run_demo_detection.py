@@ -67,13 +67,15 @@ def run(
     with httpx.Client(base_url=api_url, timeout=10.0) as client:
         scan = _api_json(client.post("/api/scans", json=scan_request))
         scan_id = scan["scan_id"]
-        _api_json(
+        evidence = _api_json(
             client.post(
                 f"/api/v1/scans/{scan_id}/evidence",
                 content=json.dumps(observation),
                 headers={"content-type": "application/json"},
             )
         )
+        capture_result["evidence_id"] = evidence["evidence_id"]
+        capture_result["screenshot_artifact_id"] = evidence["screenshot_artifact_id"]
         _api_json(client.post(f"/api/v1/scans/{scan_id}/detect"))
 
         deadline = time.monotonic() + timeout_seconds
@@ -93,6 +95,16 @@ def run(
         "scan_id": scan_id,
         "status": findings_response["status"],
         "adapter": findings_response.get("adapter_label"),
+        "reason_code": (
+            findings_response.get("detection", {}).get("reason_code")
+            if findings_response.get("detection")
+            else None
+        ),
+        "reason_message": (
+            findings_response.get("detection", {}).get("reason_message")
+            if findings_response.get("detection")
+            else None
+        ),
         "is_mock": (
             findings_response.get("detection", {}).get("is_mock")
             if findings_response.get("detection")

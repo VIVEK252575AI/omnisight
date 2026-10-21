@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     # Parsed from a comma-separated env value, e.g.
     #   OMNISIGHT_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5174
     allowed_origins: Annotated[list[str], NoDecode] = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
@@ -118,8 +120,9 @@ class Settings(BaseSettings):
     detection_max_raw_output_bytes: int = 8192
     detection_expose_raw_output: bool = False
 
-    # Safe action engine (W2.5). A model proposal is ONLY ever turned into a
-    # stored record here — nothing is written to disk in this slice.
+    # Safe action engine (W2.5). A model proposal is only accepted as a
+    # validated, reviewable record. Validated edits are stored in PostgreSQL;
+    # raw model output is never persisted.
     #
     # `patch_generator` selects the replaceable generator ("mock" default);
     # `patch_mock_scenario` picks the deterministic offline behaviour. No

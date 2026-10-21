@@ -18,6 +18,16 @@ Implemented in `backend/app/routers/detection.py`,
 Only `evidence_collection`, `detection_failed` and `needs_inspection` can
 start a run — the same set `LEGAL_TRANSITIONS` allows to reach `detecting`.
 
+## Evidence and artifact persistence
+
+Observation metadata is stored in PostgreSQL and remains available after an
+API restart. Screenshot bytes stay in the configured private `artifacts_dir`;
+PostgreSQL stores only an opaque artifact id, relative storage key, media type,
+byte size, and SHA-256 digest. The API resolves artifact ids beneath that root
+and returns no file if it is missing, has changed, or resolves outside the
+configured directory. Back up the artifact directory alongside the database
+for a complete local deployment restore.
+
 ## State machine additions
 
 ```
@@ -101,8 +111,17 @@ output can never be mistaken for a real inference.
 
 ## Limitations
 
-- Persistence is in-memory (same as every other store in the backend); runs and
-  findings are lost on restart.
+- The generic scan API stores its run, target, immutable request version, and
+  state events in PostgreSQL (`qa_runs`, `target_environments`,
+  `test_flow_versions`, and `workflow_events`). Detection attempts and
+  validated findings persist in `detection_attempts` and `findings`; prior
+  findings are marked superseded when a newer attempt replaces them. Raw model
+  text stays in memory only. The fixed ShopLite demo also persists run steps in
+  `run_steps`; validated proposals use `patch_attempts`.
+- Evidence metadata and the artifact-id-to-file registry are still held in
+  memory. After a backend restart, scan and finding history remains available,
+  but screenshot lookup and a new analysis using the prior evidence are not
+  restored yet.
 - `OMNISIGHT_ENABLE_VLM_DETECTION` exists but does not gate these endpoints
   yet — the workflow is exercised directly so it can be verified before the
   flag has a consumer.

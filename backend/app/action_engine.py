@@ -1,6 +1,8 @@
 """Safe action engine (Week 2, W2.5).
 
-Pipeline for one finding — **nothing is ever written to disk here**:
+Pipeline for one finding. It never applies edits to a source checkout. Only a
+validated proposal is passed to ``PatchStore``, which persists its reviewable
+summary and editable patch in the local workflow database:
 
 1. look up the finding; 404 when unknown, 409 when it is not patchable;
 2. build a read-only, allow-listed, size-capped source context;

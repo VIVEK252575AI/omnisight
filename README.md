@@ -6,6 +6,13 @@ OmniSight is an **AI-powered autonomous QA workflow** designed to detect visual 
 
 > **Core Loop:** Detect → Fix → Verify → Deliver
 
+### Client demo
+
+Open the [OmniSight client demo](client-demo/index.html) for a concise
+walkthrough of the live Gemini + ShopLite sandbox result. To rerun that flow
+locally, use the [client demo instructions](client-demo/README.md); Docker
+Desktop and local Gemini / sandbox settings are required.
+
 Traditional UI tests mainly inspect the DOM and depend on hardcoded selectors. However, users experience an application visually through pixels. A test may therefore pass functionally while problems such as clipping, overlap, poor contrast, and broken responsive layouts remain visible.
 
 OmniSight combines **browser automation, visual AI, code reasoning, automated validation, and CI/CD** to create a self-healing UI testing workflow.
@@ -109,19 +116,20 @@ The Week 1 and Week 2 backend (FastAPI) is implemented and tested (`backend/`):
 | Structured visual-finding schema + strict parser (W2.3) | Tested with mocks |
 | VLM detection workflow (W2.4) | Tested with mocks |
 | Safe action engine / patch proposals (W2.5) | Tested with mocks |
-| Gemini visual analyzer and safe patch generator | Integration-tested with mocked provider responses; live API calls need a configured key |
+| Gemini visual analyzer and safe patch generator | Implemented; provider calls are covered by mocked tests. Live API verification requires a configured key and available quota |
 | Code-response extraction & rejection (W2.6) | Tested with mocks |
 | Week 2 test matrix: valid / malformed / missing / unsupported / failed (W2.7) | Tested with mocks |
 | Local Playwright checkout capture and scan runner | Tested with the local demo and backend |
 | ShopLite-only Docker patch verification | Implemented behind explicit local approval; live sandbox smoke is configured in GitHub Actions |
 | GitHub App authentication and ShopLite draft PR publisher | Local loopback-only owner flow with PostgreSQL-backed project, validation, idempotent operation, event, and draft PR records. Requires explicit confirmation and remains disabled by default ([setup and workflow](docs/week4_github_app_connection.md)) |
-| General repository patching, PR merge/deploy, React dashboard | Not implemented; publishing is limited to the fixed ShopLite CSS demo and draft PRs |
+| Local interactive dashboard | Main scan, persisted before/after screenshots, run history, findings, patch review, sandbox approval, and optional GitHub publishing use the fixed ShopLite backend workflow |
+| General repository patching, PR merge/deploy, production dashboard | Not implemented; publishing is limited to the fixed ShopLite CSS demo and draft PRs |
 
 VLM detection and patch generation default to deterministic offline **MOCK**
-adapters. Gemini can be selected for screenshot analysis and patch proposals;
-provider requests are covered by mocked integration tests, but a live request
-needs a configured key and quota. Raw model output is validated and never
-executed or applied automatically.
+adapters. The dashboard exposes the fixed ShopLite workflow and uses its
+server-configured providers for browser capture → finding → safe proposal.
+Raw model output is validated and never executed or applied automatically.
+Arbitrary URL scanning is not exposed as a working dashboard feature yet.
 
 Endpoints currently served:
 
@@ -139,6 +147,10 @@ GET      /api/v1/scans/{scan_id}/evidence
 GET      /api/v1/artifacts/{artifact_id}
 POST     /api/v1/scans/{scan_id}/detect           # VLM detection (MOCK or Gemini)
 GET      /api/v1/scans/{scan_id}/findings         # validated findings + run
+POST     /api/v1/demo/shoplite/runs               # local fixed-target real scan
+GET      /api/v1/demo/shoplite/runs               # list current local demo runs
+GET      /api/v1/demo/shoplite/runs/{run_id}      # poll run and proposal status
+POST     /api/v1/demo/shoplite/runs/{run_id}/validate # explicit confirmation + Docker sandbox
 GET      /api/v1/findings/{finding_id}
 POST     /api/v1/findings/{finding_id}/patch-proposals   # propose only, no writes
 GET      /api/v1/findings/{finding_id}/patch-proposals
@@ -149,14 +161,33 @@ POST     /api/v1/local/github/draft-prs                                 # explic
 GET      /api/v1/local/github/operations/{operation_id}
 ```
 
-Run it (from `backend/`):
+Run the application (from `backend/`) and open the dashboard at
+`http://127.0.0.1:8000/`:
 
 ```powershell
+$env:OMNISIGHT_DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/omnisight"
+.\.venv\Scripts\alembic.exe upgrade head             # create/update PostgreSQL schema
 .\.venv\Scripts\uvicorn.exe app.main:app --reload     # serve
 .\.venv\Scripts\python.exe -m pytest tests\ -q        # test
 ```
 
-Test suite: **323 passed, 1 skipped** (offline; the skip is a Windows
+Use **Live ShopLite Demo** from the dashboard for the backend workflow. It uses
+the configured provider (MOCK by default; Gemini when explicitly configured).
+Review the proposal, type `approve-demo-only`, and confirm before the API starts
+the restricted Docker sandbox. This UI and its API only accept the fixed local
+ShopLite target; arbitrary URL scans are not exposed as supported UI actions.
+History and Recent Scans show real backend ShopLite runs. Run records, step
+summaries, and validated patch proposals are stored in PostgreSQL and survive
+backend restarts. Apply the Alembic migrations before starting the workflow.
+
+After a successful sandbox run, the same page can verify the server-configured
+GitHub App repository, validate the proposal again against the current remote
+base in Docker, and create a draft pull request after you type
+`create-draft-pr`. This publishing path is disabled by default and requires
+PostgreSQL plus the local owner and GitHub App configuration in
+[`docs/week4_github_app_connection.md`](docs/week4_github_app_connection.md).
+
+Test suite: **334 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
@@ -304,11 +335,11 @@ OmniSight/
 │   │   ├── config.py               # env-driven Settings
 │   │   ├── schemas.py              # scan + observation/v1 contracts
 │   │   ├── errors.py               # single error envelope
-│   │   ├── storage.py              # in-memory scan store
+│   │   ├── storage.py              # PostgreSQL QA run repository
 │   │   ├── event_storage.py        # CI event store
-│   │   ├── evidence_storage.py     # evidence + artifact registry
+│   │   ├── evidence_storage.py     # PostgreSQL evidence metadata + private file refs
 │   │   ├── artifacts.py            # safe artifact resolution
-│   │   ├── detection_*.py          # VLM detection workflow (W2.4)
+│   │   ├── detection_*.py          # VLM detection + persistent finding repository
 │   │   ├── action_engine.py        # safe patch-proposal engine (W2.5)
 │   │   ├── patch_*.py              # schemas, paths, validation, extraction
 │   │   ├── source_context.py       # read-only approved-source context
@@ -1155,17 +1186,17 @@ The backend and worker services are separate from the frontend and need their ow
 
 ### MVP Demo
 
-Demonstrate one known visual defect end to end:
+Demonstrate one known visual defect through the supported local workflow:
 
-1. Submit the ShopLite checkout URL.
+1. Start the fixed ShopLite checkout scan.
 2. Capture the mobile viewport (for example, 390 × 844).
 3. Detect the clipped Checkout button.
-4. Propose and apply a minimal CSS fix.
-5. Re-capture and verify the UI.
-6. Show the before/after evidence and validation status.
-7. Display the resulting reviewable PR and wait for human review.
+4. Review the restricted CSS patch proposal.
+5. Explicitly approve isolated Docker verification.
+6. Compare the persisted before/after mobile screenshots, browser checks, and run history.
+7. Optionally validate and publish a draft PR when GitHub App configuration is enabled.
 
-> **Demo success:** Detect → Fix → Verify → Reviewable PR.
+> **Demo success:** Detect → Review proposal → Verify in the sandbox → Optionally publish a draft PR.
 
 ### Local checkout browser fixture
 

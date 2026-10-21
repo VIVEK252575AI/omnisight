@@ -361,8 +361,8 @@ class DetectionService:
             return run
 
         self._store_raw(scan.scan_id, result.raw_text)
-        self.detection_store.replace_findings(scan.scan_id, records_out)
         self.detection_store.put_run(run)
+        self.detection_store.replace_findings(scan.scan_id, records_out)
         logger.info(
             "detection completed",
             extra={

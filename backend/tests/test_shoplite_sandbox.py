@@ -77,7 +77,8 @@ def test_staging_rejects_any_target_other_than_fixed_shoplite_css(tmp_path):
 
 def test_docker_command_is_restricted_and_never_mounts_socket(monkeypatch, tmp_path):
     monkeypatch.setattr("app.shoplite_sandbox.shutil.which", lambda command: "docker.exe")
-    command = _docker_command(tmp_path, "omni-shoplite-test")
+    output_root = tmp_path / "output"
+    command = _docker_command(tmp_path, output_root, "omni-shoplite-test")
 
     assert command[0] == "docker.exe"
     assert "--network=none" in command
@@ -95,6 +96,9 @@ def test_docker_command_is_restricted_and_never_mounts_socket(monkeypatch, tmp_p
     assert not any("docker.sock" in item.lower() for item in command)
     mount = command[command.index("--mount") + 1]
     assert mount.endswith("target=/workspace,readonly")
+    output_mount = command[command.index("--mount", command.index("--mount") + 1) + 1]
+    assert output_mount.endswith("target=/output")
+    assert "readonly" not in output_mount
 
 
 def test_run_returns_verified_report_from_bounded_container(monkeypatch):
@@ -131,6 +135,50 @@ def test_run_returns_verified_report_from_bounded_container(monkeypatch):
     assert observed["kwargs"]["shell"] is False
     assert observed["kwargs"]["timeout"] == 45
     assert "--network=none" in observed["command"]
+
+
+def test_run_persists_before_after_screenshots_through_callback(monkeypatch):
+    from app import shoplite_sandbox
+
+    checks = {
+        "baseline_mobile_overflow_px": 167.0,
+        "patched_mobile_overflow_px": 0.0,
+        "patched_desktop_overflow_px": 0.0,
+        "order_confirmation": True,
+        "browser_error_count": 0,
+        "blocked_external_request_count": 0,
+    }
+    png = b"\x89PNG\r\n\x1a\nfixture-png"
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        mount_index = command.index("--mount", command.index("--mount") + 1)
+        output_mount = command[mount_index + 1]
+        output_path = output_mount.split("source=", 1)[1].split(",target=", 1)[0]
+        output_root = shoplite_sandbox.Path(output_path)
+        (output_root / "baseline-mobile.png").write_bytes(png)
+        (output_root / "candidate-mobile.png").write_bytes(png)
+        return SimpleNamespace(returncode=0, stdout=json.dumps({"passed": True, "checks": checks}), stderr="")
+
+    def store_screenshot(image_bytes, label):
+        captured[label] = image_bytes
+        return f"artifact-{label}"
+
+    monkeypatch.setattr("app.shoplite_sandbox.shutil.which", lambda _: "docker")
+    monkeypatch.setattr("app.shoplite_sandbox.subprocess.run", fake_run)
+    report = run_shoplite_sandbox(
+        _proposal(),
+        proposal_id="proposal-demo",
+        settings=_settings(),
+        screenshot_store=store_screenshot,
+    )
+
+    assert captured == {
+        "baseline_screenshot_artifact_id": png,
+        "candidate_screenshot_artifact_id": png,
+    }
+    assert report.baseline_screenshot_artifact_id == "artifact-baseline_screenshot_artifact_id"
+    assert report.candidate_screenshot_artifact_id == "artifact-candidate_screenshot_artifact_id"
 
 
 def test_sandbox_surfaces_only_safe_harness_failure_diagnostics(monkeypatch):
