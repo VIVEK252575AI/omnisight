@@ -156,7 +156,7 @@ Run it (from `backend/`):
 .\.venv\Scripts\python.exe -m pytest tests\ -q        # test
 ```
 
-Test suite: **322 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **323 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
@@ -1215,6 +1215,12 @@ trigger detection, and wait for the result, run this from `backend/`:
 The output labels the analyzer as `MOCK` or `GEMINI`. The default mock uses the
 captured element bounds, so it can demonstrate both the broken and fixed state
 without a provider key.
+
+To run the complete fixed-demo flow through detection, safe patch proposal, and
+the isolated Docker browser check, see
+[`docs/week3_shoplite_sandbox.md`](docs/week3_shoplite_sandbox.md#run-the-complete-gemini-to-browser-verification-demo).
+The runner requires `--approve-sandbox` and reports success only when the
+candidate passes the mobile/desktop Playwright checks.
 
 ## Gemini patch suggestions (backend)
 

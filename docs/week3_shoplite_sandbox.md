@@ -59,6 +59,60 @@ pass. A run fails closed if the baseline no longer reproduces the intended
 defect, the source edit no longer matches exactly once, the Docker daemon/image
 is unavailable, or the run exceeds its time budget.
 
+## Run the complete Gemini-to-browser-verification demo
+
+This runner connects the existing browser capture, backend Gemini detection,
+safe patch proposal checks, and the isolated Docker sandbox. It tests only the
+fixed loopback ShopLite app; it does not publish a PR or edit the checkout.
+
+Configure `backend/.env` with a Gemini key and:
+
+```dotenv
+OMNISIGHT_VLM_ADAPTER=gemini
+OMNISIGHT_PATCH_GENERATOR=gemini
+OMNISIGHT_PATCH_SOURCE_ROOT=../demo-app
+OMNISIGHT_APPROVED_PATCH_PATHS=styles/checkout.css
+OMNISIGHT_ENABLE_SHOPLITE_SANDBOX=true
+OMNISIGHT_SHOPLITE_SANDBOX_TOKEN=<local-random-token>
+```
+
+Start the demo server from `demo-app/`:
+
+```powershell
+python -m http.server 4173 --bind 127.0.0.1
+```
+
+Start OmniSight from `backend/` in another terminal:
+
+```powershell
+.\.venv\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 8000
+```
+
+In a third terminal, set the same sandbox token without putting it on the
+command line, then run the explicitly approved workflow:
+
+```powershell
+$env:OMNISIGHT_SHOPLITE_SANDBOX_TOKEN = Read-Host "Local sandbox token"
+.\.venv\Scripts\python.exe scripts\run_demo_pipeline.py --approve-sandbox
+```
+
+The runner captures the fixed checkout at mobile and desktop sizes, submits the
+mobile observation to the backend, waits for detection, asks the safe action
+engine for proposals, and sends the first accepted proposal to the sandbox.
+Rejected proposal attempts and generator provenance are retained in the JSON
+summary. The process exits successfully only when the sandbox report is
+`verified`. The report is written under `backend/artifacts/demo-checkout/`.
+
+Use `OMNISIGHT_VLM_ADAPTER=mock` and/or
+`OMNISIGHT_PATCH_GENERATOR=mock` to exercise the deterministic offline
+providers. For the patch generator, set
+`OMNISIGHT_PATCH_MOCK_SCENARIO=shoplite_checkout_fix`; the regular `ok` mock
+replaces the whole source file and correctly exceeds the normal patch budget.
+Mock mode proves the plumbing, not Gemini model quality. Gemini
+requests require a configured API key and available quota. A passing local
+sandbox run is separate from the authenticated GitHub-base validation and
+draft PR flow in [week 4](week4_github_app_connection.md).
+
 ## Isolation controls and limits
 
 - Only one edit to the exact `styles/checkout.css` file is accepted.
