@@ -789,6 +789,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .project-target { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .project-target > div { min-width: 0; }
 .project-target code { overflow-wrap: anywhere; }
+.target-authorization-form { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin: 12px 0; }
+.target-authorization-confirm { display: flex; align-items: flex-start; gap: 8px; color: var(--text-2); font-size: 12px; }
+.target-authorization-confirm input { margin-top: 2px; accent-color: var(--purple); }
+.target-auth-history { display: grid; gap: 8px; padding-left: 18px; color: var(--text-2); font-size: 12px; }
+.target-auth-history code { overflow-wrap: anywhere; }
 .project-create form { display: flex; flex-direction: column; align-items: flex-start; }
 .project-create .field { width: 100%; max-width: 560px; }
 .project-create select { min-height: 36px; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--text); }
