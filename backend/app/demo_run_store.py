@@ -52,6 +52,7 @@ class DemoRun:
     status: str = "queued"
     result: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
+    cancellation_requested: bool = False
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -61,6 +62,7 @@ class DemoRun:
             "status": self.status,
             "result": self.result,
             "error": self.error,
+            "cancellation_requested": self.cancellation_requested,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -298,13 +300,63 @@ class DemoRunStore:
                 session.commit()
                 return DemoRun(run_id=run_id, status="queued", created_at=now, updated_at=now)
 
+    def request_cancel(self, run_id: str) -> DemoRun | None:
+        """Persist local-owner cancellation intent for an active browser pipeline."""
+        now = utcnow()
+        if self._database is None:
+            with self._lock:
+                run = self._runs.get(run_id)
+                if run is None or run.status not in {"queued", "running"}:
+                    return None
+                run.cancellation_requested = True
+                run.updated_at = now
+                return run
+
+        with self._database() as session:
+            run = session.scalar(
+                select(QARun)
+                .join(TestFlow)
+                .where(
+                    QARun.id == run_id,
+                    QARun.project_id == self._settings.local_project_id,
+                    QARun.status.in_(ACTIVE_RUN_STATUSES),
+                    TestFlow.id == QARun.test_flow_id,
+                    TestFlow.name == DEMO_FLOW_NAME,
+                )
+                .with_for_update()
+            )
+            if run is None:
+                return None
+            if run.cancellation_requested_at is None:
+                run.cancellation_requested_at = now
+                run.updated_at = now
+                session.commit()
+            return self._from_database_run(session, run)
+
+    def cancellation_requested(self, run_id: str) -> bool:
+        """Read persisted cancellation intent so worker restarts remain safe."""
+        if self._database is None:
+            with self._lock:
+                run = self._runs.get(run_id)
+                return bool(run and run.cancellation_requested)
+        with self._database() as session:
+            run = session.scalar(
+                select(QARun.cancellation_requested_at).where(
+                    QARun.id == run_id,
+                    QARun.project_id == self._settings.local_project_id,
+                )
+            )
+            return run is not None
+
     @staticmethod
     def _api_status(run: QARun, result: dict[str, Any], patch: PatchAttempt | None) -> str:
         if run.status == "queued":
             return "queued"
         if run.status == "running":
             return "running"
-        if run.status in {"failed", "timed_out", "canceled"}:
+        if run.status == "canceled":
+            return "canceled"
+        if run.status in {"failed", "timed_out"}:
             return "failed"
         if run.outcome == "analysis_inconclusive":
             return "needs_inspection"
@@ -347,6 +399,10 @@ class DemoRunStore:
             status=self._api_status(run, result, patch),
             result=result,
             error=run.failure_message_safe,
+            cancellation_requested=(
+                run.cancellation_requested_at is not None
+                and run.status in ACTIVE_RUN_STATUSES
+            ),
             created_at=run.created_at,
             updated_at=run.updated_at,
         )
@@ -392,10 +448,15 @@ class DemoRunStore:
                 if run is None:
                     return None
                 if status is not None:
+                    if run.cancellation_requested and status != "canceled":
+                        status = "canceled"
+                        result = None
                     run.status = status
                 if result is not None:
                     run.result = result
                 run.error = error
+                if run.status == "canceled":
+                    run.cancellation_requested = False
                 run.updated_at = utcnow()
                 return run
 
@@ -437,6 +498,9 @@ class DemoRunStore:
                         if attempt not in linked_patches:
                             linked_patches.append(attempt)
             if status is not None:
+                if run.cancellation_requested_at is not None and status != "canceled":
+                    status = "canceled"
+                    result = None
                 patch_status = {
                     "awaiting_sandbox_approval": "proposed",
                     "patch_rejected": "rejected_by_policy",
@@ -444,8 +508,16 @@ class DemoRunStore:
                     "validating": "validating",
                     "verified": "validation_passed",
                     "validation_failed": "validation_failed",
+                    "canceled": "canceled",
                 }.get(status)
-                if status == "running":
+                if status == "canceled":
+                    run.status = "canceled"
+                    run.outcome = "not_applicable"
+                    run.current_stage = "finished"
+                    run.failure_code = None
+                    run.failure_message_safe = None
+                    run.finished_at = now
+                elif status == "running":
                     run.status = "running"
                     run.current_stage = "browser_execution"
                     run.started_at = run.started_at or now
@@ -479,6 +551,14 @@ class DemoRunStore:
                     run.status = "completed"
                     run.current_stage = "finished"
                     run.finished_at = run.finished_at or now
+                if status == "canceled":
+                    pending_steps = session.scalars(select(RunStep).where(
+                        RunStep.run_id == run.id,
+                        RunStep.status.in_(["queued", "running"]),
+                    )).all()
+                    for step in pending_steps:
+                        step.status = "canceled"
+                        step.finished_at = now
 
             if result is not None:
                 result_steps = [
