@@ -30,7 +30,7 @@ def verify() -> dict:
     response_text = adapter.generate_json(
         system_instruction=SYSTEM_INSTRUCTION,
         user_content=USER_CONTENT,
-        max_output_tokens=32,
+        max_output_tokens=256,
         timeout_seconds=min(settings.gemini_timeout_seconds, 20.0),
     )
     try:

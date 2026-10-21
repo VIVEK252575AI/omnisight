@@ -39,7 +39,7 @@ def test_verify_gemini_sends_bounded_request_and_never_prints_key(monkeypatch, c
         "status": "connected",
     }
     assert secret not in captured.out + captured.err
-    assert observed["max_output_tokens"] == 32
+    assert observed["max_output_tokens"] == 256
     assert observed["timeout_seconds"] == 20
 
 
