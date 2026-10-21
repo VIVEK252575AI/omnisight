@@ -23,6 +23,7 @@ class QuietHandler(SimpleHTTPRequestHandler):
 
 
 def main() -> int:
+    stage = "start_server"
     server = ThreadingHTTPServer(("127.0.0.1", 4173), QuietHandler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     report: dict = {"passed": False, "checks": {}}
@@ -30,6 +31,7 @@ def main() -> int:
     blocked_requests: list[str] = []
     try:
         with sync_playwright() as playwright:
+            stage = "launch_browser"
             browser = playwright.chromium.launch(
                 headless=True,
                 args=["--disable-background-networking", "--disable-component-update"],
@@ -38,6 +40,7 @@ def main() -> int:
                 results: dict[str, float] = {}
                 for tree in ("baseline", "candidate"):
                     for device, viewport in VIEWPORTS.items():
+                        stage = f"load_{tree}_{device}"
                         context = browser.new_context(viewport=viewport)
 
                         def allow_local_only(route) -> None:
@@ -72,6 +75,7 @@ def main() -> int:
                             max(0.0, box["x"] + box["width"] - viewport["width"]), 2
                         )
                         if tree == "candidate" and device == "mobile":
+                            stage = "verify_order_confirmation"
                             button.click(timeout=2_000)
                             page.get_by_role("status").get_by_text(
                                 "No payment was collected", exact=False
@@ -99,6 +103,7 @@ def main() -> int:
     except Exception as exc:
         # Do not echo candidate source or stack traces into the API response.
         report["error"] = type(exc).__name__
+        report["stage"] = stage
         report["passed"] = False
     finally:
         server.shutdown()

@@ -191,6 +191,22 @@ def run_shoplite_sandbox(
                 raise SandboxFailure("SANDBOX_RUN_FAILED", "The ShopLite sandbox could not complete its verification")
             try:
                 payload = json.loads(completed.stdout)
+                if isinstance(payload, dict) and isinstance(payload.get("error"), str):
+                    stage = payload.get("stage")
+                    error_type = payload["error"]
+                    if (
+                        isinstance(stage, str)
+                        and stage.replace("_", "").isalnum()
+                        and isinstance(error_type, str)
+                        and error_type.isalnum()
+                    ):
+                        raise SandboxFailure(
+                            "SANDBOX_BROWSER_FAILED",
+                            f"The ShopLite browser check failed during {stage} ({error_type})",
+                        )
+                    raise SandboxFailure(
+                        "SANDBOX_INVALID_RESULT", "The ShopLite sandbox returned an invalid report"
+                    )
                 checks = SandboxChecks.model_validate(payload["checks"])
                 passed = (
                     payload["passed"] is True
@@ -201,6 +217,8 @@ def run_shoplite_sandbox(
                     and checks.browser_error_count == 0
                     and checks.blocked_external_request_count == 0
                 )
+            except SandboxFailure:
+                raise
             except (ValueError, KeyError, TypeError):
                 raise SandboxFailure("SANDBOX_INVALID_RESULT", "The ShopLite sandbox returned an invalid report") from None
             if checks.baseline_mobile_overflow_px <= 0:
