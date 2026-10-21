@@ -1153,6 +1153,44 @@ Demonstrate one known visual defect end to end:
 
 > **Demo success:** Detect → Fix → Verify → Reviewable PR.
 
+### Local checkout browser fixture
+
+`demo-app/` is a deterministic, local-only ShopLite checkout used to exercise
+the browser evidence step. Its mobile Place Order button is intentionally too
+wide so the runner has a known defect to find. The order action is simulated;
+it does not collect payment or send order data.
+
+From the repository root, install the backend dependencies and Chromium once:
+
+```powershell
+cd backend
+..\.venv\Scripts\python.exe -m pip install -r requirements.txt
+..\.venv\Scripts\python.exe -m playwright install chromium
+```
+
+In one PowerShell window, serve the fixture from the repository root:
+
+```powershell
+cd demo-app
+python -m http.server 4173 --bind 127.0.0.1
+```
+
+In another PowerShell window, capture desktop and mobile evidence:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe scripts\capture_demo_checkout.py
+```
+
+The fixed flow checks the checkout heading and summary, exercises the simulated
+order action, records console errors, measures the button, and writes
+`observation/v1` JSON plus screenshots under `backend/artifacts/demo-checkout/`.
+By default it expects the deliberate mobile overflow and exits successfully
+when it detects it. After fixing the CSS, run
+`scripts\capture_demo_checkout.py --expected no-overflow`; it succeeds only
+when the button fits the mobile viewport. The runner only accepts HTTP loopback
+URLs and does not execute supplied flow data or modify application files.
+
 ## Gemini patch suggestions (backend)
 
 The backend exposes `POST /api/ai/patch-suggestions` for a direct, review-only Gemini proposal. It also supports Gemini through the standard finding workflow: set `OMNISIGHT_PATCH_GENERATOR=gemini`, then call `POST /api/v1/findings/{finding_id}/patch-proposals`. That workflow loads only backend-approved source files and runs the existing extractor, path allowlist, edit applicability, and code checks before recording a proposal. Neither endpoint writes or executes code.
