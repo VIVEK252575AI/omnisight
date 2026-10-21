@@ -55,8 +55,22 @@ def _wait_for_pending_project_target(page, timeout_ms: int, diagnostics: list[li
     except PlaywrightTimeoutError:
         view = page.locator(".projects-view")
         page_text = view.inner_text() if view.count() else page.locator("body").inner_text()
+        form_debug = page.evaluate(
+            """() => {
+              const form = document.querySelector('.project-create form');
+              return {
+                handler: typeof createProject,
+                submitObserved: window.__projectFormSubmitObserved,
+                valid: form?.checkValidity(),
+                onsubmit: form?.getAttribute('onsubmit'),
+                buttonDisabled: form?.querySelector('[type=submit]')?.disabled,
+                name: form?.querySelector('[name=name]')?.value,
+                targetUrl: form?.querySelector('[name=target_url]')?.value
+              };
+            }"""
+        )
         raise RuntimeError(
-            f"Project setup did not update the dashboard: {page_text}; "
+            f"Project setup did not update the dashboard: {page_text}; form: {form_debug}; "
             f"browser diagnostics: {' | '.join(item for group in diagnostics for item in group) or 'none'}"
         ) from None
     project_detail = page.locator(".project-detail")
@@ -86,6 +100,14 @@ def run(base_url: str, timeout_ms: int) -> dict:
         page.get_by_role("button", name="Projects").click()
         page.get_by_label("Project name").fill(project_name)
         page.get_by_label("Intended test URL").fill("https://client.example.invalid")
+        page.evaluate(
+            """() => {
+              window.__projectFormSubmitObserved = false;
+              document.querySelector('.project-create form').addEventListener(
+                'submit', () => { window.__projectFormSubmitObserved = true; }
+              );
+            }"""
+        )
         page.get_by_role("button", name="Save project and target").click()
         _wait_for_pending_project_target(page, timeout_ms, [browser_errors, browser_diagnostics])
         saved_project = page.evaluate(
