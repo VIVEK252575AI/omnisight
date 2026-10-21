@@ -194,6 +194,18 @@ def test_live_demo_proposal_can_be_validated_and_published_as_draft(monkeypatch)
             )
             assert operation.status_code == 200
             assert operation.json()["status"] == "succeeded"
+            assert operation.json()["validation_report_id"] == report["report_id"]
+            assert operation.json()["idempotency_key"] == "shoplite-test-key-123"
+
+            denied_state = client.get("/api/v1/local/github/state")
+            saved_state = client.get("/api/v1/local/github/state", headers=headers)
+            assert denied_state.status_code == 401
+            assert saved_state.status_code == 200
+            assert saved_state.json()["connection"]["repository"] == "VIVEK252575AI/omnisight"
+            assert saved_state.json()["connection"]["base_sha"] == base_sha
+            assert saved_state.json()["validations"][0]["report_id"] == report["report_id"]
+            assert saved_state.json()["operations"][0]["operation_id"] == pr_response.json()["operation_id"]
+            assert saved_state.json()["operations"][0]["idempotency_key"] == "shoplite-test-key-123"
 
         with Session(engine) as session:
             assert session.scalar(select(func.count()).select_from(ValidationReport)) == 1

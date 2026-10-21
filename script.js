@@ -18,6 +18,7 @@ const Store = {
   githubValidation: null,
   githubIdempotencyKey: null,
   githubOperation: null,
+  githubOperations: [],
   githubError: null
 };
 
@@ -375,6 +376,7 @@ function renderLocalGithubPanel() {
         <button class="btn" onclick="verifyLocalGithub()">Verify configured repository</button>
         <button class="btn" ${!proposalId || !Store.githubConnection ? 'disabled' : ''} onclick="validateLocalProposal()">Validate proposal at current base</button>
       </div>
+      <button class="btn btn--ghost github-restore" onclick="loadLocalGithubState()">Load saved GitHub publishing state</button>
       ${Store.githubError ? `<p class="error-note" role="alert">${esc(Store.githubError)}</p>` : ''}
       ${Store.githubConnection ? `<p class="success-note" role="status">Verified <b>${esc(Store.githubConnection.repository)}</b> · ${esc(Store.githubConnection.base_branch)} · base <code>${esc(Store.githubConnection.base_sha)}</code>.</p>` : ''}
       ${report ? `<section class="panel" style="margin-top:18px" aria-labelledby="validation-summary-heading">
@@ -385,9 +387,10 @@ function renderLocalGithubPanel() {
           <p><b>Report:</b> <code>${esc(report.report_id)}</code></p>
           <p><b>Sandbox checks:</b> ${esc(JSON.stringify(report.checks))}</p>
           ${report.status === 'verified' ? `<div class="field"><label for="gh-confirmation">Type <code>create-draft-pr</code> to confirm opening this draft PR</label><input id="gh-confirmation" autocomplete="off" placeholder="create-draft-pr" /></div>
-            <button class="btn btn--primary" ${operation?.status === 'running' ? 'disabled' : ''} onclick="createLocalDraftPR()">${operation?.status === 'remote_outcome_unknown' ? 'Retry or reconcile draft PR' : 'Create draft pull request'}</button>` : '<p class="error-note">This report did not pass. Run validation again after correcting the proposal.</p>'}
+            <button class="btn btn--primary" ${['running','succeeded','failed','canceled'].includes(operation?.status) ? 'disabled' : ''} onclick="createLocalDraftPR()">${operation?.status === 'succeeded' ? 'Draft PR already created' : operation?.status === 'remote_outcome_unknown' ? 'Retry or reconcile draft PR' : operation?.status === 'running' ? 'Draft PR request running' : 'Create draft pull request'}</button>` : '<p class="error-note">This report did not pass. Run validation again after correcting the proposal.</p>'}
         </div>
       </section>` : ''}
+      ${Store.githubOperations.length ? `<section class="github-operation-history"><div class="panel__title">Saved draft PR operations</div>${Store.githubOperations.slice(0, 5).map(item => `<div class="github-operation-row"><span class="badge badge--${item.status === 'succeeded' ? 'success' : ['failed','canceled'].includes(item.status) ? 'error' : 'info'}">${esc(item.status)}</span><span class="mono">${esc(item.proposal_id)}</span>${item.pull_request_url ? `<a href="${esc(item.pull_request_url)}" target="_blank" rel="noopener noreferrer">PR #${esc(item.pull_request_number)} ↗</a>` : `<span class="panel__sub">${esc(item.safe_error_code || item.operation_id)}</span>`}</div>`).join('')}</section>` : ''}
       ${operation ? `<div class="panel" role="status" aria-live="polite"><div class="panel__head"><div class="panel__title">Draft PR operation: ${esc(operation.status)}</div></div><div class="panel__body">${operation.pull_request_url ? `<p>Draft PR #${esc(operation.pull_request_number)} created successfully.</p><a href="${esc(operation.pull_request_url)}" target="_blank" rel="noopener noreferrer">Open draft pull request ↗</a>` : `<p>${esc(operation.safe_error_code || 'The operation is still being reconciled.')}</p>`}<p><code>${esc(operation.operation_id)}</code></p></div></div>` : ''}
       <p class="panel__sub">Publishing is opt-in. The backend requires the local auth token, a verified GitHub App installation, PostgreSQL, and sandbox settings. It creates a draft PR and does not merge or deploy.</p>
     </div>
@@ -420,6 +423,21 @@ async function verifyLocalGithub() {
   render();
 }
 
+async function loadLocalGithubState() {
+  Store.githubError = null;
+  try {
+    const state = await localGithubRequest('/api/v1/local/github/state');
+    Store.githubConnection = state.connection || null;
+    Store.githubOperations = state.operations || [];
+    Store.githubOperation = Store.githubOperations[0] || null;
+    Store.githubValidation = Store.githubOperation
+      ? state.validations.find(item => item.report_id === Store.githubOperation.validation_report_id) || null
+      : state.validations[0] || null;
+    Store.githubIdempotencyKey = Store.githubOperation?.idempotency_key || null;
+  } catch (error) { Store.githubError = error.message; }
+  render();
+}
+
 async function validateLocalProposal() {
   const proposalId = Store.demoRun?.result?.proposal?.proposal_id || Store.githubValidation?.proposal_id;
   if (!proposalId) { Store.githubError = 'Run and verify the ShopLite demo first.'; render(); return; }
@@ -444,6 +462,8 @@ async function createLocalDraftPR() {
       method: 'POST', headers: { 'Idempotency-Key': Store.githubIdempotencyKey },
       body: JSON.stringify({ validation_report_id: Store.githubValidation.report_id, confirmation })
     });
+    Store.githubIdempotencyKey = Store.githubOperation.idempotency_key;
+    Store.githubOperations = [Store.githubOperation, ...Store.githubOperations.filter(item => item.operation_id !== Store.githubOperation.operation_id)];
   } catch (error) { Store.githubError = error.message; }
   render();
 }

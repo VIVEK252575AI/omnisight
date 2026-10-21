@@ -158,6 +158,7 @@ POST     /api/v1/findings/{finding_id}/patch-proposals   # propose only, no writ
 GET      /api/v1/findings/{finding_id}/patch-proposals
 POST     /api/v1/demo/shoplite/patch-proposals/{proposal_id}/validate  # approved, fixed-target Docker check
 POST     /api/v1/local/github/connection/verify                        # local owner; server-configured repo only
+GET      /api/v1/local/github/state                                    # restore connection, validation, and PR operations
 POST     /api/v1/local/shoplite/proposals/{proposal_id}/validate        # remote base SHA + Docker report
 POST     /api/v1/local/github/draft-prs                                 # explicit confirmation + idempotency key
 GET      /api/v1/local/github/operations/{operation_id}
@@ -190,6 +191,9 @@ base in Docker, and create a draft pull request after you type
 `create-draft-pr`. This publishing path is disabled by default and requires
 PostgreSQL plus the local owner and GitHub App configuration in
 [`docs/week4_github_app_connection.md`](docs/week4_github_app_connection.md).
+After a browser refresh, enter the local owner token and select **Load saved
+GitHub publishing state** to recover the verified connection, recent validation
+report, draft PR outcome, and idempotency key for safe retry/reconciliation.
 
 Test suite: **341 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).

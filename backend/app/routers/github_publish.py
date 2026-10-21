@@ -52,7 +52,7 @@ class ConnectionResponse(BaseModel):
     project_id: str
     repository: str
     base_branch: str
-    base_sha: str
+    base_sha: str | None = None
     permission_status: str
 
 
@@ -172,6 +172,8 @@ class DraftPRResponse(BaseModel):
     operation_id: str
     status: str
     proposal_id: str
+    validation_report_id: str
+    idempotency_key: str
     draft: bool | None = None
     pull_request_number: int | None = None
     pull_request_url: str | None = None
@@ -180,10 +182,63 @@ class DraftPRResponse(BaseModel):
 
 def _operation_response(operation: GitHubOperation) -> DraftPRResponse:
     return DraftPRResponse(operation_id=operation.id, status=operation.status,
-        proposal_id=operation.proposal_id, draft=operation.draft,
+        proposal_id=operation.proposal_id, validation_report_id=operation.validation_report_id,
+        idempotency_key=operation.idempotency_key, draft=operation.draft,
         pull_request_number=operation.pull_request_number,
         pull_request_url=operation.pull_request_url,
         safe_error_code=operation.safe_error_code)
+
+
+class GitHubPublishingState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    connection: ConnectionResponse | None = None
+    validations: list[ValidationResponse]
+    operations: list[DraftPRResponse]
+
+
+@router.get("/github/state", response_model=GitHubPublishingState)
+def get_publishing_state(
+    settings: Settings = Depends(get_settings),
+    principal: LocalPrincipal = Depends(require_local_owner),
+    session: Session = Depends(get_session),
+) -> GitHubPublishingState:
+    """Restore the local owner's verified repository, validation reports, and PR operations."""
+    _ensure_enabled(settings)
+    connection = _connection(session, principal.project_id)
+    if connection is None:
+        return GitHubPublishingState(validations=[], operations=[])
+
+    reports = session.scalars(select(ValidationReport).where(
+        ValidationReport.project_id == principal.project_id,
+        ValidationReport.repository_connection_id == connection.id,
+    ).order_by(ValidationReport.created_at.desc()).limit(20)).all()
+    validations = [ValidationResponse(
+        report_id=report.id,
+        proposal_id=report.proposal_id,
+        status=report.status,
+        repository=f"{connection.owner}/{connection.repository}",
+        base_revision=report.base_revision,
+        diff_hash=report.diff_hash,
+        policy_version=report.policy_version,
+        checks=report.checks,
+    ) for report in reports]
+    operations = session.scalars(select(GitHubOperation).where(
+        GitHubOperation.project_id == principal.project_id,
+        GitHubOperation.repository_connection_id == connection.id,
+    ).order_by(GitHubOperation.created_at.desc()).limit(20)).all()
+    latest_base = reports[0].base_revision if reports else None
+    return GitHubPublishingState(
+        connection=ConnectionResponse(
+            project_id=connection.project_id,
+            repository=f"{connection.owner}/{connection.repository}",
+            base_branch=connection.base_branch,
+            base_sha=latest_base,
+            permission_status=connection.permission_status,
+        ),
+        validations=validations,
+        operations=[_operation_response(operation) for operation in operations],
+    )
 
 
 @router.post("/github/draft-prs", response_model=DraftPRResponse)
