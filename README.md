@@ -187,7 +187,7 @@ base in Docker, and create a draft pull request after you type
 PostgreSQL plus the local owner and GitHub App configuration in
 [`docs/week4_github_app_connection.md`](docs/week4_github_app_connection.md).
 
-Test suite: **333 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **334 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
