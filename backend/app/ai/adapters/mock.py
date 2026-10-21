@@ -3,7 +3,8 @@
 Never touches the network or a model. Canned responses are keyed by *scenario*
 so tests and offline development can drive every outcome deterministically:
 
-- ``clipped_button``  -> a ``defects_found`` result (clipped_element),
+- ``clipped_button``  -> a geometry-backed ``clipped_element`` when captured
+  measurements show overflow; a clean result when measured elements fit,
 - ``healthy_page``    -> ``no_defects``,
 - ``needs_inspection``-> ``needs_inspection`` (model could not decide),
 - ``malformed_text``  -> non-JSON text (not_json failure),
@@ -18,6 +19,7 @@ Every result is labelled ``MOCK``.
 from __future__ import annotations
 
 import json
+import re
 from typing import Sequence
 
 from app.ai.adapters.base import (
@@ -146,20 +148,63 @@ class MockVisionAnalyzer:
 
     @staticmethod
     def _clipped_button_payload(request: VisionRequest) -> dict:
+        viewport = request.page_context.viewport
+        boxes: list[tuple[str, float, float, float, float]] = []
+        for measurement in request.measurements:
+            if not measurement.name.startswith("box.") or not isinstance(
+                measurement.value, str
+            ):
+                continue
+            match = re.fullmatch(
+                r"x=(-?\d+(?:\.\d+)?),y=(-?\d+(?:\.\d+)?),"
+                r"w=(\d+(?:\.\d+)?),h=(\d+(?:\.\d+)?)",
+                measurement.value,
+            )
+            if match:
+                x, y, width, height = (float(value) for value in match.groups())
+                boxes.append((measurement.name[4:], x, y, width, height))
+
+        clipped = [
+            item
+            for item in boxes
+            if item[1] < 0
+            or item[1] + item[3] > viewport.width
+        ]
+        if boxes and not clipped:
+            return {
+                "schema_version": 1,
+                "outcome": "no_defects",
+                "summary": "MOCK: measured candidate elements fit the viewport.",
+                "findings": [],
+            }
+
+        selector, x, y, width, height = (
+            clipped[0] if clipped else ("#submit", 10.0, 20.0, 220.0, 48.0)
+        )
+        right = x + width
         return {
             "schema_version": 1,
             "outcome": "defects_found",
-            "summary": "MOCK: primary button is clipped at this viewport.",
+            "summary": "MOCK: a measured candidate extends beyond the viewport.",
             "findings": [
                 {
                     "category": "clipped_element",
-                    "target_candidate": "#submit",
-                    "observation": "The primary button extends past the viewport.",
-                    "evidence": "button box exceeds viewport width (MOCK geometry).",
+                    "target_candidate": selector,
+                    "observation": "The element extends past the captured viewport.",
+                    "evidence": (
+                        f"box x={x:g}, y={y:g}, w={width:g}, h={height:g}; "
+                        f"viewport={viewport.width}x{viewport.height}; "
+                        f"right edge={right:g}px. (MOCK measurement)"
+                    ),
                     "potential_causes": ["fixed pixel width"],
                     "severity": "high",
                     "confidence": 0.9,
-                    "region": {"x": 10.0, "y": 20.0, "width": 220.0, "height": 48.0},
+                    "region": {
+                        "x": x,
+                        "y": y,
+                        "width": width,
+                        "height": height,
+                    },
                 }
             ],
         }

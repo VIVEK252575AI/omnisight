@@ -149,9 +149,8 @@ class TestDetectionSuccess:
         assert finding["category"] == "clipped_element"
         assert finding["severity"] == "high"
         assert finding["status"] == "detected"
-        assert finding["target_candidate"] == "#submit"
-        # `#submit` is not a captured DOM candidate, so it is flagged unverified.
-        assert finding["target_unverified"] is True
+        assert finding["target_candidate"] == "#checkout"
+        assert finding["target_unverified"] is False
         assert finding["finding_id"]
         assert finding["observation"]
         assert finding["evidence"]
