@@ -44,6 +44,22 @@ def _start_and_verify_run(page, *, start_button: str | re.Pattern[str], timeout_
     return run_id
 
 
+def _wait_for_pending_project_target(page, timeout_ms: int) -> None:
+    setup_timeout_ms = min(timeout_ms, 15_000)
+    page.wait_for_function(
+        """() => document.querySelector('.project-detail') ||
+          document.querySelector('.projects-view [role="alert"]')""",
+        timeout=setup_timeout_ms,
+    )
+    project_detail = page.locator(".project-detail")
+    if project_detail.count() == 0:
+        message = page.locator(".projects-view [role='alert']").inner_text()
+        raise RuntimeError(f"Project setup failed in the dashboard: {message}")
+    detail_text = project_detail.inner_text()
+    if "Authorization pending" not in detail_text:
+        raise RuntimeError(f"Project target did not remain pending authorization: {detail_text}")
+
+
 def run(base_url: str, timeout_ms: int) -> dict:
     browser_errors: list[str] = []
     with sync_playwright() as playwright:
@@ -59,7 +75,7 @@ def run(base_url: str, timeout_ms: int) -> dict:
         page.get_by_label("Project name").fill(project_name)
         page.get_by_label("Intended test URL").fill("https://client.example.invalid")
         page.get_by_role("button", name="Save project and target").click()
-        page.locator(".project-detail").get_by_text("Authorization pending", exact=False).wait_for(timeout=timeout_ms)
+        _wait_for_pending_project_target(page, timeout_ms)
         saved_project = page.evaluate(
             """async (name) => {
               const response = await fetch('/api/v1/projects');
@@ -75,7 +91,7 @@ def run(base_url: str, timeout_ms: int) -> dict:
         project_row = page.locator(".project-list-row").filter(has_text=project_name)
         project_row.wait_for(timeout=timeout_ms)
         project_row.click()
-        page.locator(".project-detail").get_by_text("Authorization pending", exact=False).wait_for(timeout=timeout_ms)
+        _wait_for_pending_project_target(page, timeout_ms)
 
         page.get_by_role("button", name="Settings").click()
         page.get_by_text("Project and test flow", exact=True).wait_for(timeout=timeout_ms)
