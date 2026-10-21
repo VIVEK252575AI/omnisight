@@ -154,7 +154,7 @@ def _container_start_failure(stderr: str) -> SandboxFailure:
         category = "missing container executable or path"
     else:
         category = "Docker runtime failure"
-    detail = next((line.strip() for line in (stderr or "").splitlines() if line.strip()), "")
+    detail = next((line.strip() for line in reversed((stderr or "").splitlines()) if line.strip()), "")
     detail = re.sub(r"/tmp/omnisight-shoplite-[^/\s]+", "<staged-demo>", detail)
     detail = detail[:180]
     suffix = f": {detail}" if detail else ""
