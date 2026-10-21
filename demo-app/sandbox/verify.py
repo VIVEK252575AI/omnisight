@@ -75,8 +75,9 @@ def main() -> int:
                             max(0.0, box["x"] + box["width"] - viewport["width"]), 2
                         )
                         if tree == "candidate" and device == "mobile":
-                            stage = "verify_order_confirmation"
+                            stage = "click_place_order"
                             button.click(timeout=2_000)
+                            stage = "wait_order_confirmation"
                             page.get_by_role("status").get_by_text(
                                 "No payment was collected", exact=False
                             ).wait_for(state="visible", timeout=2_000)
