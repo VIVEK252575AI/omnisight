@@ -210,8 +210,9 @@ Design docs live under `docs/`:
 
 The generic CI webhook endpoint accepts synthetic events. Separately, the
 GitHub Actions workflow runs backend tests, the capture-to-sandbox pipeline,
-and the real restricted Docker smoke test on pushes to `vivek`; it does not
-send workflow events to a running OmniSight server. Patch proposals are never
+and the real restricted Docker smoke on pushes to `vivek`; pull requests
+targeting `main` run the backend test job. The workflow does not send events to
+a running OmniSight server. Patch proposals are never
 applied to the source repository. The opt-in ShopLite endpoint copies one
 reviewed CSS proposal into a temporary staging tree and verifies it in a
 restricted Docker container; see

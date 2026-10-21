@@ -3,6 +3,8 @@ name: ShopLite sandbox verification
 on:
   push:
     branches: [vivek]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -13,9 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  shoplite-sandbox:
+  backend-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       PYTHONPATH: backend
     steps:
@@ -34,6 +36,27 @@ jobs:
 
       - name: Run backend tests
         run: python -m pytest backend/tests -q
+
+  shoplite-sandbox:
+    needs: backend-tests
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.txt
 
       - name: Build pinned sandbox image
         run: docker build --tag omnisight-shoplite-sandbox:1 --file demo-app/sandbox/Dockerfile demo-app/sandbox
