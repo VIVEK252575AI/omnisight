@@ -6,7 +6,7 @@ must never be logged or included in API responses.
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -69,12 +69,21 @@ class Settings(BaseSettings):
     enable_patch_engine: bool = False
     enable_github_delivery: bool = False
     enable_github_app: bool = False
+    enable_github_publish_api: bool = False
+    auth_mode: Literal["disabled", "local_single_user"] = "disabled"
+    local_auth_token: SecretStr | None = None
+    local_project_id: str = "b13a29c2-4669-5ac7-9ba6-ff7c1d32ae11"
+    local_project_name: str = "OmniSight ShopLite Demo"
+    database_url: SecretStr | None = None
 
     # GitHub App installation credentials (server-side only). These values
     # configure the local integration worker; they are never returned by APIs.
     github_app_id: str | None = None
     github_app_installation_id: str | None = None
     github_app_private_key: SecretStr | None = None
+    github_target_owner: str | None = None
+    github_target_repository: str | None = None
+    github_target_branch: str | None = None
 
     # VLM adapter boundary (Week 2) — provider-neutral, config-selected.
     # `vlm_adapter` selects the replaceable implementation: "mock" (default,
