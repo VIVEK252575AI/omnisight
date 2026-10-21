@@ -44,7 +44,7 @@ def _start_and_verify_run(page, *, start_button: str | re.Pattern[str], timeout_
     return run_id
 
 
-def _wait_for_pending_project_target(page, timeout_ms: int) -> None:
+def _wait_for_pending_project_target(page, timeout_ms: int, diagnostics: list[list[str]]) -> None:
     setup_timeout_ms = min(timeout_ms, 15_000)
     try:
         page.wait_for_function(
@@ -55,7 +55,10 @@ def _wait_for_pending_project_target(page, timeout_ms: int) -> None:
     except PlaywrightTimeoutError:
         view = page.locator(".projects-view")
         page_text = view.inner_text() if view.count() else page.locator("body").inner_text()
-        raise RuntimeError(f"Project setup did not update the dashboard: {page_text}") from None
+        raise RuntimeError(
+            f"Project setup did not update the dashboard: {page_text}; "
+            f"browser diagnostics: {' | '.join(item for group in diagnostics for item in group) or 'none'}"
+        ) from None
     project_detail = page.locator(".project-detail")
     if project_detail.count() == 0:
         message = page.locator(".projects-view [role='alert']").inner_text()
@@ -67,10 +70,14 @@ def _wait_for_pending_project_target(page, timeout_ms: int) -> None:
 
 def run(base_url: str, timeout_ms: int) -> dict:
     browser_errors: list[str] = []
+    browser_diagnostics: list[str] = []
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1440, "height": 1000})
         page.on("pageerror", lambda error: browser_errors.append(str(error)))
+        page.on("console", lambda message: browser_diagnostics.append(f"console {message.type}: {message.text}") if message.type == "error" else None)
+        page.on("response", lambda response: browser_diagnostics.append(f"HTTP {response.status} {response.request.method} {response.url}") if "/api/v1/projects" in response.url else None)
+        page.on("requestfailed", lambda request: browser_diagnostics.append(f"request failed {request.method} {request.url}: {request.failure}") if "/api/v1/projects" in request.url else None)
         response = page.goto(base_url + "/", wait_until="domcontentloaded")
         if response is None or response.status != 200:
             raise RuntimeError("The OmniSight dashboard did not load successfully")
@@ -80,7 +87,7 @@ def run(base_url: str, timeout_ms: int) -> dict:
         page.get_by_label("Project name").fill(project_name)
         page.get_by_label("Intended test URL").fill("https://client.example.invalid")
         page.get_by_role("button", name="Save project and target").click()
-        _wait_for_pending_project_target(page, timeout_ms)
+        _wait_for_pending_project_target(page, timeout_ms, [browser_errors, browser_diagnostics])
         saved_project = page.evaluate(
             """async (name) => {
               const response = await fetch('/api/v1/projects');
@@ -96,7 +103,7 @@ def run(base_url: str, timeout_ms: int) -> dict:
         project_row = page.locator(".project-list-row").filter(has_text=project_name)
         project_row.wait_for(timeout=timeout_ms)
         project_row.click()
-        _wait_for_pending_project_target(page, timeout_ms)
+        _wait_for_pending_project_target(page, timeout_ms, [browser_errors, browser_diagnostics])
 
         page.get_by_role("button", name="Settings").click()
         page.get_by_text("Project and test flow", exact=True).wait_for(timeout=timeout_ms)
