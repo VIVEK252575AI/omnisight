@@ -21,6 +21,7 @@ from run_demo_detection import (
     _loopback_url,
     run as run_detection,
 )
+from capture_demo_checkout import DEFAULT_FLOW_VIEWPORTS, parse_viewports
 
 DEFAULT_TIMEOUT = 45.0
 
@@ -46,13 +47,18 @@ def run_pipeline(
     expected: str,
     timeout_seconds: float,
     approve_sandbox: bool,
+    viewports: list[dict[str, int]] | None = None,
 ) -> dict:
+    configured_viewports = parse_viewports(
+        json.dumps(DEFAULT_FLOW_VIEWPORTS if viewports is None else viewports)
+    )
     detection = run_detection(
         checkout_url=checkout_url,
         api_url=api_url,
         artifacts=artifacts,
         expected=expected,
         timeout_seconds=timeout_seconds,
+        viewports=configured_viewports,
     )
     result: dict = {
         "flow": "shoplite-gemini-safe-patch-sandbox-v1",
@@ -118,6 +124,7 @@ def main() -> int:
     parser.add_argument("--artifacts", type=Path, default=Path("artifacts"))
     parser.add_argument("--expected", choices=("overflow", "no-overflow"), default="overflow")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
+    parser.add_argument("--viewports-json", default=json.dumps(DEFAULT_FLOW_VIEWPORTS))
     parser.add_argument(
         "--approve-sandbox",
         action="store_true",
@@ -135,6 +142,7 @@ def main() -> int:
             checkout_url=args.checkout_url.rstrip("/"), api_url=args.api_url,
             artifacts=artifacts, expected=args.expected, timeout_seconds=args.timeout,
             approve_sandbox=args.approve_sandbox,
+            viewports=parse_viewports(args.viewports_json),
         )
     except Exception as exc:
         print(f"ShopLite pipeline failed: {type(exc).__name__}: {exc}", file=sys.stderr)

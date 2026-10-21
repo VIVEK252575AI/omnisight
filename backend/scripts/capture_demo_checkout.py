@@ -16,6 +16,7 @@ VIEWPORTS = {
     "desktop": {"width": 1440, "height": 900},
     "mobile": {"width": 390, "height": 844},
 }
+DEFAULT_FLOW_VIEWPORTS = [VIEWPORTS["mobile"], VIEWPORTS["desktop"]]
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_ROOT = ROOT / "backend" / "artifacts"
 
@@ -58,7 +59,32 @@ def _visible_element(page, selector: str, viewport: dict[str, int]) -> dict | No
     }
 
 
-def capture(base_url: str, artifact_root: Path, expected: str) -> dict:
+def parse_viewports(raw: str) -> list[dict[str, int]]:
+    try:
+        value = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        raise ValueError("flow viewports must be valid JSON") from None
+    if not isinstance(value, list) or len(value) != 2 or not all(isinstance(item, dict) for item in value):
+        raise ValueError("flow must define exactly two viewports")
+    mobile, desktop = value
+    for viewport in value:
+        if set(viewport) != {"width", "height"}:
+            raise ValueError("viewport definitions contain unsupported fields")
+        if any(type(viewport[key]) is not int for key in ("width", "height")):
+            raise ValueError("viewport dimensions must be integers")
+        if not 320 <= viewport["width"] <= 1920 or not 480 <= viewport["height"] <= 2160:
+            raise ValueError("viewport dimensions exceed the supported range")
+    if mobile["width"] > 600 or desktop["width"] < 800:
+        raise ValueError("flow viewports must be ordered mobile first, then desktop")
+    return [mobile, desktop]
+
+
+def capture(
+    base_url: str, artifact_root: Path, expected: str,
+    viewports: list[dict[str, int]] | None = None,
+) -> dict:
+    configured = parse_viewports(json.dumps(DEFAULT_FLOW_VIEWPORTS if viewports is None else viewports))
+    active_viewports = {"desktop": configured[1], "mobile": configured[0]}
     run_dir = artifact_root / "demo-checkout"
     run_dir.mkdir(parents=True, exist_ok=True)
     results: dict[str, dict] = {}
@@ -67,7 +93,7 @@ def capture(base_url: str, artifact_root: Path, expected: str) -> dict:
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         try:
-            for viewport_name, viewport in VIEWPORTS.items():
+            for viewport_name, viewport in active_viewports.items():
                 context = browser.new_context(viewport=viewport, device_scale_factor=1)
                 page = context.new_page()
                 console_errors: list[dict] = []
@@ -191,9 +217,13 @@ def main() -> int:
         default="overflow",
         help="expected mobile button state; use no-overflow after the fix",
     )
+    parser.add_argument("--viewports-json", default=json.dumps(DEFAULT_FLOW_VIEWPORTS))
     args = parser.parse_args()
     try:
-        result = capture(args.base_url, args.artifacts.resolve(), args.expected)
+        result = capture(
+            args.base_url, args.artifacts.resolve(), args.expected,
+            parse_viewports(args.viewports_json),
+        )
     except Exception as exc:
         print(f"Demo flow failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

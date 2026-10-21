@@ -186,6 +186,12 @@ History and Recent Scans show real backend ShopLite runs. Run records, step
 summaries, and validated patch proposals are stored in PostgreSQL and survive
 backend restarts. Apply the Alembic migrations before starting the workflow.
 
+In **Settings → Project and test flow**, you can adjust the fixed demo's mobile
+and desktop viewport sizes and publish a new immutable flow version. New runs
+pin that version and use its saved sizes during browser capture; earlier runs
+retain their original version. The checkout route and supported assertions
+remain fixed to the controlled ShopLite demo.
+
 After a successful sandbox run, the same page can verify the server-configured
 GitHub App repository, validate the proposal again against the current remote
 base in Docker, and create a draft pull request after you type
@@ -196,7 +202,7 @@ After a browser refresh, enter the local owner token and select **Load saved
 GitHub publishing state** to recover the verified connection, recent validation
 report, draft PR outcome, and idempotency key for safe retry/reconciliation.
 
-Test suite: **341 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **348 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:

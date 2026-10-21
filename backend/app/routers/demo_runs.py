@@ -19,10 +19,10 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.config import Settings, get_settings
-from app.demo_run_store import DemoRunStore, get_demo_run_store
+from app.demo_run_store import DemoRunStore, FlowVersionConflict, get_demo_run_store
 from app.evidence_storage import EvidenceStore, get_evidence_store
 from app.errors import DomainError, ErrorCode
 from app.ids import utcnow
@@ -52,6 +52,27 @@ class ProposalRejection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reason: str = Field(min_length=1, max_length=500)
+
+
+class FlowViewport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    width: int = Field(ge=320, le=1920)
+    height: int = Field(ge=480, le=2160)
+
+
+class PublishShopLiteFlowVersion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(ge=1)
+    viewports: list[FlowViewport] = Field(min_length=2, max_length=2)
+
+    @model_validator(mode="after")
+    def require_supported_viewport_order(self):
+        mobile, desktop = self.viewports
+        if mobile.width > 600 or desktop.width < 800:
+            raise ValueError("viewports must be ordered mobile first, then desktop")
+        return self
 
 
 def _persist_sandbox_screenshot(
@@ -140,6 +161,9 @@ def _run_demo_pipeline(run_id: str, api_url: str, store: DemoRunStore) -> None:
         store.update(run_id, status="running")
         if not DEMO_APP_ROOT.is_dir() or not PIPELINE_SCRIPT.is_file():
             raise RuntimeError("The fixed ShopLite demo files are missing from this checkout.")
+        flow_definition = store.flow_definition_for_run(run_id)
+        if flow_definition.get("route") != "/checkout":
+            raise RuntimeError("The saved ShopLite flow uses an unsupported route.")
 
         handler = partial(_QuietDemoHandler, directory=str(DEMO_APP_ROOT))
         server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -156,6 +180,8 @@ def _run_demo_pipeline(run_id: str, api_url: str, store: DemoRunStore) -> None:
             api_url,
             "--timeout",
             "180",
+            "--viewports-json",
+            json.dumps(flow_definition.get("viewports")),
         ]
         completed = subprocess.run(
             command,
@@ -247,6 +273,34 @@ def get_shoplite_workspace(
         raise DomainError(
             ErrorCode.INTERNAL_ERROR,
             "The ShopLite workspace could not be loaded. Check the local database connection.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        ) from exc
+
+
+@router.put("/workspace/test-flow")
+def publish_shoplite_flow_version(
+    payload: PublishShopLiteFlowVersion,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: DemoRunStore = Depends(get_demo_run_store),
+) -> dict:
+    """Publish a new immutable version with bounded mobile/desktop viewports."""
+    _require_local_ui(request, settings)
+    try:
+        return store.publish_flow_viewports(
+            expected_version=payload.expected_version,
+            viewports=[item.model_dump() for item in payload.viewports],
+        )
+    except FlowVersionConflict:
+        raise DomainError(
+            ErrorCode.CONFLICT,
+            "The ShopLite flow changed since it was loaded. Refresh before publishing again.",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from None
+    except Exception as exc:
+        raise DomainError(
+            ErrorCode.INTERNAL_ERROR,
+            "The ShopLite flow version could not be published. Check the local database connection.",
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         ) from exc
 

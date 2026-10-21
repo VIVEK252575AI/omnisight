@@ -37,3 +37,26 @@ def test_pipeline_preserves_safe_gemini_quota_reason(monkeypatch, tmp_path: Path
     assert result["detection_reason_code"] == "rate_limited"
     assert result["detection_reason_message"] == "Gemini quota or rate limit was reached"
     assert "proposal_attempts" not in result
+
+
+def test_flow_viewport_parser_accepts_bounded_mobile_desktop_pair():
+    viewports = run_demo_pipeline.parse_viewports(
+        '[{"width":400,"height":844},{"width":1440,"height":900}]'
+    )
+    assert viewports == [
+        {"width": 400, "height": 844}, {"width": 1440, "height": 900}
+    ]
+
+
+def test_flow_viewport_parser_rejects_extra_fields_and_unbounded_values():
+    import pytest
+
+    with pytest.raises(ValueError):
+        run_demo_pipeline.parse_viewports(
+            '[{"width":400,"height":844,"url":"https://attacker.example"},'
+            '{"width":1440,"height":900}]'
+        )
+    with pytest.raises(ValueError):
+        run_demo_pipeline.parse_viewports(
+            '[{"width":2000,"height":844},{"width":1440,"height":900}]'
+        )

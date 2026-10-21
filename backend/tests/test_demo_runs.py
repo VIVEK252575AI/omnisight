@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app import main
 from app.config import Settings, get_settings
 from app.demo_run_store import DemoRunStore, get_demo_run_store
-from app.db_models import Base, Project, TargetEnvironment, TestFlow as _TestFlowRow, TestFlowVersion as _TestFlowVersionRow
+from app.db_models import Base, Project, QARun, TargetEnvironment, TestFlow as _TestFlowRow, TestFlowVersion as _TestFlowVersionRow
 from app.evidence_storage import EvidenceStore, get_evidence_store
 from app.patch_schemas import PatchProposal, PatchProposalRecord, PatchProposalStatus
 from app.patch_storage import PatchStore, get_patch_store
@@ -61,7 +61,46 @@ def test_shoplite_workspace_exposes_persisted_fixed_project_and_flow():
     try:
         with _local_client() as client:
             response = client.get("/api/v1/demo/shoplite/workspace")
+            published = client.put(
+                "/api/v1/demo/shoplite/workspace/test-flow",
+                json={
+                    "expected_version": 1,
+                    "viewports": [
+                        {"width": 400, "height": 844},
+                        {"width": 1440, "height": 900},
+                    ],
+                },
+                headers={"Origin": "http://127.0.0.1:8000"},
+            )
+            stale = client.put(
+                "/api/v1/demo/shoplite/workspace/test-flow",
+                json={
+                    "expected_version": 1,
+                    "viewports": [
+                        {"width": 390, "height": 844},
+                        {"width": 1440, "height": 900},
+                    ],
+                },
+                headers={"Origin": "http://127.0.0.1:8000"},
+            )
+            unsupported = client.put(
+                "/api/v1/demo/shoplite/workspace/test-flow",
+                json={
+                    "expected_version": 2,
+                    "route": "https://attacker.example/",
+                    "viewports": [
+                        {"width": 400, "height": 844},
+                        {"width": 1440, "height": 900},
+                    ],
+                },
+                headers={"Origin": "http://127.0.0.1:8000"},
+            )
         assert response.status_code == 200
+        assert published.status_code == 200
+        assert published.json()["test_flow"]["version"] == 2
+        assert published.json()["test_flow"]["definition"]["viewports"][0]["width"] == 400
+        assert stale.status_code == 409
+        assert unsupported.status_code == 422
         workspace = response.json()
         assert workspace["project"]["name"] == settings.local_project_name
         assert workspace["target"] == {
@@ -78,11 +117,21 @@ def test_shoplite_workspace_exposes_persisted_fixed_project_and_flow():
             {"width": 390, "height": 844}, {"width": 1440, "height": 900}
         ]
         assert len(flow["definition_hash"]) == 64
+        run = store.create()
+        assert run is not None
+        assert store.flow_definition_for_run(run.run_id)["viewports"][0]["width"] == 400
         with database() as session:
             assert session.get(Project, settings.local_project_id) is not None
             assert session.query(TargetEnvironment).count() == 1
             assert session.query(_TestFlowRow).count() == 1
-            assert session.query(_TestFlowVersionRow).count() == 1
+            versions = session.query(_TestFlowVersionRow).order_by(_TestFlowVersionRow.version_number).all()
+            assert len(versions) == 2
+            assert versions[0].status == "retired"
+            assert versions[1].status == "published"
+            qa_run = session.get(QARun, run.run_id)
+            assert qa_run is not None
+            assert qa_run.test_flow_version_id == versions[1].id
+            assert qa_run.viewport_matrix_json[0]["width"] == 400
     finally:
         main.app.dependency_overrides.clear()
         engine.dispose()

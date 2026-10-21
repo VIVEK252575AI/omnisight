@@ -59,11 +59,17 @@ def run(base_url: str, timeout_ms: int) -> dict:
         page.get_by_text("OmniSight ShopLite Demo", exact=True).wait_for(timeout=timeout_ms)
         page.get_by_text("ShopLite checkout visual QA", exact=False).wait_for(timeout=timeout_ms)
         page.get_by_text("Definition SHA-256", exact=False).wait_for(timeout=timeout_ms)
+        page.get_by_label("Mobile width").fill("400")
+        page.get_by_role("button", name="Publish test-flow version").click()
+        workspace_panel = page.locator(".models-view > .panel").first
+        workspace_panel.get_by_text(re.compile("ShopLite checkout visual QA.*v2")).wait_for(timeout=timeout_ms)
+        workspace_panel.get_by_text("400 × 844", exact=True).wait_for(timeout=timeout_ms)
         page.get_by_role("button", name="Overview").click()
 
         run_id = _start_and_verify_run(
             page, start_button=re.compile("Start ShopLite scan"), timeout_ms=timeout_ms
         )
+        page.locator(".live-evidence-shot").get_by_text("400 × 844", exact=True).wait_for(timeout=timeout_ms)
 
         page.reload(wait_until="domcontentloaded")
         page.get_by_role("button", name=re.compile("History")).click()
@@ -94,6 +100,8 @@ def run(base_url: str, timeout_ms: int) -> dict:
             "ui_approved_sandbox_runs": 2,
             "independent_runs_survived_refresh": 2,
             "persisted_workspace_reviewed": True,
+            "published_flow_version": 2,
+            "flow_viewport_used_by_capture": "400x844",
             "browser_error_count": len(browser_errors),
         }
         browser.close()

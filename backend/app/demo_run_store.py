@@ -31,8 +31,19 @@ DEMO_FLOW_DEFINITION = {
     "viewports": [{"width": 390, "height": 844}, {"width": 1440, "height": 900}],
     "assertions": ["checkout_button_visible", "mobile_overflow_measured", "order_confirmation"],
 }
-DEMO_FLOW_HASH = sha256(json.dumps(DEMO_FLOW_DEFINITION, sort_keys=True).encode()).hexdigest()
+
+
+def _flow_definition_hash(definition: dict[str, Any]) -> str:
+    canonical = json.dumps(definition, sort_keys=True)
+    return sha256(canonical.encode()).hexdigest()
+
+
+DEMO_FLOW_HASH = _flow_definition_hash(DEMO_FLOW_DEFINITION)
 DEMO_FLOW_NAME = "ShopLite checkout visual QA"
+
+
+class FlowVersionConflict(Exception):
+    """The published flow changed since the caller loaded its version."""
 
 
 @dataclass
@@ -95,6 +106,67 @@ class DemoRunStore:
                 },
             }
 
+    def publish_flow_viewports(
+        self, *, expected_version: int, viewports: list[dict[str, int]]
+    ) -> dict[str, Any]:
+        """Publish viewport changes as a new immutable ShopLite flow version."""
+        if self._database is None:
+            raise RuntimeError("The ShopLite workspace requires the configured database")
+        with self._database() as session:
+            project, _target, flow, _current = self._ensure_demo_records(session)
+            session.scalar(select(Project).where(Project.id == project.id).with_for_update())
+            session.refresh(flow)
+            if flow.version != expected_version:
+                raise FlowVersionConflict
+            current = session.scalar(select(TestFlowVersion).where(
+                TestFlowVersion.test_flow_id == flow.id,
+                TestFlowVersion.version_number == flow.version,
+            ))
+            if current is None or current.status != "published":
+                raise RuntimeError("The current ShopLite flow version is unavailable")
+            definition = dict(current.definition_json)
+            definition["viewports"] = viewports
+            next_version = flow.version + 1
+            current.status = "retired"
+            flow.version = next_version
+            flow.updated_at = utcnow()
+            next_flow_version = TestFlowVersion(
+                id=str(uuid4()), test_flow_id=flow.id, version_number=next_version,
+                schema_version=current.schema_version, definition_json=definition,
+                definition_hash=_flow_definition_hash(definition),
+                status="published", created_by="local-owner",
+            )
+            session.add(next_flow_version)
+            session.commit()
+            return {
+                "project": {"id": project.id, "name": project.name, "status": project.status},
+                "target": {
+                    "name": _target.name, "base_url": _target.base_url,
+                    "environment_kind": _target.environment_kind,
+                    "authorization_status": _target.authorization_status,
+                },
+                "test_flow": {
+                    "name": flow.name, "description": flow.description,
+                    "status": flow.status, "version": next_version,
+                    "version_status": next_flow_version.status,
+                    "definition": definition,
+                    "definition_hash": next_flow_version.definition_hash,
+                },
+            }
+
+    def flow_definition_for_run(self, run_id: str) -> dict[str, Any]:
+        """Load the immutable definition already pinned to a durable run."""
+        if self._database is None:
+            return DEMO_FLOW_DEFINITION
+        with self._database() as session:
+            run = session.get(QARun, run_id)
+            if run is None:
+                raise ValueError("ShopLite run not found")
+            version = session.get(TestFlowVersion, run.test_flow_version_id)
+            if version is None or version.status not in {"published", "retired"}:
+                raise ValueError("ShopLite run flow version is unavailable")
+            return version.definition_json
+
     def _ensure_demo_records(self, session) -> tuple[Project, TargetEnvironment, TestFlow, TestFlowVersion]:
         settings = self._settings
         project = session.get(Project, settings.local_project_id)
@@ -136,7 +208,7 @@ class DemoRunStore:
 
         flow_version = session.scalar(select(TestFlowVersion).where(
             TestFlowVersion.test_flow_id == flow.id,
-            TestFlowVersion.version_number == 1,
+            TestFlowVersion.version_number == flow.version,
         ))
         if flow_version is None:
             flow_version = TestFlowVersion(
@@ -213,7 +285,7 @@ class DemoRunStore:
                     test_flow_version_id=flow_version.id, status="queued",
                     outcome="not_applicable", current_stage="preflight",
                     trigger_source="manual", requested_by="local-owner",
-                    viewport_matrix_json=DEMO_FLOW_DEFINITION["viewports"],
+                    viewport_matrix_json=flow_version.definition_json["viewports"],
                     correlation_id=str(uuid4()), created_at=now, updated_at=now,
                 )
                 session.add(run)

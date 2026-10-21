@@ -16,6 +16,8 @@ const Store = {
   workspace: null,
   workspaceError: null,
   workspaceLoading: false,
+  workspaceSaving: false,
+  workspaceSaved: false,
   githubToken: null,
   githubConnection: null,
   githubValidation: null,
@@ -172,6 +174,31 @@ async function loadShopLiteWorkspace() {
     Store.workspaceError = error.message;
   } finally {
     Store.workspaceLoading = false;
+    if (Store.route === 'models') render();
+  }
+}
+
+async function publishShopLiteFlowVersion() {
+  const flow = Store.workspace?.test_flow;
+  if (!flow || Store.workspaceSaving) return;
+  const viewports = [
+    { width: Number(document.getElementById('flow-mobile-width')?.value), height: Number(document.getElementById('flow-mobile-height')?.value) },
+    { width: Number(document.getElementById('flow-desktop-width')?.value), height: Number(document.getElementById('flow-desktop-height')?.value) }
+  ];
+  Store.workspaceSaving = true;
+  Store.workspaceSaved = false;
+  Store.workspaceError = null;
+  render();
+  try {
+    Store.workspace = await liveDemoRequest('/workspace/test-flow', {
+      method: 'PUT',
+      body: JSON.stringify({ expected_version: flow.version, viewports })
+    });
+    Store.workspaceSaved = true;
+  } catch (error) {
+    Store.workspaceError = error.message;
+  } finally {
+    Store.workspaceSaving = false;
     if (Store.route === 'models') render();
   }
 }
@@ -385,9 +412,18 @@ function renderModels() {
         ${workspace ? `<div class="live-metrics"><div><span>Project</span><strong>${esc(workspace.project.name)}</strong></div><div><span>Target</span><strong>${esc(workspace.target.name)} · ${esc(workspace.target.environment_kind)}</strong></div><div><span>Test flow</span><strong>${esc(flow.name)} · v${esc(flow.version)}</strong></div></div>
         <p class="panel__sub">Target URL: <code>${esc(workspace.target.base_url)}</code> · authorization ${esc(workspace.target.authorization_status)} · flow ${esc(flow.status)} / ${esc(flow.version_status)}</p>
         <p>${esc(flow.description || '')}</p>
-        <div class="live-metrics">${(definition?.viewports || []).map(viewport => `<div><span>Viewport</span><strong>${esc(viewport.width)} × ${esc(viewport.height)}</strong></div>`).join('')}</div>
+        <div class="live-metrics">${(definition?.viewports || []).map((viewport, index) => `<div><span>${index === 0 ? 'Mobile viewport' : 'Desktop viewport'}</span><strong>${esc(viewport.width)} × ${esc(viewport.height)}</strong></div>`).join('')}</div>
         <p class="panel__sub">Checks: ${(definition?.assertions || []).map(assertion => `<code>${esc(assertion)}</code>`).join(' · ')}</p>
         <p class="panel__sub">Definition SHA-256: <code>${esc(flow.definition_hash)}</code></p>` : !Store.workspaceLoading && !Store.workspaceError ? '<p class="panel__sub">Open this dashboard at <code>http://127.0.0.1:8000/</code> to load the local workspace.</p>' : ''}
+        ${workspace ? `<div class="field-grid">
+          <div class="field"><label for="flow-mobile-width">Mobile width</label><input id="flow-mobile-width" type="number" min="320" max="600" value="${esc(definition?.viewports?.[0]?.width ?? 390)}" ${Store.workspaceSaving ? 'disabled' : ''}></div>
+          <div class="field"><label for="flow-mobile-height">Mobile height</label><input id="flow-mobile-height" type="number" min="480" max="2160" value="${esc(definition?.viewports?.[0]?.height ?? 844)}" ${Store.workspaceSaving ? 'disabled' : ''}></div>
+          <div class="field"><label for="flow-desktop-width">Desktop width</label><input id="flow-desktop-width" type="number" min="800" max="1920" value="${esc(definition?.viewports?.[1]?.width ?? 1440)}" ${Store.workspaceSaving ? 'disabled' : ''}></div>
+          <div class="field"><label for="flow-desktop-height">Desktop height</label><input id="flow-desktop-height" type="number" min="480" max="2160" value="${esc(definition?.viewports?.[1]?.height ?? 900)}" ${Store.workspaceSaving ? 'disabled' : ''}></div>
+        </div>
+        <p class="panel__sub">Saving publishes a new immutable flow version. New runs use its saved viewport sizes; previous runs keep their original version.</p>
+        ${Store.workspaceSaved ? '<p class="success-note" role="status">New test-flow version published.</p>' : ''}
+        <button class="btn btn--primary" onclick="publishShopLiteFlowVersion()" ${Store.workspaceSaving ? 'disabled' : ''}>${Store.workspaceSaving ? 'Publishing…' : 'Publish test-flow version'}</button>` : ''}
         <button class="btn" onclick="loadShopLiteWorkspace()">Refresh workspace</button>
       </div>
     </div>
