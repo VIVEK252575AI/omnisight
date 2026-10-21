@@ -16,6 +16,7 @@ const Store = {
   projects: [],
   projectsError: null,
   projectsLoading: false,
+  projectsRequestId: 0,
   projectSaving: false,
   selectedProjectId: null,
   workspace: null,
@@ -181,19 +182,25 @@ function openProjects(projectId = null) {
 }
 
 async function loadProjects() {
+  const requestId = ++Store.projectsRequestId;
   Store.projectsLoading = true;
   Store.projectsError = null;
   render();
   try {
-    Store.projects = await localApiRequest('/api/v1/projects');
+    const projects = await localApiRequest('/api/v1/projects');
+    if (requestId !== Store.projectsRequestId) return;
+    Store.projects = projects;
     if (Store.selectedProjectId && !Store.projects.some(project => project.id === Store.selectedProjectId)) {
       Store.selectedProjectId = null;
     }
   } catch (error) {
+    if (requestId !== Store.projectsRequestId) return;
     Store.projectsError = error.message;
   } finally {
-    Store.projectsLoading = false;
-    if (Store.route === 'projects') render();
+    if (requestId === Store.projectsRequestId) {
+      Store.projectsLoading = false;
+      if (Store.route === 'projects') render();
+    }
   }
 }
 
@@ -211,6 +218,9 @@ async function createProject(event) {
       method: 'POST',
       body: JSON.stringify({ name, target_url: targetUrl, environment_kind: environmentKind })
     });
+    // Ignore any list request that started before this successful create.
+    Store.projectsRequestId += 1;
+    Store.projectsLoading = false;
     Store.projects = [project, ...Store.projects.filter(item => item.id !== project.id)];
     Store.selectedProjectId = project.id;
   } catch (error) {
