@@ -1191,6 +1191,17 @@ when it detects it. After fixing the CSS, run
 when the button fits the mobile viewport. The runner only accepts HTTP loopback
 URLs and does not execute supplied flow data or modify application files.
 
+To capture the page and also upload the mobile evidence to a running backend,
+trigger detection, and wait for the result, run this from `backend/`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_demo_detection.py
+```
+
+The output labels the analyzer as `MOCK` or `GEMINI`. The default mock uses the
+captured element bounds, so it can demonstrate both the broken and fixed state
+without a provider key.
+
 ## Gemini patch suggestions (backend)
 
 The backend exposes `POST /api/ai/patch-suggestions` for a direct, review-only Gemini proposal. It also supports Gemini through the standard finding workflow: set `OMNISIGHT_PATCH_GENERATOR=gemini`, then call `POST /api/v1/findings/{finding_id}/patch-proposals`. That workflow loads only backend-approved source files and runs the existing extractor, path allowlist, edit applicability, and code checks before recording a proposal. Neither endpoint writes or executes code.
