@@ -1274,6 +1274,8 @@ order action, records console errors, measures the button, and writes
 The live collector records console errors, uncaught page exceptions, and failed
 or HTTP-error requests separately. Network evidence omits URL credentials,
 query strings, and fragments so common tokens are not copied into run records.
+Gemini receives only bounded error counts and allow-listed request method,
+status, and resource-type metadata; page error text and request URLs are omitted.
 By default it expects the deliberate mobile overflow and exits successfully
 when it detects it. After fixing the CSS, run
 `scripts\capture_demo_checkout.py --expected no-overflow`; it succeeds only
