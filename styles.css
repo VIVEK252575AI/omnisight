@@ -908,11 +908,16 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .live-metrics span, .live-metrics strong { display: block; }
 .live-metrics span { color: var(--muted); font-size: 10px; }
 .live-metrics strong { margin-top: 4px; font-size: 14px; }
+.sandbox-evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+.sandbox-evidence-grid figure { min-width: 0; margin: 0; }
+.sandbox-evidence-grid figcaption { margin-bottom: 8px; color: var(--muted); font-size: 0.85rem; }
+.sandbox-evidence-grid img { display: block; width: 100%; max-height: 520px; object-fit: contain; object-position: top; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; }
 @media (max-width: 768px) {
   .live-cta-card, .live-demo-intro { align-items: stretch; flex-direction: column; }
   .live-stage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .live-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+@media (max-width: 520px) { .sandbox-evidence-grid { grid-template-columns: 1fr; } }
 @media (max-width: 420px) {
   .live-demo-intro { padding: 16px; }
   .live-stage { align-items: flex-start; min-height: 64px; }

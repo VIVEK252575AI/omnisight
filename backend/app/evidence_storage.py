@@ -17,6 +17,7 @@ from app.artifacts import artifact_root, media_type_for
 from app.config import Settings, get_settings
 from app.db import get_session_factory
 from app.db_models import Artifact, Evidence, QARun
+from app.ids import utcnow
 from app.schemas import EvidenceRecord, Observation
 
 
@@ -100,6 +101,54 @@ class EvidenceStore:
                 artifact_id=str(artifact_id),
                 observation_json=record.observation.model_dump(mode="json"),
                 created_at=record.created_at,
+            ))
+            session.commit()
+
+    def add_artifact(
+        self,
+        run_id: str,
+        *,
+        artifact_id: UUID,
+        artifact_path: Path,
+    ) -> None:
+        """Register a private run artifact that has no observation record."""
+        resolved = artifact_path.resolve(strict=True)
+        try:
+            relative_key = resolved.relative_to(self._root).as_posix()
+        except ValueError:
+            raise ValueError("artifact file must be under the configured private artifact root") from None
+        if not resolved.is_file():
+            raise ValueError("artifact file is not a regular file")
+        byte_size = resolved.stat().st_size
+        if byte_size <= 0 or byte_size > self._settings.artifact_max_image_bytes:
+            raise ValueError("artifact file is empty or exceeds the image size limit")
+        digest = hashlib.sha256()
+        with resolved.open("rb") as image:
+            for chunk in iter(lambda: image.read(64 * 1024), b""):
+                digest.update(chunk)
+
+        if self._database is None:
+            with self._lock:
+                self._artifacts[artifact_id] = resolved
+            return
+
+        with self._database() as session:
+            run = session.scalar(select(QARun).where(
+                QARun.id == run_id,
+                QARun.project_id == self._settings.local_project_id,
+            ))
+            if run is None:
+                raise KeyError(f"QA run {run_id} does not exist")
+            session.add(Artifact(
+                id=str(artifact_id),
+                project_id=run.project_id,
+                run_id=run.id,
+                storage_backend="local",
+                object_key=relative_key,
+                content_type=media_type_for(resolved),
+                byte_size=byte_size,
+                sha256=digest.hexdigest(),
+                created_at=utcnow(),
             ))
             session.commit()
 

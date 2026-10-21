@@ -14,13 +14,16 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 from pydantic import BaseModel, ConfigDict
 
 from app.config import Settings, get_settings
 from app.demo_run_store import DemoRunStore, get_demo_run_store
+from app.evidence_storage import EvidenceStore, get_evidence_store
 from app.errors import DomainError, ErrorCode
+from app.artifacts import artifact_root
 from app.patch_storage import PatchStore, get_patch_store
 from app.shoplite_sandbox import SandboxFailure, run_shoplite_sandbox
 
@@ -38,6 +41,43 @@ class SandboxConfirmation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     confirmation: Literal["approve-demo-only"]
+
+
+def _persist_sandbox_screenshot(
+    image_bytes: bytes,
+    label: str,
+    *,
+    run_id: str,
+    settings: Settings,
+    evidence_store: EvidenceStore,
+) -> str:
+    """Store a before/after screenshot as private, run-linked evidence."""
+    if label not in {"baseline_screenshot_artifact_id", "candidate_screenshot_artifact_id"}:
+        raise ValueError("unknown ShopLite screenshot label")
+    if not re.fullmatch(r"demo_[0-9a-f]{32}", run_id):
+        raise ValueError("invalid ShopLite run identifier")
+    root = artifact_root(settings)
+    run_directory = (root / "shoplite-sandbox" / run_id).resolve()
+    try:
+        run_directory.relative_to(root)
+    except ValueError:
+        raise ValueError("ShopLite screenshot path escaped the private artifact root") from None
+    run_directory.mkdir(parents=True, exist_ok=True)
+
+    artifact_id = uuid4()
+    relative_path = (Path("shoplite-sandbox") / run_id / f"{artifact_id}.png").as_posix()
+    artifact_path = root / relative_path
+    try:
+        with artifact_path.open("xb") as screenshot_file:
+            screenshot_file.write(image_bytes)
+        evidence_store.add_artifact(run_id, artifact_id=artifact_id, artifact_path=artifact_path)
+    except Exception as exc:
+        artifact_path.unlink(missing_ok=True)
+        raise SandboxFailure(
+            "SANDBOX_EVIDENCE_STORAGE_FAILED",
+            "Could not persist the sandbox screenshot evidence for this run",
+        ) from exc
+    return str(artifact_id)
 
 
 def _require_local_ui(
@@ -214,6 +254,7 @@ def validate_shoplite_run(
     settings: Settings = Depends(get_settings),
     store: DemoRunStore = Depends(get_demo_run_store),
     patch_store: PatchStore = Depends(get_patch_store),
+    evidence_store: EvidenceStore = Depends(get_evidence_store),
 ) -> dict:
     """Require an explicit local UI confirmation before starting Docker."""
     _require_local_ui(request, settings)
@@ -243,6 +284,13 @@ def validate_shoplite_run(
             stored_proposal,
             proposal_id=proposal_id,
             settings=settings,
+            screenshot_store=lambda image_bytes, label: _persist_sandbox_screenshot(
+                image_bytes,
+                label,
+                run_id=run_id,
+                settings=settings,
+                evidence_store=evidence_store,
+            ),
         )
     except SandboxFailure as exc:
         store.update(

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app import main
 from app.config import Settings, get_settings
 from app.demo_run_store import DemoRunStore, get_demo_run_store
+from app.evidence_storage import EvidenceStore, get_evidence_store
 from app.patch_schemas import PatchProposal, PatchProposalRecord, PatchProposalStatus
 from app.patch_storage import PatchStore, get_patch_store
 from app.routers import demo_runs
@@ -86,12 +87,14 @@ def test_demo_run_starts_fixed_pipeline_and_exposes_status(monkeypatch):
         main.app.dependency_overrides.clear()
 
 
-def test_demo_run_requires_explicit_sandbox_approval(monkeypatch):
+def test_demo_run_requires_explicit_sandbox_approval_and_shows_before_after_evidence(monkeypatch, tmp_path):
     settings = Settings(
         allowed_origins=["http://127.0.0.1:8000"],
         enable_shoplite_sandbox=True,
         shoplite_sandbox_token="test-approval-token",
+        artifacts_dir=tmp_path,
     )
+    evidence_store = EvidenceStore(settings=settings, artifacts_root=tmp_path)
     run_store = DemoRunStore()
     run = run_store.create()
     run_store.update(
@@ -119,12 +122,18 @@ def test_demo_run_requires_explicit_sandbox_approval(monkeypatch):
     main.app.dependency_overrides[get_settings] = lambda: settings
     main.app.dependency_overrides[get_demo_run_store] = lambda: run_store
     main.app.dependency_overrides[get_patch_store] = lambda: patch_store
+    main.app.dependency_overrides[get_evidence_store] = lambda: evidence_store
 
-    def fake_sandbox(proposed, *, proposal_id, settings):
+    def fake_sandbox(proposed, *, proposal_id, settings, screenshot_store):
         assert proposed == proposal
+        image = b"\x89PNG\r\n\x1a\nshoplite-evidence"
+        baseline_id = screenshot_store(image, "baseline_screenshot_artifact_id")
+        candidate_id = screenshot_store(image, "candidate_screenshot_artifact_id")
         return ShopLiteSandboxReport.model_validate({
             "status": "verified",
             "proposal_id": proposal_id,
+            "baseline_screenshot_artifact_id": baseline_id,
+            "candidate_screenshot_artifact_id": candidate_id,
             "checks": {
                 "baseline_mobile_overflow_px": 167,
                 "patched_mobile_overflow_px": 0,
@@ -143,8 +152,13 @@ def test_demo_run_requires_explicit_sandbox_approval(monkeypatch):
                 json={"confirmation": "approve-demo-only"},
                 headers={"Origin": "http://127.0.0.1:8000"},
             )
+            baseline_image = client.get(
+                f"/api/v1/artifacts/{response.json()['result']['sandbox']['baseline_screenshot_artifact_id']}"
+            )
         assert response.status_code == 200
         assert response.json()["status"] == "verified"
         assert response.json()["result"]["sandbox"]["checks"]["patched_mobile_overflow_px"] == 0
+        assert baseline_image.status_code == 200
+        assert baseline_image.content.startswith(b"\x89PNG\r\n\x1a\n")
     finally:
         main.app.dependency_overrides.clear()

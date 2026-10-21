@@ -54,7 +54,9 @@ curl.exe -X POST http://127.0.0.1:8000/api/v1/demo/shoplite/patch-proposals/<pro
 
 A successful response has `status: verified` and reports the baseline mobile
 overflow, patched mobile/desktop overflow, checkout confirmation, browser
-errors, and blocked external requests. `failed` means the candidate did not
+errors, blocked external requests, and private artifact IDs for the baseline
+and patched mobile screenshots. The dashboard displays both screenshots, and
+the artifact endpoint serves them by opaque ID. `failed` means the candidate did not
 pass. A run fails closed if the baseline no longer reproduces the intended
 defect, the source edit no longer matches exactly once, the Docker daemon/image
 is unavailable, or the run exceeds its time budget.

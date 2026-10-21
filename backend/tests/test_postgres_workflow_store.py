@@ -135,6 +135,29 @@ def test_evidence_metadata_and_artifact_reference_survive_restart(tmp_path):
     assert restarted.get_artifact(artifact_id) is None
 
 
+def test_run_screenshots_can_be_persisted_without_a_scan_observation(tmp_path):
+    database = _database()
+    settings = Settings()
+    run = DemoRunStore(database, settings=settings).create()
+    assert run is not None
+    screenshot = tmp_path / "candidate-mobile.png"
+    screenshot.write_bytes(b"private sandbox screenshot")
+    artifact_id = uuid4()
+
+    EvidenceStore(database, settings=settings, artifacts_root=tmp_path).add_artifact(
+        run.run_id, artifact_id=artifact_id, artifact_path=screenshot,
+    )
+    restarted = EvidenceStore(database, settings=settings, artifacts_root=tmp_path)
+
+    assert restarted.get_artifact(artifact_id).read_bytes() == screenshot.read_bytes()
+    with database() as session:
+        artifact = session.get(Artifact, str(artifact_id))
+        assert artifact is not None
+        assert artifact.run_id == run.run_id
+        assert artifact.object_key == "candidate-mobile.png"
+        assert artifact.byte_size == screenshot.stat().st_size
+
+
 def test_detection_attempts_and_current_findings_survive_restart_without_raw_text():
     database = _database()
     settings = Settings()

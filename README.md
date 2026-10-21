@@ -122,7 +122,7 @@ The Week 1 and Week 2 backend (FastAPI) is implemented and tested (`backend/`):
 | Local Playwright checkout capture and scan runner | Tested with the local demo and backend |
 | ShopLite-only Docker patch verification | Implemented behind explicit local approval; live sandbox smoke is configured in GitHub Actions |
 | GitHub App authentication and ShopLite draft PR publisher | Local loopback-only owner flow with PostgreSQL-backed project, validation, idempotent operation, event, and draft PR records. Requires explicit confirmation and remains disabled by default ([setup and workflow](docs/week4_github_app_connection.md)) |
-| Local interactive dashboard | Main scan, run history, findings, patch review, sandbox approval, and optional GitHub publishing use the fixed ShopLite backend workflow |
+| Local interactive dashboard | Main scan, persisted before/after screenshots, run history, findings, patch review, sandbox approval, and optional GitHub publishing use the fixed ShopLite backend workflow |
 | General repository patching, PR merge/deploy, production dashboard | Not implemented; publishing is limited to the fixed ShopLite CSS demo and draft PRs |
 
 VLM detection and patch generation default to deterministic offline **MOCK**
@@ -1193,7 +1193,7 @@ Demonstrate one known visual defect through the supported local workflow:
 3. Detect the clipped Checkout button.
 4. Review the restricted CSS patch proposal.
 5. Explicitly approve isolated Docker verification.
-6. Review the browser checks and persisted run history.
+6. Compare the persisted before/after mobile screenshots, browser checks, and run history.
 7. Optionally validate and publish a draft PR when GitHub App configuration is enabled.
 
 > **Demo success:** Detect → Review proposal → Verify in the sandbox → Optionally publish a draft PR.
