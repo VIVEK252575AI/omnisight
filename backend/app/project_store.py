@@ -13,10 +13,15 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.config import Settings, get_settings
 from app.db import get_session_factory
-from app.db_models import Project, TargetEnvironment
+from app.db_models import Project, TargetAuthorizationEvent, TargetEnvironment
 from app.errors import DomainError, ErrorCode
 from app.ids import utcnow
-from app.project_schemas import ProjectCreate, ProjectSummary, TargetSummary
+from app.project_schemas import (
+    ProjectCreate,
+    ProjectSummary,
+    TargetAuthorizationEventSummary,
+    TargetSummary,
+)
 
 
 class ProjectStore:
@@ -43,6 +48,7 @@ class ProjectStore:
                 base_url=target.base_url,
                 environment_kind=target.environment_kind,
                 authorization_status=target.authorization_status,
+                allowed_hosts=list(target.allowed_hosts or []),
                 version=target.version,
                 created_at=target.created_at,
             ) for target in targets],
@@ -121,6 +127,95 @@ class ProjectStore:
                     status_code=409,
                 ) from None
             return self._summary(project)
+
+    def authorize_target(self, project_id: str, target_id: str, allowed_host: str) -> ProjectSummary | None:
+        with self._database() as session:
+            project, target = self._owned_target(session, project_id, target_id)
+            if project is None or target is None:
+                return None
+            if target.authorization_status == "approved" and target.allowed_hosts == [allowed_host]:
+                return self._summary(project)
+            now = utcnow()
+            target.authorization_status = "approved"
+            target.allowed_hosts = [allowed_host]
+            target.version += 1
+            target.updated_at = now
+            session.add(TargetAuthorizationEvent(
+                id=str(uuid4()),
+                project_id=project.id,
+                target_environment_id=target.id,
+                action="authorized",
+                actor_id=self._owner_actor_id,
+                target_url_snapshot=target.base_url,
+                allowed_hosts_snapshot=[allowed_host],
+                created_at=now,
+            ))
+            session.commit()
+            return self._summary(project)
+
+    def revoke_target(self, project_id: str, target_id: str) -> ProjectSummary | None:
+        with self._database() as session:
+            project, target = self._owned_target(session, project_id, target_id)
+            if project is None or target is None:
+                return None
+            if target.authorization_status == "revoked":
+                return self._summary(project)
+            now = utcnow()
+            target.authorization_status = "revoked"
+            target.allowed_hosts = []
+            target.version += 1
+            target.updated_at = now
+            session.add(TargetAuthorizationEvent(
+                id=str(uuid4()),
+                project_id=project.id,
+                target_environment_id=target.id,
+                action="revoked",
+                actor_id=self._owner_actor_id,
+                target_url_snapshot=target.base_url,
+                allowed_hosts_snapshot=[],
+                created_at=now,
+            ))
+            session.commit()
+            return self._summary(project)
+
+    def authorization_events(
+        self, project_id: str, target_id: str
+    ) -> list[TargetAuthorizationEventSummary] | None:
+        with self._database() as session:
+            project, target = self._owned_target(session, project_id, target_id)
+            if project is None or target is None:
+                return None
+            events = session.scalars(
+                select(TargetAuthorizationEvent)
+                .where(
+                    TargetAuthorizationEvent.project_id == project_id,
+                    TargetAuthorizationEvent.target_environment_id == target_id,
+                )
+                .order_by(TargetAuthorizationEvent.created_at, TargetAuthorizationEvent.id)
+            ).all()
+            return [TargetAuthorizationEventSummary(
+                id=event.id,
+                project_id=event.project_id,
+                target_environment_id=event.target_environment_id,
+                action=event.action,
+                actor_id=event.actor_id,
+                target_url_snapshot=event.target_url_snapshot,
+                allowed_hosts_snapshot=list(event.allowed_hosts_snapshot),
+                created_at=event.created_at,
+            ) for event in events]
+
+    def _owned_target(
+        self, session: Session, project_id: str, target_id: str
+    ) -> tuple[Project | None, TargetEnvironment | None]:
+        project = session.scalar(select(Project).where(
+            Project.id == project_id,
+            Project.owner_actor_id == self._owner_actor_id,
+        ))
+        target = session.scalar(select(TargetEnvironment).where(
+            TargetEnvironment.id == target_id,
+            TargetEnvironment.project_id == project_id,
+        )) if project is not None else None
+        return project, target
 
 
 def get_project_store(settings: Settings = Depends(get_settings)) -> ProjectStore:

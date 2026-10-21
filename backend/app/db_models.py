@@ -86,6 +86,26 @@ class TargetEnvironment(Base):
     )
 
 
+class TargetAuthorizationEvent(Base):
+    """Append-only local-owner record of target approval and revocation."""
+
+    __tablename__ = "target_authorization_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False)
+    target_environment_id: Mapped[str] = mapped_column(ForeignKey("target_environments.id", ondelete="RESTRICT"), nullable=False)
+    action: Mapped[str] = mapped_column(String(24), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    target_url_snapshot: Mapped[str] = mapped_column(String(2048), nullable=False)
+    allowed_hosts_snapshot: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    __table_args__ = (
+        CheckConstraint("action IN ('authorized', 'revoked')", name="ck_target_authorization_event_action"),
+        Index("ix_target_authorization_events_target", "target_environment_id", "created_at"),
+    )
+
+
 class TestFlow(Base):
     __tablename__ = "test_flows"
 
