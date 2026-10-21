@@ -116,19 +116,20 @@ The Week 1 and Week 2 backend (FastAPI) is implemented and tested (`backend/`):
 | Structured visual-finding schema + strict parser (W2.3) | Tested with mocks |
 | VLM detection workflow (W2.4) | Tested with mocks |
 | Safe action engine / patch proposals (W2.5) | Tested with mocks |
-| Gemini visual analyzer and safe patch generator | Integration-tested with mocked provider responses; live API calls need a configured key |
+| Gemini visual analyzer and safe patch generator | Implemented; provider calls are covered by mocked tests. Live API verification requires a configured key and available quota |
 | Code-response extraction & rejection (W2.6) | Tested with mocks |
 | Week 2 test matrix: valid / malformed / missing / unsupported / failed (W2.7) | Tested with mocks |
 | Local Playwright checkout capture and scan runner | Tested with the local demo and backend |
 | ShopLite-only Docker patch verification | Implemented behind explicit local approval; live sandbox smoke is configured in GitHub Actions |
 | GitHub App authentication and ShopLite draft PR publisher | Local loopback-only owner flow with PostgreSQL-backed project, validation, idempotent operation, event, and draft PR records. Requires explicit confirmation and remains disabled by default ([setup and workflow](docs/week4_github_app_connection.md)) |
-| General repository patching, PR merge/deploy, React dashboard | Not implemented; publishing is limited to the fixed ShopLite CSS demo and draft PRs |
+| Local interactive dashboard | Fixed ShopLite workflow uses the backend; arbitrary URL scans in the legacy walkthrough remain simulated |
+| General repository patching, PR merge/deploy, production dashboard | Not implemented; publishing is limited to the fixed ShopLite CSS demo and draft PRs |
 
 VLM detection and patch generation default to deterministic offline **MOCK**
-adapters. Gemini can be selected for screenshot analysis and patch proposals;
-provider requests are covered by mocked integration tests, but a live request
-needs a configured key and quota. Raw model output is validated and never
-executed or applied automatically.
+adapters. The Live ShopLite Demo uses the server-configured provider and the
+real browser capture → finding → safe proposal flow. Raw model output is
+validated and never executed or applied automatically. The old general-URL
+walkthrough is explicitly labeled simulated.
 
 Endpoints currently served:
 
@@ -146,6 +147,9 @@ GET      /api/v1/scans/{scan_id}/evidence
 GET      /api/v1/artifacts/{artifact_id}
 POST     /api/v1/scans/{scan_id}/detect           # VLM detection (MOCK or Gemini)
 GET      /api/v1/scans/{scan_id}/findings         # validated findings + run
+POST     /api/v1/demo/shoplite/runs               # local fixed-target real scan
+GET      /api/v1/demo/shoplite/runs/{run_id}      # poll run and proposal status
+POST     /api/v1/demo/shoplite/runs/{run_id}/validate # explicit confirmation + Docker sandbox
 GET      /api/v1/findings/{finding_id}
 POST     /api/v1/findings/{finding_id}/patch-proposals   # propose only, no writes
 GET      /api/v1/findings/{finding_id}/patch-proposals
@@ -156,14 +160,21 @@ POST     /api/v1/local/github/draft-prs                                 # explic
 GET      /api/v1/local/github/operations/{operation_id}
 ```
 
-Run it (from `backend/`):
+Run the application (from `backend/`) and open the dashboard at
+`http://127.0.0.1:8000/`:
 
 ```powershell
 .\.venv\Scripts\uvicorn.exe app.main:app --reload     # serve
 .\.venv\Scripts\python.exe -m pytest tests\ -q        # test
 ```
 
-Test suite: **323 passed, 1 skipped** (offline; the skip is a Windows
+Use **Live ShopLite Demo** from the dashboard for the backend workflow. It uses
+the configured provider (MOCK by default; Gemini when explicitly configured).
+Review the proposal, type `approve-demo-only`, and confirm before the API starts
+the restricted Docker sandbox. This UI and its API only accept the fixed local
+ShopLite target. The existing scan composer remains a sample walkthrough.
+
+Test suite: **328 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
