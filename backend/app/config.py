@@ -7,6 +7,7 @@ or included in API responses.
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,6 +42,13 @@ class Settings(BaseSettings):
 
     # Where artifacts (screenshots, observations) will be stored later.
     artifacts_dir: Path = Path("artifacts")
+
+    # Gemini patch-suggestion integration. The key is read only by the backend
+    # and is never returned by an API endpoint.
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-3.6-flash"
+    gemini_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
+    gemini_max_output_tokens: int = Field(default=4096, ge=128, le=8192)
 
 
 @lru_cache
