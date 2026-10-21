@@ -38,5 +38,39 @@ jobs:
       - name: Build pinned sandbox image
         run: docker build --tag omnisight-shoplite-sandbox:1 --file demo-app/sandbox/Dockerfile demo-app/sandbox
 
+      - name: Install browser for the local demo capture
+        run: python -m playwright install --with-deps chromium
+
       - name: Verify ShopLite patch inside restricted container
         run: python backend/scripts/verify_shoplite_sandbox.py
+
+      - name: Run the full capture-to-sandbox pipeline
+        env:
+          OMNISIGHT_VLM_ADAPTER: mock
+          OMNISIGHT_PATCH_GENERATOR: mock
+          OMNISIGHT_PATCH_MOCK_SCENARIO: shoplite_checkout_fix
+          OMNISIGHT_PATCH_SOURCE_ROOT: ../demo-app
+          OMNISIGHT_APPROVED_PATCH_PATHS: styles/checkout.css
+          OMNISIGHT_ENABLE_SHOPLITE_SANDBOX: "true"
+          OMNISIGHT_SHOPLITE_SANDBOX_TOKEN: ci-local-sandbox-token
+        run: |
+          python -m http.server 4173 --bind 127.0.0.1 --directory demo-app > /tmp/shoplite-demo.log 2>&1 &
+          demo_pid=$!
+          (cd backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000) > /tmp/omnisight-api.log 2>&1 &
+          api_pid=$!
+          cleanup() {
+            kill "$api_pid" "$demo_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8000/health > /dev/null \
+              && curl --fail --silent http://127.0.0.1:4173/checkout/ > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:8000/health > /dev/null
+          curl --fail --silent http://127.0.0.1:4173/checkout/ > /dev/null
+          cd backend
+          python scripts/run_demo_pipeline.py --approve-sandbox

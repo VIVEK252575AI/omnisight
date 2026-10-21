@@ -21,10 +21,10 @@ run this from `backend/` after the image builds:
 .\.venv\Scripts\python.exe scripts\verify_shoplite_sandbox.py
 ```
 
-The `ShopLite sandbox verification` GitHub Actions workflow runs the same
-smoke against a fresh Docker-enabled hosted runner on pushes to `vivek` and
-manual dispatch. It runs backend tests first and grants the job read-only
-repository permission.
+The `ShopLite sandbox verification` GitHub Actions workflow runs backend
+tests, a fixed-patch sandbox smoke, and the complete browser-capture-to-sandbox
+pipeline against a fresh Docker-enabled hosted runner on pushes to `vivek` and
+manual dispatch. It grants the job read-only repository permission.
 
 Configure `backend/.env` for the existing proposal flow and this opt-in demo:
 
