@@ -21,6 +21,7 @@ const Store = {
   projectFormName: '',
   projectFormTargetUrl: '',
   projectFormEnvironment: 'staging',
+  projectFormResetPending: false,
   selectedProjectId: null,
   targetAuthorizationEvents: [],
   targetAuthorizationEventsRequestId: 0,
@@ -217,6 +218,12 @@ async function loadProjects() {
 async function createProject(event) {
   event?.preventDefault();
   if (Store.projectSaving) return;
+  const nameInput = document.getElementById('project-name');
+  const targetUrlInput = document.getElementById('project-target-url');
+  const environmentInput = document.getElementById('project-environment-kind');
+  if (nameInput) Store.projectFormName = nameInput.value;
+  if (targetUrlInput) Store.projectFormTargetUrl = targetUrlInput.value;
+  if (environmentInput) Store.projectFormEnvironment = environmentInput.value;
   const name = Store.projectFormName.trim();
   const targetUrl = Store.projectFormTargetUrl.trim();
   const environmentKind = Store.projectFormEnvironment;
@@ -236,6 +243,7 @@ async function createProject(event) {
     Store.projectFormName = '';
     Store.projectFormTargetUrl = '';
     Store.projectFormEnvironment = 'staging';
+    Store.projectFormResetPending = true;
   } catch (error) {
     Store.projectsError = error.message;
   } finally {
@@ -728,6 +736,17 @@ async function createLocalDraftPR() {
 }
 
 function render() {
+  if (Store.route === 'projects') {
+    if (!Store.projectFormResetPending) {
+      const nameInput = document.getElementById('project-name');
+      const targetUrlInput = document.getElementById('project-target-url');
+      const environmentInput = document.getElementById('project-environment-kind');
+      if (nameInput) Store.projectFormName = nameInput.value;
+      if (targetUrlInput) Store.projectFormTargetUrl = targetUrlInput.value;
+      if (environmentInput) Store.projectFormEnvironment = environmentInput.value;
+    }
+    Store.projectFormResetPending = false;
+  }
   const root = document.getElementById('app');
   const crumb = Store.route === 'models' ? 'Settings' : Store.route === 'projects' ? 'Projects' : Store.route === 'history' ? 'History' : Store.route === 'live-demo' ? 'Live ShopLite Demo' : 'Overview';
   const canExport = Store.route === 'live-demo' && Store.demoRun?.status === 'verified';
