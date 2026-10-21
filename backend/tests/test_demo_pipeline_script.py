@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import run_demo_pipeline
+import capture_demo_checkout
 
 
 def test_pipeline_preserves_safe_gemini_quota_reason(monkeypatch, tmp_path: Path):
@@ -60,3 +61,19 @@ def test_flow_viewport_parser_rejects_extra_fields_and_unbounded_values():
         run_demo_pipeline.parse_viewports(
             '[{"width":2000,"height":844},{"width":1440,"height":900}]'
         )
+
+
+def test_capture_cli_returns_failure_when_any_flow_step_failed(monkeypatch, capsys):
+    monkeypatch.setattr(
+        capture_demo_checkout,
+        "capture",
+        lambda *_args, **_kwargs: {
+            "matches_expected": True,
+            "flow_status": "failed",
+            "flow_steps": [{"step_key": "required-check", "status": "failed"}],
+        },
+    )
+    monkeypatch.setattr(sys, "argv", ["capture_demo_checkout"])
+
+    assert capture_demo_checkout.main() == 2
+    assert '"flow_status": "failed"' in capsys.readouterr().out

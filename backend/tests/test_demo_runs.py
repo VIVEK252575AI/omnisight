@@ -75,6 +75,10 @@ def test_shoplite_workspace_exposes_persisted_fixed_project_and_flow():
                         {"width": 400, "height": 844},
                         {"width": 1440, "height": 900},
                     ],
+                    "steps": [
+                        {"key": "open-checkout", "label": "Open the local checkout", "type": "navigate", "url": "/checkout"},
+                        {"key": "checkout-heading", "label": "Check heading", "type": "assert_visible", "locator": {"strategy": "role", "role": "heading", "value": "Checkout", "exact": True}},
+                    ],
                 },
                 headers={"Origin": "http://127.0.0.1:8000"},
             )
@@ -105,6 +109,9 @@ def test_shoplite_workspace_exposes_persisted_fixed_project_and_flow():
         assert published.status_code == 200
         assert published.json()["test_flow"]["version"] == 2
         assert published.json()["test_flow"]["definition"]["viewports"][0]["width"] == 400
+        assert [step["key"] for step in published.json()["test_flow"]["definition"]["steps"]] == [
+            "open-checkout", "checkout-heading"
+        ]
         assert stale.status_code == 409
         assert unsupported.status_code == 422
         workspace = response.json()
@@ -126,6 +133,7 @@ def test_shoplite_workspace_exposes_persisted_fixed_project_and_flow():
         run = store.create()
         assert run is not None
         assert store.flow_definition_for_run(run.run_id)["viewports"][0]["width"] == 400
+        assert store.flow_definition_for_run(run.run_id)["steps"][0]["url"] == "/checkout"
         with database() as session:
             assert session.get(Project, settings.local_project_id) is not None
             assert session.query(TargetEnvironment).count() == 1

@@ -32,6 +32,7 @@ from app.ids import utcnow
 from app.artifacts import artifact_root
 from app.patch_storage import PatchStore, get_patch_store
 from app.patch_validation import validate_patch_proposal
+from app.qa_flows import DEFAULT_FLOW_STEPS, FlowStep, FlowViewport, validate_flow_definition
 from app.shoplite_sandbox import SandboxFailure, run_shoplite_sandbox
 
 router = APIRouter(prefix="/api/v1/demo/shoplite", tags=["ShopLite demo"])
@@ -59,18 +60,12 @@ class ProposalRejection(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
 
 
-class FlowViewport(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    width: int = Field(ge=320, le=1920)
-    height: int = Field(ge=480, le=2160)
-
-
 class PublishShopLiteFlowVersion(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     expected_version: int = Field(ge=1)
     viewports: list[FlowViewport] = Field(min_length=2, max_length=2)
+    steps: list[FlowStep] | None = Field(default=None, min_length=1, max_length=20)
 
     @model_validator(mode="after")
     def require_supported_viewport_order(self):
@@ -257,7 +252,10 @@ def _run_demo_pipeline(
             return
         if not DEMO_APP_ROOT.is_dir() or not PIPELINE_SCRIPT.is_file():
             raise RuntimeError("The fixed ShopLite demo files are missing from this checkout.")
-        flow_definition = store.flow_definition_for_run(run_id)
+        try:
+            flow_definition = validate_flow_definition(store.flow_definition_for_run(run_id))
+        except Exception:
+            raise RuntimeError("The saved ShopLite test flow is invalid. Publish a valid version before running it.") from None
         if flow_definition.get("route") != "/checkout":
             raise RuntimeError("The saved ShopLite flow uses an unsupported route.")
 
@@ -278,6 +276,8 @@ def _run_demo_pipeline(
             "180",
             "--viewports-json",
             json.dumps(flow_definition.get("viewports")),
+            "--steps-json",
+            json.dumps(flow_definition.get("steps", DEFAULT_FLOW_STEPS), ensure_ascii=False),
         ]
         process_options = (
             {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
@@ -453,9 +453,13 @@ def publish_shoplite_flow_version(
     """Publish a new immutable version with bounded mobile/desktop viewports."""
     _require_local_ui(request, settings)
     try:
-        return store.publish_flow_viewports(
+        return store.publish_flow_version(
             expected_version=payload.expected_version,
             viewports=[item.model_dump() for item in payload.viewports],
+            steps=(
+                [item.model_dump(mode="json") for item in payload.steps]
+                if payload.steps is not None else None
+            ),
         )
     except FlowVersionConflict:
         raise DomainError(
