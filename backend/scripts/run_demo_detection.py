@@ -40,7 +40,16 @@ def _api_json(response: httpx.Response) -> dict:
         raise RuntimeError("OmniSight API returned an unexpected response")
     if response.is_error:
         detail = body.get("error", {}).get("message", "request failed")
-        raise RuntimeError(f"OmniSight API returned HTTP {response.status_code}: {detail[:300]}")
+        request = response.request
+        request_context = (
+            f" for {request.method} {request.url.path}"
+            if request is not None
+            else ""
+        )
+        raise RuntimeError(
+            f"OmniSight API returned HTTP {response.status_code}{request_context}: "
+            f"{detail[:300]}"
+        )
     return body
 
 
