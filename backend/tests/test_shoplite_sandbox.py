@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -58,6 +59,8 @@ def test_stages_exact_css_edit_without_mutating_repository(tmp_path):
     before = source.read_bytes()
     _stage_demo(_proposal(), tmp_path, _settings())
 
+    if os.name != "nt":
+        assert tmp_path.stat().st_mode & 0o777 == 0o755
     baseline = (tmp_path / "baseline" / "styles" / "checkout.css").read_text()
     candidate_path = tmp_path / "candidate" / "styles" / "checkout.css"
     candidate = candidate_path.read_text()

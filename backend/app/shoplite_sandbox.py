@@ -90,6 +90,10 @@ def _stage_demo(proposal: PatchProposal, stage_root: Path, settings: Settings) -
     candidate = stage_root / "candidate"
     shutil.copytree(DEMO_ROOT, baseline, symlinks=True)
     shutil.copytree(DEMO_ROOT, candidate, symlinks=True)
+    # TemporaryDirectory uses mode 0700. The sandbox runs as UID 10001, so it
+    # cannot traverse the bind-mounted workspace unless the staged root is
+    # readable/searchable by that user. Its contents are only the fixed demo.
+    stage_root.chmod(0o755)
     _tree_size(baseline)
     _tree_size(candidate)
     target = candidate / "styles" / "checkout.css"
