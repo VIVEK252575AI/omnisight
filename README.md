@@ -231,7 +231,10 @@ The page also says when a source repository is not connected, so a project
 without GitHub setup is not shown as ready for patch or PR work.
 
 Test suite: **386 passed, 1 skipped** (offline; the skip is a Windows
-`symlink` test).
+`symlink` test). The test package ignores `OMNISIGHT_*` shell variables and
+`backend/.env`, so routine tests never spend provider quota; provider behavior
+is tested with mocked transports. Run `backend/scripts/verify_gemini.py`
+separately when you intentionally want to make a live Gemini connection check.
 
 Design docs live under `docs/`:
 
