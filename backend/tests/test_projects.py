@@ -8,8 +8,9 @@ from sqlalchemy.pool import StaticPool
 
 from app import main
 from app.config import Settings
-from app.db_models import Base, Project, TargetEnvironment
+from app.db_models import Base, Project, TargetAuthorizationEvent, TargetEnvironment
 from app.project_store import ProjectStore, get_project_store
+from app import target_policy
 
 
 @pytest.fixture()
@@ -19,7 +20,7 @@ def projects_client():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(engine, tables=[Project.__table__, TargetEnvironment.__table__])
+    Base.metadata.create_all(engine, tables=[Project.__table__, TargetEnvironment.__table__, TargetAuthorizationEvent.__table__])
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     settings = Settings(allowed_origins=["http://127.0.0.1:8000"])
     main.app.dependency_overrides[main.get_settings] = lambda: settings
@@ -59,6 +60,7 @@ def test_project_and_pending_target_persist_across_requests(projects_client):
         "base_url": "https://staging.example.test/shop",
         "environment_kind": "staging",
         "authorization_status": "pending",
+        "allowed_hosts": [],
         "version": 1,
         "created_at": project["targets"][0]["created_at"],
     }]
@@ -107,3 +109,93 @@ def test_project_create_requires_allowed_local_origin(projects_client):
     )
     assert missing_origin.status_code == 403
     assert foreign_origin.status_code == 403
+
+
+def test_target_authorization_is_explicit_persisted_and_revocable(projects_client, monkeypatch):
+    monkeypatch.setattr(target_policy, "resolve_target_addresses", lambda _host: {"93.184.216.34"})
+    client = projects_client
+    headers = {"Origin": "http://127.0.0.1:8000"}
+    project = client.post(
+        "/api/v1/projects",
+        json={"name": "Authorized target", "target_url": "https://staging.example.com/shop"},
+        headers=headers,
+    ).json()
+    target = project["targets"][0]
+    authorize_url = f"/api/v1/projects/{project['id']}/targets/{target['id']}/authorize"
+
+    missing_confirmation = client.post(authorize_url, json={"confirm_authorization": False}, headers=headers)
+    assert missing_confirmation.status_code == 403
+    non_boolean_confirmation = client.post(
+        authorize_url, json={"confirm_authorization": "true"}, headers=headers
+    )
+    assert non_boolean_confirmation.status_code == 422
+
+    approved = client.post(authorize_url, json={"confirm_authorization": True}, headers=headers)
+    assert approved.status_code == 200
+    assert approved.json()["targets"][0]["authorization_status"] == "approved"
+    assert approved.json()["targets"][0]["allowed_hosts"] == ["staging.example.com"]
+
+    # Repeating the same command is idempotent and does not create duplicate audit events.
+    repeated = client.post(authorize_url, json={"confirm_authorization": True}, headers=headers)
+    assert repeated.status_code == 200
+    events_url = f"/api/v1/projects/{project['id']}/targets/{target['id']}/authorization-events"
+    events = client.get(events_url).json()
+    assert [item["action"] for item in events] == ["authorized"]
+    assert events[0]["actor_id"] == "local-owner"
+    assert events[0]["target_url_snapshot"] == "https://staging.example.com/shop"
+    assert events[0]["allowed_hosts_snapshot"] == ["staging.example.com"]
+
+    revoked = client.post(
+        f"/api/v1/projects/{project['id']}/targets/{target['id']}/revoke",
+        headers=headers,
+    )
+    assert revoked.status_code == 200
+    assert revoked.json()["targets"][0]["authorization_status"] == "revoked"
+    assert revoked.json()["targets"][0]["allowed_hosts"] == []
+    assert [item["action"] for item in client.get(events_url).json()] == ["authorized", "revoked"]
+    client.post(f"/api/v1/projects/{project['id']}/targets/{target['id']}/revoke", headers=headers)
+    assert [item["action"] for item in client.get(events_url).json()] == ["authorized", "revoked"]
+
+
+@pytest.mark.parametrize(("target_url", "environment_kind", "addresses"), [
+    ("http://staging.example.com", "staging", {"93.184.216.34"}),
+    ("https://staging.example.com:8443", "staging", {"93.184.216.34"}),
+    ("https://127.0.0.1", "development", {"127.0.0.1"}),
+    ("https://[::1]", "development", {"::1"}),
+    ("https://staging.example.com", "staging", {"10.10.0.8"}),
+    ("https://staging.example.com", "staging", {"169.254.169.254"}),
+    ("https://staging.example.com", "staging", {"93.184.216.34", "fc00::1"}),
+    ("https://staging.example.com", "other", {"93.184.216.34"}),
+])
+def test_target_authorization_rejects_unsafe_targets(projects_client, monkeypatch, target_url, environment_kind, addresses):
+    monkeypatch.setattr(target_policy, "resolve_target_addresses", lambda _host: addresses)
+    client = projects_client
+    headers = {"Origin": "http://127.0.0.1:8000"}
+    project = client.post(
+        "/api/v1/projects",
+        json={"name": "Unsafe target", "target_url": target_url, "environment_kind": environment_kind},
+        headers=headers,
+    ).json()
+    target = project["targets"][0]
+    response = client.post(
+        f"/api/v1/projects/{project['id']}/targets/{target['id']}/authorize",
+        json={"confirm_authorization": True},
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "TARGET_NOT_AUTHORIZABLE"
+    assert client.get(f"/api/v1/projects/{project['id']}").json()["targets"][0]["authorization_status"] == "pending"
+
+
+def test_target_authorization_requires_loopback_and_allowed_origin(projects_client, monkeypatch):
+    monkeypatch.setattr(target_policy, "resolve_target_addresses", lambda _host: {"93.184.216.34"})
+    client = projects_client
+    project = client.post(
+        "/api/v1/projects",
+        json={"name": "Origin target", "target_url": "https://staging.example.com"},
+        headers={"Origin": "http://127.0.0.1:8000"},
+    ).json()
+    target = project["targets"][0]
+    path = f"/api/v1/projects/{project['id']}/targets/{target['id']}/authorize"
+    response = client.post(path, json={"confirm_authorization": True})
+    assert response.status_code == 403

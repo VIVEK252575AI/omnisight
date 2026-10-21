@@ -20,6 +20,7 @@ model.
 from __future__ import annotations
 
 from enum import Enum
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -103,6 +104,27 @@ class DeterministicMeasurement(BaseModel):
     source: str | None = Field(default=None, max_length=200)
 
 
+class BrowserNetworkSignal(BaseModel):
+    """A bounded, content-free summary of a browser network error."""
+
+    model_config = {"extra": "forbid"}
+
+    kind: Literal["request_failed", "http_error"]
+    method: str | None = Field(default=None, max_length=20)
+    status: int | None = Field(default=None, ge=100, le=599)
+    resource_type: str | None = Field(default=None, max_length=100)
+
+
+class BrowserDiagnostics(BaseModel):
+    """Non-sensitive counts and request metadata; no page error text or URLs."""
+
+    model_config = {"extra": "forbid"}
+
+    console_error_count: int = Field(default=0, ge=0, le=20)
+    page_exception_count: int = Field(default=0, ge=0, le=20)
+    network_errors: list[BrowserNetworkSignal] = Field(default_factory=list, max_length=20)
+
+
 class PageContext(BaseModel):
     """Non-sensitive page metadata attached to a visual-analysis request."""
 
@@ -111,6 +133,7 @@ class PageContext(BaseModel):
     route: str | None = Field(default=None, max_length=500)
     viewport: Viewport
     browser: str | None = Field(default=None, max_length=100)
+    browser_diagnostics: BrowserDiagnostics = Field(default_factory=BrowserDiagnostics)
 
 
 class SourceRegion(BaseModel):

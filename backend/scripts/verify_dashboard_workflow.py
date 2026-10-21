@@ -100,6 +100,9 @@ def run(base_url: str, timeout_ms: int) -> dict:
         page.get_by_role("button", name="Projects").click()
         page.get_by_label("Project name").fill(project_name)
         page.get_by_label("Intended test URL").fill("https://client.example.invalid")
+        # A concurrent project-list refresh may render the form while the user
+        # is typing. Keep this deterministic rerender in the browser regression.
+        page.evaluate("render()")
         page.evaluate(
             """() => {
               window.__projectFormSubmitObserved = false;
@@ -110,6 +113,10 @@ def run(base_url: str, timeout_ms: int) -> dict:
         )
         page.get_by_role("button", name="Save project and target").click()
         _wait_for_pending_project_target(page, timeout_ms, [browser_errors, browser_diagnostics])
+        page.get_by_label("I own this staging target or have permission to test it.").wait_for(timeout=timeout_ms)
+        page.get_by_role("button", name="Authorize target for QA").wait_for(timeout=timeout_ms)
+        if page.get_by_text("Target scanning remains unavailable", exact=False).count() != 1:
+            raise RuntimeError("The dashboard did not explain that new targets cannot be scanned yet")
         saved_project = page.evaluate(
             """async (name) => {
               const response = await fetch('/api/v1/projects');

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 
 class ProjectCreate(BaseModel):
@@ -52,7 +52,25 @@ class TargetSummary(BaseModel):
     base_url: str
     environment_kind: str
     authorization_status: str
+    allowed_hosts: list[str]
     version: int
+    created_at: datetime
+
+
+class TargetAuthorizationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    confirm_authorization: StrictBool
+
+
+class TargetAuthorizationEventSummary(BaseModel):
+    id: str
+    project_id: str
+    target_environment_id: str
+    action: str
+    actor_id: str
+    target_url_snapshot: str
+    allowed_hosts_snapshot: list[str]
     created_at: datetime
 
 

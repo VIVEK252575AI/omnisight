@@ -125,16 +125,21 @@ The Week 1 and Week 2 backend (FastAPI) is implemented and tested (`backend/`):
 | GitHub App authentication and ShopLite draft PR publisher | Local loopback-only owner flow with PostgreSQL-backed project, validation, idempotent operation, event, and draft PR records. Requires explicit confirmation and remains disabled by default ([setup and workflow](docs/week4_github_app_connection.md)) |
 | Local interactive dashboard | Main scan, persisted before/after screenshots, run history, findings, patch review, sandbox approval, and optional GitHub publishing use the fixed ShopLite backend workflow |
 | Local Projects setup | Projects and intended target URLs persist through the API and dashboard; newly saved targets stay pending authorization and cannot be scanned yet |
+| Target authorization | Local owner can explicitly authorize or revoke a development/staging HTTPS hostname after public-DNS checks; each decision records an immutable event. Connection-time browser egress and general target scans are not implemented |
 | General repository patching, PR merge/deploy, production dashboard | Not implemented; publishing is limited to the fixed ShopLite CSS demo and draft PRs |
 
 VLM detection and patch generation default to deterministic offline **MOCK**
 adapters. The dashboard exposes the fixed ShopLite workflow and uses its
 server-configured providers for browser capture → finding → safe proposal.
 Raw model output is validated and never executed or applied automatically.
-The Projects page can save a local project and its intended target URL. Target
-authorization and scanning are separate steps and are not available for those
-new targets yet; the fixed ShopLite workflow remains the only runnable browser
-scan.
+The Projects page can save a local project and its intended target URL. A local
+owner can explicitly authorize a development/staging hostname after the API
+confirms it uses HTTPS, standard port 443, and currently resolves only to public
+addresses; this check does not load the website. Approval/revocation events and
+the exact allowed hostname are persisted. It is not yet safe to run a browser
+against newly configured targets: connection-time DNS/redirect enforcement and
+the general target runner are still being built. The fixed ShopLite workflow
+remains the only runnable browser scan.
 
 Endpoints currently served:
 
@@ -153,6 +158,9 @@ GET      /api/v1/artifacts/{artifact_id}
 GET      /api/v1/projects                            # local-owner projects + saved targets
 POST     /api/v1/projects                            # create project + pending target
 GET      /api/v1/projects/{project_id}
+POST     /api/v1/projects/{project_id}/targets/{target_id}/authorize
+POST     /api/v1/projects/{project_id}/targets/{target_id}/revoke
+GET      /api/v1/projects/{project_id}/targets/{target_id}/authorization-events
 POST     /api/v1/scans/{scan_id}/detect           # VLM detection (MOCK or Gemini)
 GET      /api/v1/scans/{scan_id}/findings         # validated findings + run
 POST     /api/v1/demo/shoplite/runs               # local fixed-target real scan
@@ -215,7 +223,7 @@ stored as `pending`, and only the fixed ShopLite demo can currently be scanned.
 The page also says when a source repository is not connected, so a project
 without GitHub setup is not shown as ready for patch or PR work.
 
-Test suite: **356 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **366 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
@@ -493,6 +501,7 @@ Browser evidence is converted into machine-readable context.
     }
   ],
   "console_errors": [],
+  "page_errors": [],
   "network_errors": [],
   "captured_at": "2026-01-01T00:00:00Z"
 }
@@ -1262,6 +1271,11 @@ cd backend
 The fixed flow checks the checkout heading and summary, exercises the simulated
 order action, records console errors, measures the button, and writes
 `observation/v1` JSON plus screenshots under `backend/artifacts/demo-checkout/`.
+The live collector records console errors, uncaught page exceptions, and failed
+or HTTP-error requests separately. Network evidence omits URL credentials,
+query strings, and fragments so common tokens are not copied into run records.
+Gemini receives only bounded error counts and allow-listed request method,
+status, and resource-type metadata; page error text and request URLs are omitted.
 By default it expects the deliberate mobile overflow and exits successfully
 when it detects it. After fixing the CSS, run
 `scripts\capture_demo_checkout.py --expected no-overflow`; it succeeds only
