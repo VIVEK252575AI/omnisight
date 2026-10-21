@@ -80,13 +80,14 @@ The API flow is:
    operation state. Reuse the same idempotency key to reconcile an unknown
    remote outcome.
 
-Every call uses the `X-OmniSight-Local-Token` header. The Models page has a
-local publishing panel for verification, validation, review, and confirmation.
-The main scan screen is still simulated and does not create backend proposal
-IDs; generate a real proposal through the backend patch flow first. The patch
-proposal store itself is currently process-memory, so a server restart loses
-the editable proposal even though its validation and publication records are
-durable. Generate and publish within one backend process.
+Every call uses the `X-OmniSight-Local-Token` header. After a successful
+ShopLite sandbox run, the Live ShopLite Demo page has the publishing panel for
+repository verification, remote-base validation, review, and confirmation.
+The general scan composer remains simulated and does not create backend
+proposal IDs. The patch proposal store itself is currently process-memory, so a
+server restart loses the editable proposal even though its validation and
+publication records are durable. Generate and publish within one backend
+process.
 
 The existing provider tests use mocked GitHub responses. No live App
 credentials, PostgreSQL instance, or sandbox image are configured here, so a
