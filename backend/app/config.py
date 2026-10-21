@@ -68,6 +68,13 @@ class Settings(BaseSettings):
     enable_vlm_detection: bool = False
     enable_patch_engine: bool = False
     enable_github_delivery: bool = False
+    enable_github_app: bool = False
+
+    # GitHub App installation credentials (server-side only). These values
+    # configure the local integration worker; they are never returned by APIs.
+    github_app_id: str | None = None
+    github_app_installation_id: str | None = None
+    github_app_private_key: SecretStr | None = None
 
     # VLM adapter boundary (Week 2) — provider-neutral, config-selected.
     # `vlm_adapter` selects the replaceable implementation: "mock" (default,

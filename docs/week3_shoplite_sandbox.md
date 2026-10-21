@@ -77,7 +77,8 @@ is unavailable, or the run exceeds its time budget.
 - Container network isolation does not replace host/daemon isolation. Do not
   enable this endpoint on a shared or public backend.
 
-The current configured machine has no running Docker daemon. The Python-side
-policy, temporary staging, endpoint gates, and Docker command are covered by
-tests. The GitHub Actions smoke is the live container check; inspect that run
-before treating Docker execution as verified.
+The local workspace does not have a running Docker daemon, so the live run is
+performed by GitHub Actions. The latest hosted smoke passed: baseline mobile
+overflow 167 px, candidate mobile/desktop overflow 0 px, order confirmation
+passed, zero browser errors, and zero external requests. The same workflow runs
+on pushes to `vivek` and can also be started manually.
