@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.config import Settings, get_settings
 from app.db import get_session_factory
-from app.db_models import PatchAttempt, Project, QARun, RunStep, TargetEnvironment, TestFlow, TestFlowVersion
+from app.db_models import FindingRecordRow, PatchAttempt, Project, QARun, RunStep, TargetEnvironment, TestFlow, TestFlowVersion
 from app.ids import utcnow
 
 
@@ -32,6 +32,7 @@ DEMO_FLOW_DEFINITION = {
     "assertions": ["checkout_button_visible", "mobile_overflow_measured", "order_confirmation"],
 }
 DEMO_FLOW_HASH = sha256(json.dumps(DEMO_FLOW_DEFINITION, sort_keys=True).encode()).hexdigest()
+DEMO_FLOW_NAME = "ShopLite checkout visual QA"
 
 
 @dataclass
@@ -100,7 +101,7 @@ class DemoRunStore:
         if flow is None:
             flow = TestFlow(
                 id=str(uuid4()), project_id=project.id,
-                name="ShopLite checkout visual QA",
+                name=DEMO_FLOW_NAME,
                 description="Capture the fixed checkout at desktop and mobile sizes and verify the checkout action.",
                 status="active",
             )
@@ -207,6 +208,8 @@ class DemoRunStore:
             return "running"
         if run.status in {"failed", "timed_out", "canceled"}:
             return "failed"
+        if run.outcome == "analysis_inconclusive":
+            return "needs_inspection"
         if patch:
             return {
                 "proposed": "awaiting_sandbox_approval",
@@ -243,7 +246,12 @@ class DemoRunStore:
             with self._lock:
                 return self._runs.get(run_id)
         with self._database() as session:
-            run = session.scalar(select(QARun).options(selectinload(QARun.steps)).where(QARun.id == run_id))
+            run = session.scalar(select(QARun).options(selectinload(QARun.steps)).join(TestFlow).where(
+                QARun.id == run_id,
+                QARun.project_id == self._settings.local_project_id,
+                TestFlow.id == QARun.test_flow_id,
+                TestFlow.name == DEMO_FLOW_NAME,
+            ))
             if run is None:
                 return None
             return self._from_database_run(session, run)
@@ -253,8 +261,10 @@ class DemoRunStore:
             with self._lock:
                 return sorted(self._runs.values(), key=lambda run: run.created_at, reverse=True)
         with self._database() as session:
-            runs = session.scalars(select(QARun).where(
+            runs = session.scalars(select(QARun).join(TestFlow).where(
                 QARun.project_id == self._settings.local_project_id,
+                TestFlow.id == QARun.test_flow_id,
+                TestFlow.name == DEMO_FLOW_NAME,
             ).order_by(QARun.created_at.desc()).limit(100)).all()
             return [self._from_database_run(session, run) for run in runs]
 
@@ -284,6 +294,38 @@ class DemoRunStore:
             run = session.scalar(select(QARun).where(QARun.id == run_id).with_for_update())
             if run is None:
                 return None
+            linked_patches = session.scalars(select(PatchAttempt).where(
+                PatchAttempt.run_id == run.id,
+                PatchAttempt.project_id == run.project_id,
+            )).all()
+            if result is not None:
+                proposal_ids: set[str] = set()
+                proposal = result.get("proposal")
+                if isinstance(proposal, dict) and isinstance(proposal.get("proposal_id"), str):
+                    proposal_ids.add(proposal["proposal_id"])
+                attempts = result.get("proposal_attempts")
+                if isinstance(attempts, list):
+                    proposal_ids.update(
+                        attempt["proposal_id"] for attempt in attempts
+                        if isinstance(attempt, dict) and isinstance(attempt.get("proposal_id"), str)
+                    )
+                source_scan_id = result.get("scan_id")
+                finding_ids: set[str] = set()
+                if isinstance(source_scan_id, str):
+                    finding_ids = set(session.scalars(select(FindingRecordRow.id).where(
+                        FindingRecordRow.run_id == source_scan_id,
+                        FindingRecordRow.project_id == run.project_id,
+                    )).all())
+                for proposal_id in proposal_ids:
+                    attempt = session.get(PatchAttempt, proposal_id)
+                    if (
+                        attempt is not None
+                        and attempt.project_id == run.project_id
+                        and attempt.finding_id in finding_ids
+                    ):
+                        attempt.run_id = run.id
+                        if attempt not in linked_patches:
+                            linked_patches.append(attempt)
             if status is not None:
                 patch_status = {
                     "awaiting_sandbox_approval": "proposed",
@@ -313,15 +355,14 @@ class DemoRunStore:
                     run.finished_at = run.finished_at or now
                 if patch_status:
                     patch_id = (result or {}).get("proposal", {}).get("proposal_id")
-                    if not patch_id:
-                        patch_id = session.scalar(select(PatchAttempt.id).where(PatchAttempt.run_id == run.id).order_by(PatchAttempt.created_at.desc()).limit(1))
-                    if patch_id:
-                        attempt = session.get(PatchAttempt, patch_id)
-                        if attempt:
-                            attempt.run_id = run.id
-                            attempt.status = patch_status
-                            attempt.updated_at = now
-                            attempt.finished_at = now if patch_status in {"rejected_by_policy", "validation_passed", "validation_failed"} else attempt.finished_at
+                    targets = [
+                        attempt for attempt in linked_patches
+                        if patch_id is None or attempt.id == patch_id
+                    ]
+                    for attempt in targets:
+                        attempt.status = patch_status
+                        attempt.updated_at = now
+                        attempt.finished_at = now if patch_status in {"rejected_by_policy", "validation_passed", "validation_failed"} else attempt.finished_at
                 if status == "needs_inspection":
                     run.outcome = "analysis_inconclusive"
                     run.status = "completed"
@@ -331,7 +372,7 @@ class DemoRunStore:
             if result is not None:
                 result_steps = [
                     (2, "browser_capture", "browser_execution", "Capture ShopLite browser evidence", {"capture": result.get("capture")}, "passed"),
-                    (3, "visual_analysis", "visual_analysis", "Analyze checkout evidence", {key: result[key] for key in ("findings", "detection_adapter", "detection_is_mock", "detection_status") if key in result}, "passed" if result.get("findings") else "inconclusive"),
+                    (3, "visual_analysis", "visual_analysis", "Analyze checkout evidence", {key: result[key] for key in ("scan_id", "findings", "detection_adapter", "detection_is_mock", "detection_status") if key in result}, "passed" if result.get("findings") else "inconclusive"),
                     (4, "patch_generation", "patch_generation", "Generate a safe patch proposal", {"proposal_attempts": result.get("proposal_attempts", [])}, "failed" if result.get("status") == "patch_rejected" else "passed"),
                     (5, "patch_validation", "patch_validation", "Validate the candidate patch", {"sandbox": result.get("sandbox")} if result.get("sandbox") else {}, "passed" if result.get("status") == "verified" else "failed" if result.get("status") == "validation_failed" else "skipped"),
                 ]

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_session_factory
-from app.db_models import PatchAttempt, Project
+from app.db_models import FindingRecordRow, PatchAttempt, Project
 from app.ids import utcnow
 from app.patch_schemas import PatchProposal, PatchProposalRecord, PatchProposalStatus
 
@@ -62,10 +62,18 @@ class PatchStore:
                 ).hexdigest()
                 with self._database() as session:
                     project = self._ensure_project(session)
+                    finding = session.scalar(select(FindingRecordRow).where(
+                        FindingRecordRow.id == record.finding_id,
+                        FindingRecordRow.project_id == project.id,
+                        FindingRecordRow.is_current.is_(True),
+                    ))
+                    if finding is not None and record.scan_id is not None and str(record.scan_id) != finding.run_id:
+                        raise ValueError("patch proposal scan id does not match its finding")
                     session.add(PatchAttempt(
                         id=record.proposal_id,
                         project_id=project.id,
                         finding_id=record.finding_id,
+                        run_id=finding.run_id if finding is not None else str(record.scan_id) if record.scan_id else None,
                         status="proposed" if record.status == PatchProposalStatus.proposed else "rejected_by_policy",
                         attempt_number=record.attempt,
                         model_provider=record.generator_label,

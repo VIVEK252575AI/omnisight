@@ -67,13 +67,15 @@ def run(
     with httpx.Client(base_url=api_url, timeout=10.0) as client:
         scan = _api_json(client.post("/api/scans", json=scan_request))
         scan_id = scan["scan_id"]
-        _api_json(
+        evidence = _api_json(
             client.post(
                 f"/api/v1/scans/{scan_id}/evidence",
                 content=json.dumps(observation),
                 headers={"content-type": "application/json"},
             )
         )
+        capture_result["evidence_id"] = evidence["evidence_id"]
+        capture_result["screenshot_artifact_id"] = evidence["screenshot_artifact_id"]
         _api_json(client.post(f"/api/v1/scans/{scan_id}/detect"))
 
         deadline = time.monotonic() + timeout_seconds

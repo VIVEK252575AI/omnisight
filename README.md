@@ -122,14 +122,14 @@ The Week 1 and Week 2 backend (FastAPI) is implemented and tested (`backend/`):
 | Local Playwright checkout capture and scan runner | Tested with the local demo and backend |
 | ShopLite-only Docker patch verification | Implemented behind explicit local approval; live sandbox smoke is configured in GitHub Actions |
 | GitHub App authentication and ShopLite draft PR publisher | Local loopback-only owner flow with PostgreSQL-backed project, validation, idempotent operation, event, and draft PR records. Requires explicit confirmation and remains disabled by default ([setup and workflow](docs/week4_github_app_connection.md)) |
-| Local interactive dashboard | Fixed ShopLite workflow uses the backend; arbitrary URL scans in the legacy walkthrough remain simulated |
+| Local interactive dashboard | Main scan, run history, findings, patch review, sandbox approval, and optional GitHub publishing use the fixed ShopLite backend workflow |
 | General repository patching, PR merge/deploy, production dashboard | Not implemented; publishing is limited to the fixed ShopLite CSS demo and draft PRs |
 
 VLM detection and patch generation default to deterministic offline **MOCK**
-adapters. The Live ShopLite Demo uses the server-configured provider and the
-real browser capture → finding → safe proposal flow. Raw model output is
-validated and never executed or applied automatically. The old general-URL
-walkthrough is explicitly labeled simulated.
+adapters. The dashboard exposes the fixed ShopLite workflow and uses its
+server-configured providers for browser capture → finding → safe proposal.
+Raw model output is validated and never executed or applied automatically.
+Arbitrary URL scanning is not exposed as a working dashboard feature yet.
 
 Endpoints currently served:
 
@@ -175,7 +175,7 @@ Use **Live ShopLite Demo** from the dashboard for the backend workflow. It uses
 the configured provider (MOCK by default; Gemini when explicitly configured).
 Review the proposal, type `approve-demo-only`, and confirm before the API starts
 the restricted Docker sandbox. This UI and its API only accept the fixed local
-ShopLite target. The existing scan composer remains a sample walkthrough.
+ShopLite target; arbitrary URL scans are not exposed as supported UI actions.
 History and Recent Scans show real backend ShopLite runs. Run records, step
 summaries, and validated patch proposals are stored in PostgreSQL and survive
 backend restarts. Apply the Alembic migrations before starting the workflow.
@@ -1186,17 +1186,17 @@ The backend and worker services are separate from the frontend and need their ow
 
 ### MVP Demo
 
-Demonstrate one known visual defect end to end:
+Demonstrate one known visual defect through the supported local workflow:
 
-1. Submit the ShopLite checkout URL.
+1. Start the fixed ShopLite checkout scan.
 2. Capture the mobile viewport (for example, 390 × 844).
 3. Detect the clipped Checkout button.
-4. Propose and apply a minimal CSS fix.
-5. Re-capture and verify the UI.
-6. Show the before/after evidence and validation status.
-7. Display the resulting reviewable PR and wait for human review.
+4. Review the restricted CSS patch proposal.
+5. Explicitly approve isolated Docker verification.
+6. Review the browser checks and persisted run history.
+7. Optionally validate and publish a draft PR when GitHub App configuration is enabled.
 
-> **Demo success:** Detect → Fix → Verify → Reviewable PR.
+> **Demo success:** Detect → Review proposal → Verify in the sandbox → Optionally publish a draft PR.
 
 ### Local checkout browser fixture
 

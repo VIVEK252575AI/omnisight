@@ -5,6 +5,7 @@ fixture and is never selected by application settings.
 """
 
 from pathlib import Path
+from uuid import UUID, uuid4
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -29,7 +30,6 @@ from app.patch_storage import PatchStore
 from app.evidence_storage import EvidenceStore
 from app.schemas import EvidenceRecord, Observation, ScanCreateRequest, ScanStatus, Viewport
 from app.storage import ScanStore
-from uuid import uuid4
 
 
 def _database():
@@ -203,10 +203,32 @@ def test_demo_runs_survive_store_restart_in_domain_tables():
     first = DemoRunStore(database, settings=settings)
     run = first.create()
     assert run is not None
+    scan = ScanStore(database, settings=settings).create(ScanCreateRequest(
+        target_url="http://127.0.0.1:4173/checkout",
+        viewports=[Viewport(width=390, height=844)],
+    ))
+    finding = VlmFinding(
+        finding_id="finding-1",
+        category=FindingCategory.clipped_element,
+        target_candidate="#checkout",
+        observation="The checkout action extends past the viewport.",
+        evidence="The right edge exceeds the viewport.",
+        severity=Severity.high,
+        confidence=0.9,
+    )
+    detection = DetectionStore(database, settings=settings)
+    detection.put_run(DetectionRun(
+        scan_id=scan.scan_id, status=ScanStatus.detected, adapter_label="MOCK",
+        is_mock=True, prompt_version="visual-analysis-v2", findings_count=1,
+    ))
+    detection.replace_findings(scan.scan_id, [FindingRecord(
+        finding=finding, scan_id=scan.scan_id, adapter_label="MOCK", is_mock=True,
+    )])
     proposal = _proposal()
     PatchStore(database, settings=settings).add(PatchProposalRecord(
         proposal_id="proposal-persisted",
         finding_id="finding-1",
+        scan_id=scan.scan_id,
         status=PatchProposalStatus.proposed,
         generator_label="MOCK",
         proposal=proposal,
@@ -214,7 +236,11 @@ def test_demo_runs_survive_store_restart_in_domain_tables():
     first.update(
         run.run_id,
         status="awaiting_sandbox_approval",
-        result={"proposal": {"proposal_id": "proposal-persisted"}},
+        result={
+            "scan_id": str(scan.scan_id),
+            "findings": [{"finding_id": "finding-1"}],
+            "proposal": {"proposal_id": "proposal-persisted"},
+        },
     )
 
     restarted = DemoRunStore(database, settings=settings)
@@ -222,8 +248,36 @@ def test_demo_runs_survive_store_restart_in_domain_tables():
     assert restored is not None
     assert restored.status == "awaiting_sandbox_approval"
     assert restored.result["proposal"]["proposal_id"] == "proposal-persisted"
-    assert restarted.list()[0].run_id == run.run_id
+    assert [item.run_id for item in restarted.list()] == [run.run_id]
     assert restarted.create() is None
+    first.update(
+        run.run_id,
+        status="patch_rejected",
+        result={
+            "scan_id": str(scan.scan_id),
+            "findings": [{"finding_id": "finding-1"}],
+            "proposal_attempts": [{"proposal_id": "proposal-persisted", "status": "rejected"}],
+        },
+    )
+    rejected = restarted.get(run.run_id)
+    assert rejected is not None and rejected.status == "patch_rejected"
+    first.update(run.run_id, status="awaiting_sandbox_approval", result={
+        "scan_id": str(scan.scan_id),
+        "findings": [{"finding_id": "finding-1"}],
+        "proposal": {"proposal_id": "proposal-persisted"},
+    })
+    assert restarted.get(run.run_id).status == "awaiting_sandbox_approval"
+    first.update(run.run_id, status="validating")
+    assert restarted.get(run.run_id).status == "validating"
+    first.update(run.run_id, status="verified", result={
+        "scan_id": str(scan.scan_id),
+        "findings": [{"finding_id": "finding-1"}],
+        "proposal": {"proposal_id": "proposal-persisted"},
+        "sandbox": {"status": "verified"},
+    })
+    verified = restarted.get(run.run_id)
+    assert verified is not None and verified.status == "verified"
+    assert verified.result["sandbox"]["status"] == "verified"
 
 
 def test_validated_patch_is_durable_but_not_in_safe_record():

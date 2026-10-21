@@ -894,6 +894,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .live-stage--done { color: var(--text); border-color: var(--green-border); }
 .live-stage--done > span { color: #fff; background: var(--green); }
 .live-finding { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.live-evidence-shot img { display: block; width: 100%; max-height: 520px; object-fit: contain; object-position: left top; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; }
+.live-evidence-shot .panel__sub { margin-bottom: 0; }
 .live-finding > div { display: flex; align-items: center; gap: 10px; }
 .live-finding h3 { margin: 10px 0 4px; font-size: 14px; }
 .live-finding p { margin: 4px 0; color: var(--text-2); font-size: 12px; }
