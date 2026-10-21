@@ -132,6 +132,12 @@ class Settings(BaseSettings):
     # pathological regex; an oversized response is rejected ``too_large``.
     patch_max_response_bytes: int = 16384
 
+    # Opt-in, fixed-target ShopLite sandbox. The approval token is required
+    # before the API may start a Docker run; the sandbox itself has no network.
+    enable_shoplite_sandbox: bool = False
+    shoplite_sandbox_token: SecretStr | None = None
+    shoplite_sandbox_timeout_seconds: float = Field(default=45.0, gt=0, le=120)
+
     @field_validator("approved_patch_paths", mode="before")
     @classmethod
     def _split_approved_paths(cls, value: object) -> object:
