@@ -100,7 +100,9 @@ def test_gemini_runs_through_the_standard_approved_patch_pipeline(
     assert body["is_mock"] is False
     assert body["files"][0]["path"] == "styles/checkout.css"
     assert observed["headers"]["x-goog-api-key"] == "test-key"
-    assert observed["timeout"] == 7
+    # The request deadline is computed when the provider call begins, so a
+    # small amount of context-building time may already have elapsed.
+    assert 6.9 < observed["timeout"] <= 7
     assert str(tmp_path) not in observed["payload"]["contents"][0]["parts"][0]["text"]
 
 
