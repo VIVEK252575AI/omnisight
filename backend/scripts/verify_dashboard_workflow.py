@@ -54,6 +54,29 @@ def run(base_url: str, timeout_ms: int) -> dict:
         if response is None or response.status != 200:
             raise RuntimeError("The OmniSight dashboard did not load successfully")
 
+        project_name = "CI Project Setup Verification"
+        page.get_by_role("button", name="Projects").click()
+        page.get_by_label("Project name").fill(project_name)
+        page.get_by_label("Intended test URL").fill("https://client.example.invalid")
+        page.get_by_role("button", name="Save project and target").click()
+        page.locator(".project-detail").get_by_text("Authorization pending", exact=False).wait_for(timeout=timeout_ms)
+        saved_project = page.evaluate(
+            """async (name) => {
+              const response = await fetch('/api/v1/projects');
+              const projects = await response.json();
+              return projects.find(project => project.name === name) || null;
+            }""",
+            project_name,
+        )
+        if not saved_project or not saved_project.get("targets") or saved_project["targets"][0].get("authorization_status") != "pending":
+            raise RuntimeError("The created project or its pending target was not returned by the backend")
+        page.reload(wait_until="domcontentloaded")
+        page.get_by_role("button", name="Projects").click()
+        project_row = page.locator(".project-list-row").filter(has_text=project_name)
+        project_row.wait_for(timeout=timeout_ms)
+        project_row.click()
+        page.locator(".project-detail").get_by_text("Authorization pending", exact=False).wait_for(timeout=timeout_ms)
+
         page.get_by_role("button", name="Settings").click()
         page.get_by_text("Project and test flow", exact=True).wait_for(timeout=timeout_ms)
         page.get_by_text("OmniSight ShopLite Demo", exact=True).wait_for(timeout=timeout_ms)
@@ -143,6 +166,8 @@ def run(base_url: str, timeout_ms: int) -> dict:
             "ui_approved_sandbox_runs": 2,
             "independent_runs_survived_refresh": 2,
             "persisted_workspace_reviewed": True,
+            "persisted_project_created": True,
+            "target_remains_pending": True,
             "published_flow_version": 2,
             "flow_viewport_used_by_capture": "400x844",
             "browser_error_count": len(browser_errors),
