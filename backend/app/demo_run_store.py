@@ -372,7 +372,7 @@ class DemoRunStore:
             if result is not None:
                 result_steps = [
                     (2, "browser_capture", "browser_execution", "Capture ShopLite browser evidence", {"capture": result.get("capture")}, "passed"),
-                    (3, "visual_analysis", "visual_analysis", "Analyze checkout evidence", {key: result[key] for key in ("scan_id", "findings", "detection_adapter", "detection_is_mock", "detection_status") if key in result}, "passed" if result.get("findings") else "inconclusive"),
+                    (3, "visual_analysis", "visual_analysis", "Analyze checkout evidence", {key: result[key] for key in ("scan_id", "findings", "detection_adapter", "detection_is_mock", "detection_status", "detection_reason_code", "detection_reason_message") if key in result}, "passed" if result.get("findings") else "inconclusive"),
                     (4, "patch_generation", "patch_generation", "Generate a safe patch proposal", {"proposal_attempts": result.get("proposal_attempts", [])}, "failed" if result.get("status") == "patch_rejected" else "passed"),
                     (5, "patch_validation", "patch_validation", "Validate the candidate patch", {"sandbox": result.get("sandbox")} if result.get("sandbox") else {}, "passed" if result.get("status") == "verified" else "failed" if result.get("status") == "validation_failed" else "skipped"),
                 ]

@@ -60,6 +60,8 @@ def run_pipeline(
         "detection_status": detection["status"],
         "detection_adapter": detection.get("adapter"),
         "detection_is_mock": detection.get("is_mock"),
+        "detection_reason_code": detection.get("reason_code"),
+        "detection_reason_message": detection.get("reason_message"),
         "findings": detection.get("findings", []),
         "capture": detection.get("capture"),
     }

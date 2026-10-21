@@ -95,6 +95,16 @@ def run(
         "scan_id": scan_id,
         "status": findings_response["status"],
         "adapter": findings_response.get("adapter_label"),
+        "reason_code": (
+            findings_response.get("detection", {}).get("reason_code")
+            if findings_response.get("detection")
+            else None
+        ),
+        "reason_message": (
+            findings_response.get("detection", {}).get("reason_message")
+            if findings_response.get("detection")
+            else None
+        ),
         "is_mock": (
             findings_response.get("detection", {}).get("is_mock")
             if findings_response.get("detection")

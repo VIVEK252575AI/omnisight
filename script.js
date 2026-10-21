@@ -53,6 +53,7 @@ function renderLiveDemo() {
   const proposal = result.proposal || null;
   const sandbox = result.sandbox || null;
   const checks = sandbox?.checks || {};
+  const detectionIssue = result.detection_reason_message;
   const finishedStages = {
     queued: 0, running: 0, awaiting_sandbox_approval: 3, validating: 3, completed: 3,
     verified: 4, validation_failed: 3, patch_rejected: 2, needs_inspection: 1, failed: 0
@@ -82,6 +83,7 @@ function renderLiveDemo() {
       <button class="btn btn--primary" ${['queued','running','awaiting_sandbox_approval','validating'].includes(run?.status) ? 'disabled' : ''} onclick="startLiveShopLiteRun()">${run ? 'Run again' : 'Start real scan'}</button>
     </div>
     ${Store.demoError ? `<div class="error-note" role="alert">${esc(Store.demoError)}</div>` : ''}
+    ${detectionIssue ? `<div class="error-note" role="alert"><strong>AI analysis did not complete:</strong> ${esc(detectionIssue)}${result.detection_reason_code === 'rate_limited' ? ' Check the Gemini project quota in Google AI Studio, wait for the limit to reset, or configure a model enabled for this API key.' : ''}</div>` : ''}
     ${run ? `<div class="panel live-run-status"><div><span class="badge badge--${run.status === 'verified' ? 'success' : run.status === 'failed' || run.status === 'validation_failed' || run.status === 'patch_rejected' ? 'error' : 'info'}">${esc(stateLabel)}</span><span class="panel__sub">Run ${esc(run.run_id)}</span></div>${run.error ? `<p class="error-note">${esc(run.error)}</p>` : ''}</div>
       <div class="live-stage-grid">${stages.map(({label, done, current}) => `<div class="live-stage ${done ? 'live-stage--done' : current ? 'live-stage--current' : ''}"><span>${done ? '✓' : current ? '…' : '·'}</span>${esc(label)}</div>`).join('')}</div>
       ${capture.screenshot_artifact_id ? `<div class="panel live-evidence-shot"><div class="panel__head"><div class="panel__title">Persisted mobile screenshot evidence</div><span class="panel__sub">${esc(viewport?.button_overflow_px ?? '—')}px horizontal overflow</span></div><div class="panel__body"><img src="/api/v1/artifacts/${encodeURIComponent(capture.screenshot_artifact_id)}" alt="Captured ShopLite checkout at the mobile viewport" loading="lazy" /><p class="panel__sub">Artifact ${esc(capture.screenshot_artifact_id)} · ${esc(viewport?.viewport?.width ?? 390)} × ${esc(viewport?.viewport?.height ?? 844)}</p></div></div>` : ''}
