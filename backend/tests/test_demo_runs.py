@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import subprocess
+import sys
+import threading
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -45,6 +49,8 @@ def test_demo_run_rejects_missing_or_untrusted_origin():
         assert missing.status_code == 403
         assert untrusted.status_code == 403
     finally:
+        with demo_runs._CANCEL_EVENTS_LOCK:
+            demo_runs._RUN_CANCEL_EVENTS.clear()
         main.app.dependency_overrides.clear()
 
 
@@ -68,6 +74,10 @@ def test_shoplite_workspace_exposes_persisted_fixed_project_and_flow():
                     "viewports": [
                         {"width": 400, "height": 844},
                         {"width": 1440, "height": 900},
+                    ],
+                    "steps": [
+                        {"key": "open-checkout", "label": "Open the local checkout", "type": "navigate", "url": "/checkout"},
+                        {"key": "checkout-heading", "label": "Check heading", "type": "assert_visible", "locator": {"strategy": "role", "role": "heading", "value": "Checkout", "exact": True}},
                     ],
                 },
                 headers={"Origin": "http://127.0.0.1:8000"},
@@ -99,6 +109,9 @@ def test_shoplite_workspace_exposes_persisted_fixed_project_and_flow():
         assert published.status_code == 200
         assert published.json()["test_flow"]["version"] == 2
         assert published.json()["test_flow"]["definition"]["viewports"][0]["width"] == 400
+        assert [step["key"] for step in published.json()["test_flow"]["definition"]["steps"]] == [
+            "open-checkout", "checkout-heading"
+        ]
         assert stale.status_code == 409
         assert unsupported.status_code == 422
         workspace = response.json()
@@ -120,6 +133,7 @@ def test_shoplite_workspace_exposes_persisted_fixed_project_and_flow():
         run = store.create()
         assert run is not None
         assert store.flow_definition_for_run(run.run_id)["viewports"][0]["width"] == 400
+        assert store.flow_definition_for_run(run.run_id)["steps"][0]["url"] == "/checkout"
         with database() as session:
             assert session.get(Project, settings.local_project_id) is not None
             assert session.query(TargetEnvironment).count() == 1
@@ -132,7 +146,20 @@ def test_shoplite_workspace_exposes_persisted_fixed_project_and_flow():
             assert qa_run is not None
             assert qa_run.test_flow_version_id == versions[1].id
             assert qa_run.viewport_matrix_json[0]["width"] == 400
+        cancellation = store.request_cancel(run.run_id)
+        assert cancellation is not None
+        assert cancellation.cancellation_requested is True
+        assert store.cancellation_requested(run.run_id) is True
+        settled = store.update(run.run_id, status="running")
+        assert settled.status == "canceled"
+        assert settled.cancellation_requested is False
+        with database() as session:
+            qa_run = session.get(QARun, run.run_id)
+            assert qa_run.status == "canceled"
+            assert qa_run.cancellation_requested_at is not None
     finally:
+        with demo_runs._CANCEL_EVENTS_LOCK:
+            demo_runs._RUN_CANCEL_EVENTS.clear()
         main.app.dependency_overrides.clear()
         engine.dispose()
 
@@ -143,7 +170,7 @@ def test_demo_run_starts_fixed_pipeline_and_exposes_status(monkeypatch):
     main.app.dependency_overrides[get_settings] = lambda: settings
     main.app.dependency_overrides[get_demo_run_store] = lambda: store
 
-    def fake_pipeline(run_id, api_url, injected_store):
+    def fake_pipeline(run_id, api_url, injected_store, _cancellation_event=None):
         assert api_url == "http://127.0.0.1:8000"
         injected_store.update(
             run_id,
@@ -179,7 +206,142 @@ def test_demo_run_starts_fixed_pipeline_and_exposes_status(monkeypatch):
         assert history.json()[0]["status"] == "awaiting_sandbox_approval"
         assert duplicate.status_code == 409
     finally:
+        with demo_runs._CANCEL_EVENTS_LOCK:
+            demo_runs._RUN_CANCEL_EVENTS.clear()
         main.app.dependency_overrides.clear()
+
+
+def test_active_shoplite_run_can_be_canceled_and_cancellation_is_persisted(monkeypatch):
+    settings = Settings(allowed_origins=["http://127.0.0.1:8000"])
+    store = DemoRunStore()
+    main.app.dependency_overrides[get_settings] = lambda: settings
+    main.app.dependency_overrides[get_demo_run_store] = lambda: store
+    monkeypatch.setattr(demo_runs, "_run_demo_pipeline", lambda *_args: None)
+    try:
+        with _local_client() as client:
+            headers = {"Origin": "http://127.0.0.1:8000"}
+            started = client.post("/api/v1/demo/shoplite/runs", json={}, headers=headers)
+            run_id = started.json()["run_id"]
+            canceled = client.post(
+                f"/api/v1/demo/shoplite/runs/{run_id}/cancel", json={}, headers=headers
+            )
+            current = client.get(f"/api/v1/demo/shoplite/runs/{run_id}", headers=headers)
+            repeated = client.post(
+                f"/api/v1/demo/shoplite/runs/{run_id}/cancel", json={}, headers=headers
+            )
+        assert started.status_code == 202
+        assert canceled.status_code == 202
+        assert canceled.json()["cancellation_requested"] is True
+        assert current.json()["cancellation_requested"] is True
+        assert repeated.status_code == 202
+
+        finished = store.update(run_id, status="running")
+        assert finished.status == "canceled"
+        assert store.get(run_id).status == "canceled"
+        assert store.get(run_id).cancellation_requested is False
+    finally:
+        with demo_runs._CANCEL_EVENTS_LOCK:
+            demo_runs._RUN_CANCEL_EVENTS.clear()
+        main.app.dependency_overrides.clear()
+
+
+def test_cancel_shoplite_run_requires_local_allowed_origin(monkeypatch):
+    settings = Settings(allowed_origins=["http://127.0.0.1:8000"])
+    store = DemoRunStore()
+    run = store.create()
+    main.app.dependency_overrides[get_settings] = lambda: settings
+    main.app.dependency_overrides[get_demo_run_store] = lambda: store
+    try:
+        with _local_client() as client:
+            response = client.post(f"/api/v1/demo/shoplite/runs/{run.run_id}/cancel", json={})
+        assert response.status_code == 403
+    finally:
+        main.app.dependency_overrides.clear()
+
+
+def test_cancel_finished_shoplite_run_returns_conflict(monkeypatch):
+    settings = Settings(allowed_origins=["http://127.0.0.1:8000"])
+    store = DemoRunStore()
+    run = store.create()
+    store.update(run.run_id, status="verified")
+    main.app.dependency_overrides[get_settings] = lambda: settings
+    main.app.dependency_overrides[get_demo_run_store] = lambda: store
+    try:
+        with _local_client() as client:
+            response = client.post(
+                f"/api/v1/demo/shoplite/runs/{run.run_id}/cancel",
+                json={},
+                headers={"Origin": "http://127.0.0.1:8000"},
+            )
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "CONFLICT"
+    finally:
+        main.app.dependency_overrides.clear()
+
+
+def test_process_tree_termination_reaps_a_running_worker():
+    process_options = (
+        {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+        if os.name == "nt"
+        else {"start_new_session": True}
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        **process_options,
+    )
+    try:
+        demo_runs._terminate_demo_process(process)
+        assert process.poll() is not None
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+
+
+def test_canceled_worker_process_is_terminated_and_run_is_settled(tmp_path, monkeypatch):
+    store = DemoRunStore()
+    run = store.create()
+    demo_root = tmp_path / "demo-app"
+    demo_root.mkdir()
+    pipeline = tmp_path / "run_demo_pipeline.py"
+    pipeline.write_text("pass", encoding="utf-8")
+    event = threading.Event()
+
+    class FakeProcess:
+        pid = 123
+        returncode = None
+        terminated = False
+        calls = 0
+
+        def communicate(self, timeout=None):
+            self.calls += 1
+            if self.calls == 1:
+                event.set()
+                raise subprocess.TimeoutExpired("demo", timeout)
+            return "", ""
+
+        def poll(self):
+            return self.returncode
+
+    process = FakeProcess()
+
+    def fake_terminate(child):
+        child.terminated = True
+        child.returncode = -1
+        return "", ""
+
+    monkeypatch.setattr(demo_runs, "DEMO_APP_ROOT", demo_root)
+    monkeypatch.setattr(demo_runs, "PIPELINE_SCRIPT", pipeline)
+    monkeypatch.setattr(demo_runs.subprocess, "Popen", lambda *_args, **_kwargs: process)
+    monkeypatch.setattr(demo_runs, "_terminate_demo_process", fake_terminate)
+
+    demo_runs._run_demo_pipeline(run.run_id, "http://127.0.0.1:8000", store, event)
+
+    assert process.terminated is True
+    assert store.get(run.run_id).status == "canceled"
 
 
 def test_patch_preview_returns_safe_diff_and_blocks_stale_source(tmp_path, monkeypatch):

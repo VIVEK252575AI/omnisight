@@ -21,7 +21,7 @@ from run_demo_detection import (
     _loopback_url,
     run as run_detection,
 )
-from capture_demo_checkout import DEFAULT_FLOW_VIEWPORTS, parse_viewports
+from capture_demo_checkout import DEFAULT_FLOW_STEPS, DEFAULT_FLOW_VIEWPORTS, parse_flow_steps, parse_viewports
 
 DEFAULT_TIMEOUT = 45.0
 
@@ -48,9 +48,15 @@ def run_pipeline(
     timeout_seconds: float,
     approve_sandbox: bool,
     viewports: list[dict[str, int]] | None = None,
+    steps: list[dict] | None = None,
 ) -> dict:
+    checkout_url = _loopback_url(checkout_url)
+    api_url = _loopback_url(api_url)
     configured_viewports = parse_viewports(
         json.dumps(DEFAULT_FLOW_VIEWPORTS if viewports is None else viewports)
+    )
+    configured_steps = parse_flow_steps(
+        json.dumps(DEFAULT_FLOW_STEPS if steps is None else steps)
     )
     detection = run_detection(
         checkout_url=checkout_url,
@@ -59,6 +65,7 @@ def run_pipeline(
         expected=expected,
         timeout_seconds=timeout_seconds,
         viewports=configured_viewports,
+        steps=configured_steps,
     )
     result: dict = {
         "flow": "shoplite-gemini-safe-patch-sandbox-v1",
@@ -125,6 +132,7 @@ def main() -> int:
     parser.add_argument("--expected", choices=("overflow", "no-overflow"), default="overflow")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
     parser.add_argument("--viewports-json", default=json.dumps(DEFAULT_FLOW_VIEWPORTS))
+    parser.add_argument("--steps-json", default=json.dumps(DEFAULT_FLOW_STEPS))
     parser.add_argument(
         "--approve-sandbox",
         action="store_true",
@@ -143,6 +151,7 @@ def main() -> int:
             artifacts=artifacts, expected=args.expected, timeout_seconds=args.timeout,
             approve_sandbox=args.approve_sandbox,
             viewports=parse_viewports(args.viewports_json),
+            steps=parse_flow_steps(args.steps_json),
         )
     except Exception as exc:
         print(f"ShopLite pipeline failed: {type(exc).__name__}: {exc}", file=sys.stderr)

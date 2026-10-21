@@ -5,11 +5,18 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
+from uuid import uuid4
 
 from playwright.sync_api import sync_playwright
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+from app.qa_flows import DEFAULT_FLOW_STEPS, validate_flow_steps
 
 DEFAULT_BASE_URL = "http://127.0.0.1:4173"
 VIEWPORTS = {
@@ -27,8 +34,8 @@ def _base_url(value: str) -> str:
         raise argparse.ArgumentTypeError(
             "this demo runner only permits an HTTP loopback URL"
         )
-    if parsed.username or parsed.password or parsed.query or parsed.fragment:
-        raise argparse.ArgumentTypeError("URL credentials, query, and fragment are not allowed")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in {"", "/"}:
+        raise argparse.ArgumentTypeError("URL paths, credentials, query, and fragment are not allowed")
     return value.rstrip("/")
 
 
@@ -95,11 +102,133 @@ def parse_viewports(raw: str) -> list[dict[str, int]]:
     return [mobile, desktop]
 
 
+def parse_flow_steps(raw: str) -> list[dict]:
+    try:
+        value = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        raise ValueError("flow steps must be valid JSON") from None
+    if not isinstance(value, list):
+        raise ValueError("flow steps must be a JSON array")
+    try:
+        return validate_flow_steps(value)
+    except Exception:
+        raise ValueError("flow steps failed schema validation") from None
+
+
+def _flow_locator(page, spec: dict):
+    strategy = spec["strategy"]
+    value = spec.get("value", "")
+    exact = spec.get("exact", False)
+    if strategy == "role":
+        return page.get_by_role(spec["role"], name=value, exact=exact)
+    if strategy == "label":
+        return page.get_by_label(value, exact=exact)
+    if strategy == "placeholder":
+        return page.get_by_placeholder(value, exact=exact)
+    if strategy == "text":
+        return page.get_by_text(value, exact=exact)
+    if strategy == "test_id":
+        return page.get_by_test_id(value)
+    if strategy == "css":
+        return page.locator(value)
+    raise ValueError("unsupported locator strategy")
+
+
+def _execute_flow_steps(
+    page, steps: list[dict], viewport_name: str, evidence_dir: Path,
+    artifact_root: Path, base_url: str, capture_id: str,
+) -> list[dict]:
+    """Execute only the schema-validated finite set of browser operations."""
+    results: list[dict] = []
+    for step in steps:
+        started = time.monotonic()
+        outcome = "passed"
+        evidence = None
+        try:
+            step_type = step["type"]
+            if step_type == "navigate":
+                response = page.goto(
+                    f"{base_url}{step['url']}", wait_until="domcontentloaded",
+                    timeout=step.get("timeout_ms", 15000),
+                )
+                if response is None or response.status >= 400:
+                    outcome = "failed"
+            elif step_type == "assert_url":
+                actual_path = urlsplit(page.url).path.rstrip("/") or "/"
+                if actual_path != step["url"]:
+                    outcome = "failed"
+            elif step_type == "screenshot":
+                screenshot = evidence_dir / f"flow-step-{capture_id}-{step['key']}.jpg"
+                screenshot_bytes = page.screenshot(type="jpeg", quality=75, full_page=False)
+                if len(screenshot_bytes) > 2_000_000:
+                    outcome = "failed"
+                else:
+                    screenshot.write_bytes(screenshot_bytes)
+                    evidence = screenshot.relative_to(artifact_root).as_posix()
+            elif step_type == "capture_dom":
+                locator = _flow_locator(page, step["locator"]) if step.get("locator") else page.locator("body")
+                if locator.count() != 1:
+                    outcome = "failed"
+                else:
+                    snapshot = locator.evaluate(
+                        "element => ({tag: element.tagName.toLowerCase(), child_count: element.children.length, child_tags: Array.from(element.children).slice(0, 50).map(child => child.tagName.toLowerCase())})"
+                    )
+                    dom_path = evidence_dir / f"flow-step-{capture_id}-{step['key']}.json"
+                    dom_path.write_text(json.dumps(snapshot, separators=(",", ":")), encoding="utf-8")
+                    evidence = dom_path.relative_to(artifact_root).as_posix()
+            else:
+                locator = _flow_locator(page, step["locator"])
+                timeout = step.get("timeout_ms", 5000)
+                if step_type == "wait_for":
+                    locator.wait_for(state=step.get("state", "visible"), timeout=timeout)
+                    count = locator.count()
+                    if count > 1 or (step.get("state") not in {"hidden", "detached"} and count != 1):
+                        outcome = "failed"
+                elif step_type == "assert_visible":
+                    locator.wait_for(state="visible", timeout=timeout)
+                    if locator.count() != 1 or not locator.is_visible():
+                        outcome = "failed"
+                else:
+                    if locator.count() != 1:
+                        outcome = "failed"
+                    elif step_type == "click":
+                        locator.click(timeout=timeout)
+                    elif step_type == "fill":
+                        locator.fill(step["value"], timeout=timeout)
+                    elif step_type == "select_option":
+                        locator.select_option(step["value"], timeout=timeout)
+                    elif step_type == "assert_text":
+                        observed = locator.inner_text(timeout=timeout).strip()
+                        expected = step["text"]
+                        matches = observed == expected if step.get("exact") else expected in observed
+                        if not matches:
+                            outcome = "failed"
+                    else:
+                        outcome = "failed"
+        except Exception as exc:
+            outcome = "timeout" if "Timeout" in type(exc).__name__ else "execution_error"
+        results.append({
+            "step_key": step["key"],
+            "label": step["label"],
+            "type": step["type"],
+            "viewport": viewport_name,
+            "status": outcome,
+            "duration_ms": round((time.monotonic() - started) * 1000),
+            **({"evidence": evidence} if evidence else {}),
+        })
+    return results
+
+
 def capture(
     base_url: str, artifact_root: Path, expected: str,
     viewports: list[dict[str, int]] | None = None,
+    steps: list[dict] | None = None,
 ) -> dict:
+    base_url = _base_url(base_url)
     configured = parse_viewports(json.dumps(DEFAULT_FLOW_VIEWPORTS if viewports is None else viewports))
+    configured_steps = validate_flow_steps(DEFAULT_FLOW_STEPS if steps is None else steps)
+    allowed_target = urlsplit(base_url)
+    capture_id = uuid4().hex
     active_viewports = {"desktop": configured[1], "mobile": configured[0]}
     run_dir = artifact_root / "demo-checkout"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -111,6 +240,20 @@ def capture(
         try:
             for viewport_name, viewport in active_viewports.items():
                 context = browser.new_context(viewport=viewport, device_scale_factor=1)
+                def enforce_target_policy(route):
+                    requested = urlsplit(route.request.url)
+                    if (
+                        requested.scheme == "http"
+                        and requested.hostname == allowed_target.hostname
+                        and requested.port == allowed_target.port
+                        and requested.username is None
+                        and requested.password is None
+                    ):
+                        route.continue_()
+                    else:
+                        route.abort("blockedbyclient")
+
+                context.route("**/*", enforce_target_policy)
                 page = context.new_page()
                 console_errors: list[dict] = []
                 page_errors: list[dict] = []
@@ -211,19 +354,17 @@ def capture(
                     json.dumps(observation, indent=2), encoding="utf-8"
                 )
 
-                # The action is part of the fixed demo flow; no flow data can
-                # inject arbitrary JavaScript or browser commands.
-                page.get_by_role("button", name="Place demo order · $48.00").click(
-                    timeout=5_000
+                flow_steps = _execute_flow_steps(
+                    page, configured_steps, viewport_name, evidence_dir,
+                    artifact_root, base_url, capture_id,
                 )
-                page.get_by_role("status").get_by_text(
-                    "No payment was collected", exact=False
-                ).wait_for(state="visible", timeout=5_000)
+                status = page.locator("#order-status")
+                confirmation = status.inner_text(timeout=1000)[:200] if status.count() == 1 else ""
 
                 results[viewport_name] = {
                     "viewport": viewport,
                     "button_overflow_px": round(overflow_px, 2),
-                    "order_confirmation": page.get_by_role("status").inner_text(),
+                    "order_confirmation": confirmation,
                     "screenshot": observation["screenshot"],
                     "observation": (
                         evidence_dir / "observation.json"
@@ -231,6 +372,7 @@ def capture(
                     "console_error_count": len(console_errors),
                     "page_error_count": len(page_errors),
                     "network_error_count": len(network_errors),
+                    "flow_steps": flow_steps,
                 }
                 context.close()
         finally:
@@ -242,6 +384,12 @@ def capture(
         "target": f"{base_url}/checkout",
         "expected": expected,
         "matches_expected": mobile_overflow == (expected == "overflow"),
+        "flow_status": (
+            "passed"
+            if all(step["status"] == "passed" for viewport in results.values() for step in viewport["flow_steps"])
+            else "failed"
+        ),
+        "flow_steps": [step for viewport in results.values() for step in viewport["flow_steps"]],
         "viewports": results,
         "artifact_root": str(artifact_root),
     }
@@ -267,18 +415,19 @@ def main() -> int:
         help="expected mobile button state; use no-overflow after the fix",
     )
     parser.add_argument("--viewports-json", default=json.dumps(DEFAULT_FLOW_VIEWPORTS))
+    parser.add_argument("--steps-json", default=json.dumps(DEFAULT_FLOW_STEPS))
     args = parser.parse_args()
     try:
         result = capture(
             args.base_url, args.artifacts.resolve(), args.expected,
-            parse_viewports(args.viewports_json),
+            parse_viewports(args.viewports_json), parse_flow_steps(args.steps_json),
         )
     except Exception as exc:
         print(f"Demo flow failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
 
     print(json.dumps(result, indent=2))
-    return 0 if result["matches_expected"] else 2
+    return 0 if result["matches_expected"] and result["flow_status"] == "passed" else 2
 
 
 if __name__ == "__main__":

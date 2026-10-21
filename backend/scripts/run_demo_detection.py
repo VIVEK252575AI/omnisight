@@ -15,9 +15,11 @@ from capture_demo_checkout import (
     ARTIFACT_ROOT,
     DEFAULT_BASE_URL,
     DEFAULT_FLOW_VIEWPORTS,
+    DEFAULT_FLOW_STEPS,
     _base_url,
     capture,
     parse_viewports,
+    parse_flow_steps,
 )
 
 DEFAULT_API_URL = "http://127.0.0.1:8000"
@@ -28,8 +30,8 @@ def _loopback_url(value: str) -> str:
     parsed = urlsplit(value)
     if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost"}:
         raise argparse.ArgumentTypeError("this demo runner only permits an HTTP loopback URL")
-    if parsed.username or parsed.password or parsed.query or parsed.fragment:
-        raise argparse.ArgumentTypeError("URL credentials, query, and fragment are not allowed")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in {"", "/"}:
+        raise argparse.ArgumentTypeError("URL paths, credentials, query, and fragment are not allowed")
     return value.rstrip("/")
 
 
@@ -63,11 +65,14 @@ def run(
     expected: str,
     timeout_seconds: float,
     viewports: list[dict[str, int]] | None = None,
+    steps: list[dict] | None = None,
 ) -> dict:
+    checkout_url = _base_url(checkout_url)
+    api_url = _loopback_url(api_url)
     configured_viewports = parse_viewports(
         json.dumps(DEFAULT_FLOW_VIEWPORTS if viewports is None else viewports)
     )
-    capture_result = capture(checkout_url, artifacts, expected, configured_viewports)
+    capture_result = capture(checkout_url, artifacts, expected, configured_viewports, steps)
     if not capture_result["matches_expected"]:
         raise RuntimeError("browser capture did not match the expected layout state")
 
@@ -152,6 +157,7 @@ def main() -> int:
     parser.add_argument("--expected", choices=("overflow", "no-overflow"), default="overflow")
     parser.add_argument("--timeout", type=float, default=45.0)
     parser.add_argument("--viewports-json", default=json.dumps(DEFAULT_FLOW_VIEWPORTS))
+    parser.add_argument("--steps-json", default=json.dumps(DEFAULT_FLOW_STEPS))
     args = parser.parse_args()
 
     try:
@@ -162,12 +168,13 @@ def main() -> int:
             expected=args.expected,
             timeout_seconds=args.timeout,
             viewports=parse_viewports(args.viewports_json),
+            steps=parse_flow_steps(args.steps_json),
         )
     except Exception as exc:
         print(f"Demo detection failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(summary, indent=2))
-    return 0 if summary["status"] in {"detected", "needs_inspection"} else 2
+    return 0 if summary["status"] in {"detected", "needs_inspection"} and summary["capture"].get("flow_status") == "passed" else 2
 
 
 if __name__ == "__main__":

@@ -19,18 +19,20 @@ from app.config import Settings, get_settings
 from app.db import get_session_factory
 from app.db_models import FindingRecordRow, PatchAttempt, Project, QARun, RunStep, TargetEnvironment, TestFlow, TestFlowVersion
 from app.ids import utcnow
+from app.qa_flows import DEFAULT_FLOW_STEPS, validate_flow_definition
 
 
 ACTIVE_RUN_STATUSES = frozenset({"queued", "running"})
 ACTIVE_PATCH_STATUSES = frozenset({"proposed", "validating"})
 RUN_TTL = timedelta(minutes=30)
-DEMO_FLOW_DEFINITION = {
-    "schema_version": 1,
+DEMO_FLOW_DEFINITION = validate_flow_definition({
+    "schema_version": 2,
     "flow_key": "shoplite-checkout-visual-v1",
     "route": "/checkout",
     "viewports": [{"width": 390, "height": 844}, {"width": 1440, "height": 900}],
     "assertions": ["checkout_button_visible", "mobile_overflow_measured", "order_confirmation"],
-}
+    "steps": DEFAULT_FLOW_STEPS,
+})
 
 
 def _flow_definition_hash(definition: dict[str, Any]) -> str:
@@ -52,6 +54,7 @@ class DemoRun:
     status: str = "queued"
     result: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
+    cancellation_requested: bool = False
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -61,6 +64,7 @@ class DemoRun:
             "status": self.status,
             "result": self.result,
             "error": self.error,
+            "cancellation_requested": self.cancellation_requested,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -106,10 +110,10 @@ class DemoRunStore:
                 },
             }
 
-    def publish_flow_viewports(
-        self, *, expected_version: int, viewports: list[dict[str, int]]
+    def publish_flow_version(
+        self, *, expected_version: int, viewports: list[dict[str, int]], steps: list[dict] | None = None
     ) -> dict[str, Any]:
-        """Publish viewport changes as a new immutable ShopLite flow version."""
+        """Publish validated viewport and structured step changes as an immutable version."""
         if self._database is None:
             raise RuntimeError("The ShopLite workspace requires the configured database")
         with self._database() as session:
@@ -126,6 +130,10 @@ class DemoRunStore:
                 raise RuntimeError("The current ShopLite flow version is unavailable")
             definition = dict(current.definition_json)
             definition["viewports"] = viewports
+            if steps is not None:
+                definition["steps"] = steps
+            definition["schema_version"] = 2
+            definition = validate_flow_definition(definition)
             next_version = flow.version + 1
             current.status = "retired"
             flow.version = next_version
@@ -213,8 +221,25 @@ class DemoRunStore:
         if flow_version is None:
             flow_version = TestFlowVersion(
                 id=str(uuid4()), test_flow_id=flow.id, version_number=1,
-                schema_version=1, definition_json=DEMO_FLOW_DEFINITION,
+                schema_version=2, definition_json=DEMO_FLOW_DEFINITION,
                 definition_hash=DEMO_FLOW_HASH, status="published", created_by="local-owner",
+            )
+            session.add(flow_version)
+        elif "steps" not in flow_version.definition_json:
+            # Existing schema-v1 viewport-only versions remain immutable; publish a
+            # schema-v2 successor with the deterministic ShopLite journey added.
+            legacy = flow_version
+            definition = dict(legacy.definition_json)
+            definition.update({"schema_version": 2, "steps": DEFAULT_FLOW_STEPS})
+            definition = validate_flow_definition(definition)
+            legacy.status = "retired"
+            flow.version += 1
+            flow.updated_at = utcnow()
+            flow_version = TestFlowVersion(
+                id=str(uuid4()), test_flow_id=flow.id, version_number=flow.version,
+                schema_version=2, definition_json=definition,
+                definition_hash=_flow_definition_hash(definition),
+                status="published", created_by="local-owner",
             )
             session.add(flow_version)
         return project, target, flow, flow_version
@@ -298,13 +323,63 @@ class DemoRunStore:
                 session.commit()
                 return DemoRun(run_id=run_id, status="queued", created_at=now, updated_at=now)
 
+    def request_cancel(self, run_id: str) -> DemoRun | None:
+        """Persist local-owner cancellation intent for an active browser pipeline."""
+        now = utcnow()
+        if self._database is None:
+            with self._lock:
+                run = self._runs.get(run_id)
+                if run is None or run.status not in {"queued", "running"}:
+                    return None
+                run.cancellation_requested = True
+                run.updated_at = now
+                return run
+
+        with self._database() as session:
+            run = session.scalar(
+                select(QARun)
+                .join(TestFlow)
+                .where(
+                    QARun.id == run_id,
+                    QARun.project_id == self._settings.local_project_id,
+                    QARun.status.in_(ACTIVE_RUN_STATUSES),
+                    TestFlow.id == QARun.test_flow_id,
+                    TestFlow.name == DEMO_FLOW_NAME,
+                )
+                .with_for_update()
+            )
+            if run is None:
+                return None
+            if run.cancellation_requested_at is None:
+                run.cancellation_requested_at = now
+                run.updated_at = now
+                session.commit()
+            return self._from_database_run(session, run)
+
+    def cancellation_requested(self, run_id: str) -> bool:
+        """Read persisted cancellation intent so worker restarts remain safe."""
+        if self._database is None:
+            with self._lock:
+                run = self._runs.get(run_id)
+                return bool(run and run.cancellation_requested)
+        with self._database() as session:
+            run = session.scalar(
+                select(QARun.cancellation_requested_at).where(
+                    QARun.id == run_id,
+                    QARun.project_id == self._settings.local_project_id,
+                )
+            )
+            return run is not None
+
     @staticmethod
     def _api_status(run: QARun, result: dict[str, Any], patch: PatchAttempt | None) -> str:
         if run.status == "queued":
             return "queued"
         if run.status == "running":
             return "running"
-        if run.status in {"failed", "timed_out", "canceled"}:
+        if run.status == "canceled":
+            return "canceled"
+        if run.status in {"failed", "timed_out"}:
             return "failed"
         if run.outcome == "analysis_inconclusive":
             return "needs_inspection"
@@ -326,7 +401,16 @@ class DemoRunStore:
         steps = session.scalars(select(RunStep).where(RunStep.run_id == run.id).order_by(RunStep.ordinal)).all()
         result: dict[str, Any] = {}
         for step in steps:
-            result.update(step.result_summary_json or {})
+            if step.ordinal >= 100:
+                result.setdefault("flow_step_records", []).append({
+                    "step_key": step.step_key,
+                    "type": step.step_type,
+                    "label": step.display_label,
+                    "status": step.status,
+                    **(step.result_summary_json or {}),
+                })
+            else:
+                result.update(step.result_summary_json or {})
         patch = session.scalar(select(PatchAttempt).where(PatchAttempt.run_id == run.id).order_by(PatchAttempt.created_at.desc()).limit(1))
         if patch is not None:
             proposal_summary = dict(patch.proposal_record_json)
@@ -347,6 +431,10 @@ class DemoRunStore:
             status=self._api_status(run, result, patch),
             result=result,
             error=run.failure_message_safe,
+            cancellation_requested=(
+                run.cancellation_requested_at is not None
+                and run.status in ACTIVE_RUN_STATUSES
+            ),
             created_at=run.created_at,
             updated_at=run.updated_at,
         )
@@ -392,10 +480,15 @@ class DemoRunStore:
                 if run is None:
                     return None
                 if status is not None:
+                    if run.cancellation_requested and status != "canceled":
+                        status = "canceled"
+                        result = None
                     run.status = status
                 if result is not None:
                     run.result = result
                 run.error = error
+                if run.status == "canceled":
+                    run.cancellation_requested = False
                 run.updated_at = utcnow()
                 return run
 
@@ -437,6 +530,9 @@ class DemoRunStore:
                         if attempt not in linked_patches:
                             linked_patches.append(attempt)
             if status is not None:
+                if run.cancellation_requested_at is not None and status != "canceled":
+                    status = "canceled"
+                    result = None
                 patch_status = {
                     "awaiting_sandbox_approval": "proposed",
                     "patch_rejected": "rejected_by_policy",
@@ -444,8 +540,16 @@ class DemoRunStore:
                     "validating": "validating",
                     "verified": "validation_passed",
                     "validation_failed": "validation_failed",
+                    "canceled": "canceled",
                 }.get(status)
-                if status == "running":
+                if status == "canceled":
+                    run.status = "canceled"
+                    run.outcome = "not_applicable"
+                    run.current_stage = "finished"
+                    run.failure_code = None
+                    run.failure_message_safe = None
+                    run.finished_at = now
+                elif status == "running":
                     run.status = "running"
                     run.current_stage = "browser_execution"
                     run.started_at = run.started_at or now
@@ -479,6 +583,14 @@ class DemoRunStore:
                     run.status = "completed"
                     run.current_stage = "finished"
                     run.finished_at = run.finished_at or now
+                if status == "canceled":
+                    pending_steps = session.scalars(select(RunStep).where(
+                        RunStep.run_id == run.id,
+                        RunStep.status.in_(["queued", "running"]),
+                    )).all()
+                    for step in pending_steps:
+                        step.status = "canceled"
+                        step.finished_at = now
 
             if result is not None:
                 result_steps = [
@@ -503,6 +615,54 @@ class DemoRunStore:
                         step.status = step_status
                         step.finished_at = now
                         step.result_summary_json = summary
+                capture = result.get("capture")
+                flow_steps = capture.get("flow_steps", []) if isinstance(capture, dict) else []
+                status_map = {
+                    "passed": ("passed", "passed"),
+                    "failed": ("failed", "failed"),
+                    "timeout": ("timed_out", "timed_out"),
+                    "execution_error": ("failed", "failed"),
+                }
+                for index, flow_step in enumerate(flow_steps):
+                    if not isinstance(flow_step, dict):
+                        continue
+                    normalized_status, outcome = status_map.get(flow_step.get("status"), ("failed", "failed"))
+                    ordinal = 100 + index
+                    step = session.scalar(select(RunStep).where(
+                        RunStep.run_id == run.id, RunStep.ordinal == ordinal
+                    ))
+                    summary = {
+                        "viewport": str(flow_step.get("viewport", ""))[:20],
+                        "type": str(flow_step.get("type", ""))[:40],
+                        "duration_ms": max(0, min(int(flow_step.get("duration_ms", 0)), 900_000)),
+                    }
+                    if isinstance(flow_step.get("evidence"), str):
+                        summary["evidence"] = flow_step["evidence"][:200]
+                    if step is None:
+                        step = RunStep(
+                            id=str(uuid4()), run_id=run.id, ordinal=ordinal,
+                            step_key=f"{flow_step.get('viewport', 'view')}: {flow_step.get('step_key', 'step')}"[:100],
+                            step_type=str(flow_step.get("type", "unknown"))[:40],
+                            display_label=str(flow_step.get("label", "Flow step"))[:160],
+                            status=normalized_status, outcome=outcome,
+                            started_at=now, finished_at=now,
+                            duration_ms=summary["duration_ms"],
+                            failure_code=("FLOW_STEP_TIMEOUT" if normalized_status == "timed_out" else "FLOW_STEP_FAILED" if normalized_status == "failed" else None),
+                            input_summary_json={}, result_summary_json=summary,
+                        )
+                        session.add(step)
+                    else:
+                        step.status = normalized_status
+                        step.outcome = outcome
+                        step.duration_ms = summary["duration_ms"]
+                        step.failure_code = "FLOW_STEP_TIMEOUT" if normalized_status == "timed_out" else "FLOW_STEP_FAILED" if normalized_status == "failed" else None
+                        step.finished_at = now
+                        step.result_summary_json = summary
+                if flow_steps and any(
+                    isinstance(item, dict) and item.get("status") != "passed"
+                    for item in flow_steps
+                ):
+                    run.outcome = "test_failed"
                 run.updated_at = now
             session.commit()
             return self.get(run_id)

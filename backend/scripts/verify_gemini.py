@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 from app.ai.adapters.gemini import GeminiProviderError, GeminiTextAdapter
 from app.config import get_settings
@@ -25,7 +30,7 @@ def verify() -> dict:
     response_text = adapter.generate_json(
         system_instruction=SYSTEM_INSTRUCTION,
         user_content=USER_CONTENT,
-        max_output_tokens=32,
+        max_output_tokens=256,
         timeout_seconds=min(settings.gemini_timeout_seconds, 20.0),
     )
     try:

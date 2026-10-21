@@ -7,9 +7,12 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import signal
 import subprocess
 import sys
 import threading
+import time
 from difflib import unified_diff
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -29,6 +32,7 @@ from app.ids import utcnow
 from app.artifacts import artifact_root
 from app.patch_storage import PatchStore, get_patch_store
 from app.patch_validation import validate_patch_proposal
+from app.qa_flows import DEFAULT_FLOW_STEPS, FlowStep, FlowViewport, validate_flow_definition
 from app.shoplite_sandbox import SandboxFailure, run_shoplite_sandbox
 
 router = APIRouter(prefix="/api/v1/demo/shoplite", tags=["ShopLite demo"])
@@ -38,6 +42,8 @@ REPOSITORY_ROOT = BACKEND_ROOT.parent
 DEMO_APP_ROOT = REPOSITORY_ROOT / "demo-app"
 PIPELINE_SCRIPT = BACKEND_ROOT / "scripts" / "run_demo_pipeline.py"
 _RUN_LOCK = threading.Lock()
+_CANCEL_EVENTS_LOCK = threading.Lock()
+_RUN_CANCEL_EVENTS: dict[str, threading.Event] = {}
 _SENSITIVE_ENV_NAMES = ("API_KEY", "_KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
 
 
@@ -54,18 +60,12 @@ class ProposalRejection(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
 
 
-class FlowViewport(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    width: int = Field(ge=320, le=1920)
-    height: int = Field(ge=480, le=2160)
-
-
 class PublishShopLiteFlowVersion(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     expected_version: int = Field(ge=1)
     viewports: list[FlowViewport] = Field(min_length=2, max_length=2)
+    steps: list[FlowStep] | None = Field(default=None, min_length=1, max_length=20)
 
     @model_validator(mode="after")
     def require_supported_viewport_order(self):
@@ -149,7 +149,91 @@ class _QuietDemoHandler(SimpleHTTPRequestHandler):
         return
 
 
-def _run_demo_pipeline(run_id: str, api_url: str, store: DemoRunStore) -> None:
+def _cancel_event_for(run_id: str) -> threading.Event | None:
+    with _CANCEL_EVENTS_LOCK:
+        return _RUN_CANCEL_EVENTS.get(run_id)
+
+
+def _cancel_requested(run_id: str, store: DemoRunStore, event: threading.Event | None) -> bool:
+    return bool(event and event.is_set()) or store.cancellation_requested(run_id)
+
+
+def _terminate_demo_process(process: subprocess.Popen[str]) -> tuple[str, str]:
+    """Stop the worker and its browser descendants, then collect its output."""
+    if os.name == "nt":
+        taskkill = shutil.which("taskkill.exe") or shutil.which("taskkill")
+        if taskkill:
+            try:
+                subprocess.run(
+                    [taskkill, "/PID", str(process.pid), "/T", "/F"],
+                    capture_output=True,
+                    text=True,
+                    timeout=8,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        if process.poll() is None:
+            process.terminate()
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except (OSError, ProcessLookupError):
+            if process.poll() is None:
+                process.terminate()
+    try:
+        stdout, stderr = process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            taskkill = shutil.which("taskkill.exe") or shutil.which("taskkill")
+            if taskkill:
+                try:
+                    subprocess.run(
+                        [taskkill, "/PID", str(process.pid), "/T", "/F"],
+                        capture_output=True,
+                        text=True,
+                        timeout=8,
+                        check=False,
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except (OSError, ProcessLookupError):
+                pass
+        if process.poll() is None:
+            process.kill()
+        try:
+            stdout, stderr = process.communicate(timeout=5)
+        except subprocess.TimeoutExpired as exc:
+            stdout, stderr = exc.output or "", exc.stderr or ""
+            for pipe in (process.stdout, process.stderr):
+                if pipe is not None:
+                    pipe.close()
+    return stdout or "", stderr or ""
+
+
+def _pipeline_result_payload(stdout: str) -> dict | None:
+    try:
+        result = json.loads(stdout)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(result, dict):
+        return None
+    result.pop("summary_file", None)
+    capture_result = result.get("capture")
+    if isinstance(capture_result, dict):
+        capture_result.pop("artifact_root", None)
+    return result
+
+
+def _run_demo_pipeline(
+    run_id: str,
+    api_url: str,
+    store: DemoRunStore,
+    cancellation_event: threading.Event | None = None,
+) -> None:
     """Capture the fixed target, then use the existing API pipeline for AI and patching."""
     if not _RUN_LOCK.acquire(blocking=False):
         store.update(run_id, status="failed", error="Another ShopLite run is already active.")
@@ -157,11 +241,21 @@ def _run_demo_pipeline(run_id: str, api_url: str, store: DemoRunStore) -> None:
 
     server: ThreadingHTTPServer | None = None
     server_thread: threading.Thread | None = None
+    process: subprocess.Popen[str] | None = None
+    event = cancellation_event or _cancel_event_for(run_id)
     try:
-        store.update(run_id, status="running")
+        if _cancel_requested(run_id, store, event):
+            store.update(run_id, status="canceled")
+            return
+        started = store.update(run_id, status="running")
+        if started is None or started.status == "canceled":
+            return
         if not DEMO_APP_ROOT.is_dir() or not PIPELINE_SCRIPT.is_file():
             raise RuntimeError("The fixed ShopLite demo files are missing from this checkout.")
-        flow_definition = store.flow_definition_for_run(run_id)
+        try:
+            flow_definition = validate_flow_definition(store.flow_definition_for_run(run_id))
+        except Exception:
+            raise RuntimeError("The saved ShopLite test flow is invalid. Publish a valid version before running it.") from None
         if flow_definition.get("route") != "/checkout":
             raise RuntimeError("The saved ShopLite flow uses an unsupported route.")
 
@@ -182,29 +276,69 @@ def _run_demo_pipeline(run_id: str, api_url: str, store: DemoRunStore) -> None:
             "180",
             "--viewports-json",
             json.dumps(flow_definition.get("viewports")),
+            "--steps-json",
+            json.dumps(flow_definition.get("steps", DEFAULT_FLOW_STEPS), ensure_ascii=False),
         ]
-        completed = subprocess.run(
+        process_options = (
+            {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+            if os.name == "nt"
+            else {"start_new_session": True}
+        )
+        process = subprocess.Popen(
             command,
             cwd=BACKEND_ROOT,
             env=_worker_environment(),
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=240,
             shell=False,
-            check=False,
+            **process_options,
         )
-        try:
-            result = json.loads(completed.stdout)
-        except (json.JSONDecodeError, TypeError):
+        deadline = time.monotonic() + 240
+        next_persisted_cancel_check = time.monotonic()
+        while True:
+            if event and event.is_set():
+                stdout, stderr = _terminate_demo_process(process)
+                store.update(
+                    run_id,
+                    status="canceled",
+                    result=_pipeline_result_payload(stdout),
+                    error=None,
+                )
+                return
+            now_monotonic = time.monotonic()
+            if now_monotonic >= next_persisted_cancel_check:
+                next_persisted_cancel_check = now_monotonic + 1.0
+                if store.cancellation_requested(run_id):
+                    stdout, stderr = _terminate_demo_process(process)
+                    store.update(
+                        run_id,
+                        status="canceled",
+                        result=_pipeline_result_payload(stdout),
+                        error=None,
+                    )
+                    return
+            try:
+                stdout, stderr = process.communicate(timeout=min(0.25, max(0.01, deadline - now_monotonic)))
+                break
+            except subprocess.TimeoutExpired:
+                if now_monotonic >= deadline:
+                    _terminate_demo_process(process)
+                    raise subprocess.TimeoutExpired(command, 240) from None
+        completed = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+        if _cancel_requested(run_id, store, event):
+            store.update(
+                run_id,
+                status="canceled",
+                result=_pipeline_result_payload(completed.stdout),
+                error=None,
+            )
+            return
+        result = _pipeline_result_payload(completed.stdout)
+        if result is None:
             detail = (completed.stderr or "").strip().splitlines()
             message = detail[-1][:400] if detail else "The ShopLite runner returned an invalid result."
             raise RuntimeError(message) from None
-        if not isinstance(result, dict):
-            raise RuntimeError("The ShopLite runner returned an invalid result.")
-        result.pop("summary_file", None)
-        capture_result = result.get("capture")
-        if isinstance(capture_result, dict):
-            capture_result.pop("artifact_root", None)
 
         safe_status = result.get("status")
         if safe_status not in {"awaiting_sandbox_approval", "patch_rejected", "needs_inspection", "validation_failed", "verified"}:
@@ -222,11 +356,16 @@ def _run_demo_pipeline(run_id: str, api_url: str, store: DemoRunStore) -> None:
         message = re.sub(r"(?i)(key|token|secret|password)\s*[:=]\s*\S+", r"\1=[redacted]", message)
         store.update(run_id, status="failed", error=message[:400])
     finally:
+        if process is not None and process.poll() is None:
+            _terminate_demo_process(process)
         if server is not None:
             server.shutdown()
             server.server_close()
         if server_thread is not None:
             server_thread.join(timeout=2)
+        with _CANCEL_EVENTS_LOCK:
+            if _RUN_CANCEL_EVENTS.get(run_id) is event:
+                _RUN_CANCEL_EVENTS.pop(run_id, None)
         _RUN_LOCK.release()
 
 
@@ -254,7 +393,34 @@ def start_shoplite_run(
             "A ShopLite run is already active or awaiting sandbox approval",
             status_code=status.HTTP_409_CONFLICT,
         )
-    background_tasks.add_task(_run_demo_pipeline, run.run_id, api_url, store)
+    event = threading.Event()
+    with _CANCEL_EVENTS_LOCK:
+        _RUN_CANCEL_EVENTS[run.run_id] = event
+    background_tasks.add_task(_run_demo_pipeline, run.run_id, api_url, store, event)
+    return run.response()
+
+
+@router.post("/runs/{run_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
+def cancel_shoplite_run(
+    run_id: str,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: DemoRunStore = Depends(get_demo_run_store),
+) -> dict:
+    """Request cancellation of an active local ShopLite browser pipeline."""
+    _require_local_ui(request, settings)
+    run = store.request_cancel(run_id)
+    if run is None:
+        if store.get(run_id) is None:
+            raise DomainError(ErrorCode.NOT_FOUND, "ShopLite run not found", status_code=status.HTTP_404_NOT_FOUND)
+        raise DomainError(
+            ErrorCode.CONFLICT,
+            "Only a queued or running ShopLite pipeline can be canceled",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    event = _cancel_event_for(run_id)
+    if event is not None:
+        event.set()
     return run.response()
 
 
@@ -287,9 +453,13 @@ def publish_shoplite_flow_version(
     """Publish a new immutable version with bounded mobile/desktop viewports."""
     _require_local_ui(request, settings)
     try:
-        return store.publish_flow_viewports(
+        return store.publish_flow_version(
             expected_version=payload.expected_version,
             viewports=[item.model_dump() for item in payload.viewports],
+            steps=(
+                [item.model_dump(mode="json") for item in payload.steps]
+                if payload.steps is not None else None
+            ),
         )
     except FlowVersionConflict:
         raise DomainError(
