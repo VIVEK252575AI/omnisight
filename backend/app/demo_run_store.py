@@ -60,6 +60,11 @@ class DemoRunStore:
         with self._lock:
             return self._runs.get(run_id)
 
+    def list(self) -> list[DemoRun]:
+        """Return the newest fixed-target runs first for the local dashboard."""
+        with self._lock:
+            return sorted(self._runs.values(), key=lambda run: run.created_at, reverse=True)
+
     def update(
         self,
         run_id: str,

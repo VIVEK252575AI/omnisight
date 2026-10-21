@@ -181,6 +181,17 @@ def start_shoplite_run(
     return run.response()
 
 
+@router.get("/runs")
+def list_shoplite_runs(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: DemoRunStore = Depends(get_demo_run_store),
+) -> list[dict]:
+    """List fixed-target ShopLite runs for the loopback dashboard history."""
+    _require_local_ui(request, settings, require_origin=False)
+    return [run.response() for run in store.list()]
+
+
 @router.get("/runs/{run_id}")
 def get_shoplite_run(
     run_id: str,

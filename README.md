@@ -148,6 +148,7 @@ GET      /api/v1/artifacts/{artifact_id}
 POST     /api/v1/scans/{scan_id}/detect           # VLM detection (MOCK or Gemini)
 GET      /api/v1/scans/{scan_id}/findings         # validated findings + run
 POST     /api/v1/demo/shoplite/runs               # local fixed-target real scan
+GET      /api/v1/demo/shoplite/runs               # list current local demo runs
 GET      /api/v1/demo/shoplite/runs/{run_id}      # poll run and proposal status
 POST     /api/v1/demo/shoplite/runs/{run_id}/validate # explicit confirmation + Docker sandbox
 GET      /api/v1/findings/{finding_id}
@@ -173,6 +174,8 @@ the configured provider (MOCK by default; Gemini when explicitly configured).
 Review the proposal, type `approve-demo-only`, and confirm before the API starts
 the restricted Docker sandbox. This UI and its API only accept the fixed local
 ShopLite target. The existing scan composer remains a sample walkthrough.
+History and Recent Scans show real backend ShopLite runs. Run state currently
+lives in process memory and is cleared when the backend restarts.
 
 After a successful sandbox run, the same page can verify the server-configured
 GitHub App repository, validate the proposal again against the current remote

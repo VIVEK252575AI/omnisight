@@ -69,6 +69,7 @@ def test_demo_run_starts_fixed_pipeline_and_exposes_status(monkeypatch):
                 f"/api/v1/demo/shoplite/runs/{run_id}",
                 headers={"Origin": "http://127.0.0.1:8000"},
             )
+            history = client.get("/api/v1/demo/shoplite/runs")
             duplicate = client.post(
                 "/api/v1/demo/shoplite/runs",
                 json={},
@@ -77,6 +78,9 @@ def test_demo_run_starts_fixed_pipeline_and_exposes_status(monkeypatch):
         assert current.status_code == 200
         assert current.json()["status"] == "awaiting_sandbox_approval"
         assert current.json()["result"]["proposal"]["proposal_id"] == "proposal-demo"
+        assert history.status_code == 200
+        assert [item["run_id"] for item in history.json()] == [run_id]
+        assert history.json()[0]["status"] == "awaiting_sandbox_approval"
         assert duplicate.status_code == 409
     finally:
         main.app.dependency_overrides.clear()

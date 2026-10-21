@@ -15,28 +15,23 @@ const Shots = (() => {
 })();
 
 const Store = {
-  route: 'landing', // 'landing' | 'scan' | 'models'
+  route: 'landing', // 'landing' | 'scan' | 'models' | 'live-demo' | 'history'
   deep: true,
   sev: 'all',
   traceTab: null,
   scan: null,
   activeFindingId: 'f-1',
-  githubValidation: null,
-  githubIdempotencyKey: null,
   demoRunId: null,
   demoRun: null,
   demoError: null,
+  demoRuns: [],
+  demoHistoryError: null,
   githubToken: null,
   githubConnection: null,
   githubValidation: null,
   githubIdempotencyKey: null,
   githubOperation: null,
-  githubError: null,
-  history: [
-    { id: '1041', url: 'https://shoplite.local', status: 'completed', findings: 3, fixed: 3, pr: 127 },
-    { id: '1040', url: 'https://staging.acme.io/dashboard', status: 'failed', findings: 2, fixed: 0, pr: null },
-    { id: '1039', url: 'https://acme.io/marketing', status: 'completed', findings: 4, fixed: 4, pr: 124 }
-  ]
+  githubError: null
 };
 
 function toast(msg) {
@@ -56,7 +51,6 @@ const LS = {
 function applyTheme(t) { document.documentElement.dataset.theme = t; LS.set('theme', t); }
 function toggleTheme() { applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); render(); }
 applyTheme(LS.get('theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
-Store.history = LS.get('history', Store.history);
 
 /* ---------------------------------------------------------------------------
    The legacy dashboard walkthrough is intentionally simulated. Real model
@@ -134,22 +128,16 @@ async function runPipeline(scan) {
       scan.stage = i; refresh(scan);
       await callStage(STAGES[i], scan);
     }
-    scan.stage = STAGES.length; scan.status = 'completed'; recordScan(scan); burst();
+    scan.stage = STAGES.length; scan.status = 'completed'; burst();
     toast('Scan complete: ' + scan.findings.length + ' findings verified');
   } catch (e) {
-    scan.status = 'failed'; scan.error = e.message; recordScan(scan);
+    scan.status = 'failed'; scan.error = e.message;
     toast('Scan failed: ' + e.message);
   }
   refresh(scan);
 }
 
-function recordScan(s) {
-  const ok = s.status === 'completed';
-  Store.history.unshift({ id: s.id, url: s.url, status: s.status, findings: s.findings.length, fixed: ok ? s.findings.length : 0, pr: null, at: Date.now() });
-  Store.history = Store.history.slice(0, 50);
-  LS.set('history', Store.history);
-}
-const recentScans = () => [...new Map(Store.history.map(x => [x.url, x])).values()].slice(0, 5);
+const recentScans = () => Store.demoRuns.slice(0, 5);
 function filterScans(q) {
   q = q.trim().toLowerCase();
   document.querySelectorAll('.recent-scan-btn, .hist-row').forEach(el => { el.hidden = !!q && !el.textContent.toLowerCase().includes(q); });
@@ -195,7 +183,7 @@ function startScan(url) {
   if (v) Models.vlm.name = v.value;
   if (l) Models.llm.name = l.value;
   const scan = {
-    id: String(1042 + Store.history.length), url, status: 'running', stage: 0, trace: {}, error: null,
+    id: `sample-${Date.now()}`, url, status: 'running', stage: 0, trace: {}, error: null,
     findings: Models.mode === 'live' ? [] : SAMPLE_FINDINGS.map(f => ({ ...f }))
   };
   Store.route = 'scan'; Store.scan = scan; Store.activeFindingId = 'f-1'; Store.traceTab = null;
@@ -265,6 +253,42 @@ async function liveDemoRequest(path, options = {}) {
   return body;
 }
 
+function isLocalDashboard() {
+  return window.location.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(window.location.hostname) && window.location.port === '8000';
+}
+
+function rememberDemoRun(run) {
+  if (!run?.run_id) return;
+  Store.demoRuns = [run, ...Store.demoRuns.filter(item => item.run_id !== run.run_id)]
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+}
+
+async function loadDemoRuns() {
+  if (!isLocalDashboard()) return;
+  try {
+    Store.demoRuns = await liveDemoRequest('/runs');
+    Store.demoHistoryError = null;
+    if (Store.route === 'history') render();
+  } catch (error) {
+    Store.demoHistoryError = error.message;
+    if (Store.route === 'history') render();
+  }
+}
+
+function openDemoRun(runId) {
+  Store.route = 'live-demo';
+  Store.demoError = null;
+  Store.demoRunId = runId;
+  render();
+  pollLiveShopLiteRun(runId);
+}
+
+function openDemoHistory() {
+  Store.route = 'history';
+  render();
+  loadDemoRuns();
+}
+
 async function startLiveShopLiteRun() {
   Store.route = 'live-demo'; Store.demoRun = null; Store.demoError = null;
   Store.githubValidation = null; Store.githubIdempotencyKey = null; Store.githubOperation = null; Store.githubError = null;
@@ -272,6 +296,7 @@ async function startLiveShopLiteRun() {
   try {
     Store.demoRun = await liveDemoRequest('/runs', { method: 'POST', body: '{}' });
     Store.demoRunId = Store.demoRun.run_id;
+    rememberDemoRun(Store.demoRun);
     render();
     pollLiveShopLiteRun(Store.demoRunId);
   } catch (error) {
@@ -285,6 +310,7 @@ async function pollLiveShopLiteRun(runId) {
   try {
     const run = await liveDemoRequest(`/runs/${encodeURIComponent(runId)}`);
     Store.demoRun = run;
+    rememberDemoRun(run);
     if (Store.route === 'live-demo') render();
     if (['queued', 'running', 'validating'].includes(run.status)) {
       setTimeout(() => pollLiveShopLiteRun(runId), 1200);
@@ -359,7 +385,7 @@ function renderSidebar() {
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M8 2v4"/></svg>
         Active Scan
       </button>
-      <button class="nav-item ${Store.route==='history'?'nav-item--active':''}" onclick="Store.route='history'; render();">
+      <button class="nav-item ${Store.route==='history'?'nav-item--active':''}" onclick="openDemoHistory()">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 13h12M4 10l3-3 2 2 3-5"/></svg>
         History
       </button>
@@ -372,11 +398,12 @@ function renderSidebar() {
     <div class="sidebar__section-title">Recent Scans</div>
     <div class="recent-scans-list">
       ${recentScans().map(h => `
-        <button class="recent-scan-btn truncate" onclick="startScan('${h.url}')">
+        <button class="recent-scan-btn truncate" onclick="openDemoRun('${esc(h.run_id)}')">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="5"/></svg>
-          <span class="truncate">${h.url.replace(/^https?:\/\//,'')}</span>
+          <span class="truncate">ShopLite · ${esc(h.status)}</span>
         </button>
       `).join('')}
+      ${Store.demoRuns.length ? '' : '<span class="panel__sub">No real runs yet</span>'}
     </div>
 
     <div class="sidebar__footer">
@@ -565,19 +592,25 @@ function renderDashboard() {
 }
 
 function renderHistory() {
-  const rows = Store.history;
+  const rows = Store.demoRuns;
   return `
   <div class="models-view">
     <div class="panel">
-      <div class="panel__head"><div class="panel__title">Scan history</div><span class="panel__sub">${rows.length} scans</span></div>
+      <div class="panel__head"><div class="panel__title">ShopLite run history</div><span class="panel__sub">${rows.length} backend ${rows.length === 1 ? 'run' : 'runs'}</span></div>
       <div class="panel__body">
-        ${rows.length ? rows.map(x => `
+        ${Store.demoHistoryError ? `<p class="error-note" role="alert">${esc(Store.demoHistoryError)}</p>` : ''}
+        ${rows.length ? rows.map(x => {
+          const findings = x.result?.findings?.length || 0;
+          const sandboxStatus = x.result?.sandbox?.status;
+          const badgeType = x.status === 'verified' ? 'success' : ['failed','validation_failed','patch_rejected'].includes(x.status) ? 'error' : 'info';
+          return `
           <div class="hist-row">
-            <div style="min-width:0;"><div class="model-row__name truncate">${esc(x.url)}</div>
-              <div class="panel__sub">#${x.id} · ${x.at ? new Date(x.at).toLocaleString() : 'earlier'} · ${x.findings} findings, ${x.fixed} fixed${x.pr ? ' · PR #' + x.pr : ''}</div></div>
-            <span class="badge badge--${x.status === 'completed' ? 'success' : 'error'}">${x.status}</span>
-            <button class="btn" onclick="startScan('${esc(x.url)}')">Re-run</button>
-          </div>`).join('') : '<div class="empty">No scans yet. Start one from Overview.</div>'}
+            <div style="min-width:0;"><div class="model-row__name truncate">ShopLite checkout</div>
+              <div class="panel__sub">${esc(x.run_id)} · ${new Date(x.created_at).toLocaleString()} · ${findings} findings${sandboxStatus ? ` · sandbox ${esc(sandboxStatus)}` : ''}</div></div>
+            <span class="badge badge--${badgeType}">${esc(x.status)}</span>
+            <button class="btn" onclick="openDemoRun('${esc(x.run_id)}')">View run</button>
+          </div>`;
+        }).join('') : '<div class="empty">No backend ShopLite runs yet. Start one from Live ShopLite Demo.</div>'}
       </div>
     </div>
   </div>`;
@@ -722,8 +755,8 @@ function render() {
     </div>`;
 }
 
-document.addEventListener('DOMContentLoaded', render);
 render();
+loadDemoRuns();
 
 /* ---------------------------------------------------------------------------
    Keyboard shortcuts (ignored while typing in a field)
@@ -736,7 +769,7 @@ document.addEventListener('keydown', e => {
   if (typing) { if (e.key === 'Escape') e.target.blur(); return; }
   if (e.key === '/') { e.preventDefault(); const q = document.querySelector('.sidebar__search'); if (q) q.focus(); }
   else if (e.key === 'n') { Store.route = 'landing'; render(); const u = document.getElementById('target-url-input'); if (u) u.focus(); }
-  else if (e.key === 'h') { Store.route = 'history'; render(); }
+  else if (e.key === 'h') openDemoHistory();
   else if (e.key === 'd') toggleTheme();
 });
 
