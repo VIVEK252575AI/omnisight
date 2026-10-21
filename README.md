@@ -6,6 +6,13 @@ OmniSight is an **AI-powered autonomous QA workflow** designed to detect visual 
 
 > **Core Loop:** Detect → Fix → Verify → Deliver
 
+### Client demo
+
+Open the [OmniSight client demo](client-demo/index.html) for a concise
+walkthrough of the live Gemini + ShopLite sandbox result. To rerun that flow
+locally, use the [client demo instructions](client-demo/README.md); Docker
+Desktop and local Gemini / sandbox settings are required.
+
 Traditional UI tests mainly inspect the DOM and depend on hardcoded selectors. However, users experience an application visually through pixels. A test may therefore pass functionally while problems such as clipping, overlap, poor contrast, and broken responsive layouts remain visible.
 
 OmniSight combines **browser automation, visual AI, code reasoning, automated validation, and CI/CD** to create a self-healing UI testing workflow.
