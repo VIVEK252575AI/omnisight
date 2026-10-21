@@ -77,9 +77,6 @@ class Settings(BaseSettings):
     local_project_id: str = "b13a29c2-4669-5ac7-9ba6-ff7c1d32ae11"
     local_project_name: str = "OmniSight ShopLite Demo"
     database_url: SecretStr | None = None
-    local_state_database_path: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[1] / "data" / "omnisight-local.sqlite3"
-    )
 
     # GitHub App installation credentials (server-side only). These values
     # configure the local integration worker; they are never returned by APIs.
@@ -124,8 +121,8 @@ class Settings(BaseSettings):
     detection_expose_raw_output: bool = False
 
     # Safe action engine (W2.5). A model proposal is only accepted as a
-    # validated, reviewable record. The app stores the editable patch locally
-    # in SQLite; raw model output is never persisted.
+    # validated, reviewable record. Validated edits are stored in PostgreSQL;
+    # raw model output is never persisted.
     #
     # `patch_generator` selects the replaceable generator ("mock" default);
     # `patch_mock_scenario` picks the deterministic offline behaviour. No

@@ -44,12 +44,206 @@ class Project(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
 
     repository_connections: Mapped[list["RepositoryConnection"]] = relationship(back_populates="project")
+    target_environments: Mapped[list["TargetEnvironment"]] = relationship(back_populates="project")
+    test_flows: Mapped[list["TestFlow"]] = relationship(back_populates="project")
+    qa_runs: Mapped[list["QARun"]] = relationship(back_populates="project")
+    patch_attempts: Mapped[list["PatchAttempt"]] = relationship(back_populates="project")
     validation_reports: Mapped[list["ValidationReport"]] = relationship(back_populates="project")
     github_operations: Mapped[list["GitHubOperation"]] = relationship(back_populates="project")
 
     __table_args__ = (
         CheckConstraint("status IN ('active', 'archived')", name="ck_projects_status"),
         CheckConstraint("version > 0", name="ck_projects_version"),
+    )
+
+
+class TargetEnvironment(Base):
+    __tablename__ = "target_environments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    base_url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    environment_kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    authorization_status: Mapped[str] = mapped_column(String(24), nullable=False)
+    allowed_hosts: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    project: Mapped[Project] = relationship(back_populates="target_environments")
+    qa_runs: Mapped[list["QARun"]] = relationship(back_populates="target_environment")
+
+    __table_args__ = (
+        CheckConstraint("environment_kind IN ('demo', 'development', 'staging', 'other')", name="ck_target_environment_kind"),
+        CheckConstraint("authorization_status IN ('pending', 'approved', 'revoked')", name="ck_target_environment_authorization"),
+        CheckConstraint("version > 0", name="ck_target_environment_version"),
+        UniqueConstraint("project_id", "name", name="uq_target_environment_project_name"),
+        Index("ix_target_environments_project", "project_id", "created_at"),
+    )
+
+
+class TestFlow(Base):
+    __tablename__ = "test_flows"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="active")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    project: Mapped[Project] = relationship(back_populates="test_flows")
+    versions: Mapped[list["TestFlowVersion"]] = relationship(back_populates="test_flow")
+    qa_runs: Mapped[list["QARun"]] = relationship(back_populates="test_flow")
+
+    __table_args__ = (
+        CheckConstraint("status IN ('active', 'archived')", name="ck_test_flow_status"),
+        CheckConstraint("version > 0", name="ck_test_flow_version"),
+        UniqueConstraint("project_id", "name", name="uq_test_flow_project_name"),
+    )
+
+
+class TestFlowVersion(Base):
+    __tablename__ = "test_flow_versions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    test_flow_id: Mapped[str] = mapped_column(ForeignKey("test_flows.id", ondelete="RESTRICT"), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    definition_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    definition_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    created_by: Mapped[str | None] = mapped_column(String(120))
+
+    test_flow: Mapped[TestFlow] = relationship(back_populates="versions")
+    qa_runs: Mapped[list["QARun"]] = relationship(back_populates="test_flow_version")
+
+    __table_args__ = (
+        CheckConstraint("version_number > 0", name="ck_test_flow_version_number"),
+        CheckConstraint("schema_version > 0", name="ck_test_flow_schema_version"),
+        CheckConstraint("status IN ('draft', 'published', 'retired')", name="ck_test_flow_version_status"),
+        UniqueConstraint("test_flow_id", "version_number", name="uq_test_flow_version_number"),
+    )
+
+
+class QARun(Base):
+    __tablename__ = "qa_runs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False)
+    target_environment_id: Mapped[str] = mapped_column(ForeignKey("target_environments.id", ondelete="RESTRICT"), nullable=False)
+    test_flow_id: Mapped[str] = mapped_column(ForeignKey("test_flows.id", ondelete="RESTRICT"), nullable=False)
+    test_flow_version_id: Mapped[str] = mapped_column(ForeignKey("test_flow_versions.id", ondelete="RESTRICT"), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="created")
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False, default="not_applicable")
+    current_stage: Mapped[str] = mapped_column(String(40), nullable=False, default="preflight")
+    trigger_source: Mapped[str] = mapped_column(String(24), nullable=False, default="manual")
+    requested_by: Mapped[str | None] = mapped_column(String(120))
+    viewport_matrix_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    target_revision: Mapped[str | None] = mapped_column(String(128))
+    repository_base_revision: Mapped[str | None] = mapped_column(String(128))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancellation_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failure_code: Mapped[str | None] = mapped_column(String(80))
+    failure_message_safe: Mapped[str | None] = mapped_column(Text)
+    correlation_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    project: Mapped[Project] = relationship(back_populates="qa_runs")
+    target_environment: Mapped[TargetEnvironment] = relationship(back_populates="qa_runs")
+    test_flow: Mapped[TestFlow] = relationship(back_populates="qa_runs")
+    test_flow_version: Mapped[TestFlowVersion] = relationship(back_populates="qa_runs")
+    steps: Mapped[list["RunStep"]] = relationship(back_populates="run", order_by="RunStep.ordinal")
+    patch_attempts: Mapped[list["PatchAttempt"]] = relationship(back_populates="run")
+
+    __table_args__ = (
+        CheckConstraint("status IN ('created','queued','running','completed','failed','canceled','timed_out','partial')", name="ck_qa_run_status"),
+        CheckConstraint("outcome IN ('passed','issues_found','test_failed','analysis_inconclusive','analysis_unavailable','mixed','not_applicable')", name="ck_qa_run_outcome"),
+        CheckConstraint("trigger_source IN ('manual','github_webhook','scheduled')", name="ck_qa_run_trigger_source"),
+        CheckConstraint("version > 0", name="ck_qa_run_version"),
+        Index("ix_qa_runs_project_status_created", "project_id", "status", "created_at"),
+    )
+
+
+class RunStep(Base):
+    __tablename__ = "run_steps"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("qa_runs.id", ondelete="RESTRICT"), nullable=False)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    step_key: Mapped[str | None] = mapped_column(String(100))
+    step_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    display_label: Mapped[str] = mapped_column(String(160), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    outcome: Mapped[str | None] = mapped_column(String(32))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    failure_code: Mapped[str | None] = mapped_column(String(80))
+    failure_message_safe: Mapped[str | None] = mapped_column(Text)
+    input_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    result_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    run: Mapped[QARun] = relationship(back_populates="steps")
+
+    __table_args__ = (
+        CheckConstraint("ordinal > 0", name="ck_run_step_ordinal"),
+        CheckConstraint("status IN ('queued','running','passed','failed','skipped','timed_out','canceled','unavailable','inconclusive','blocked')", name="ck_run_step_status"),
+        UniqueConstraint("run_id", "ordinal", name="uq_run_step_ordinal"),
+        Index("ix_run_steps_run", "run_id", "ordinal"),
+    )
+
+
+class PatchAttempt(Base):
+    __tablename__ = "patch_attempts"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False)
+    finding_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    run_id: Mapped[str | None] = mapped_column(ForeignKey("qa_runs.id", ondelete="RESTRICT"))
+    repository_connection_id: Mapped[str | None] = mapped_column(ForeignKey("repository_connections.id", ondelete="RESTRICT"))
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    base_revision: Mapped[str | None] = mapped_column(String(128))
+    branch_name: Mapped[str | None] = mapped_column(String(250))
+    model_provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    model_id: Mapped[str | None] = mapped_column(String(160))
+    prompt_version: Mapped[str | None] = mapped_column(String(80))
+    patch_format_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    changed_files_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    diff_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_check_result: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    validated_patch_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    proposal_record_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    validation_report_id: Mapped[str | None] = mapped_column(String(36))
+    requested_by: Mapped[str | None] = mapped_column(String(120))
+    failure_code: Mapped[str | None] = mapped_column(String(80))
+    failure_message_safe: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    project: Mapped[Project] = relationship(back_populates="patch_attempts")
+    run: Mapped[QARun | None] = relationship(back_populates="patch_attempts")
+    repository_connection: Mapped["RepositoryConnection | None"] = relationship()
+
+    __table_args__ = (
+        CheckConstraint("status IN ('requested','queued','generating','proposed','rejected_by_policy','applying','validating','validation_passed','validation_failed','validation_inconclusive','blocked','pr_eligible','pr_requested','pr_created','pr_failed','remote_outcome_unknown','canceled')", name="ck_patch_attempt_status"),
+        CheckConstraint("attempt_number > 0", name="ck_patch_attempt_number"),
+        CheckConstraint("patch_format_version > 0", name="ck_patch_format_version"),
+        Index("ix_patch_attempts_project_created", "project_id", "created_at"),
+        Index("ix_patch_attempts_run", "run_id", "created_at"),
+        Index("ix_patch_attempts_finding", "finding_id", "created_at"),
     )
 
 

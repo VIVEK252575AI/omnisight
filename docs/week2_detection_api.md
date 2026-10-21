@@ -101,9 +101,10 @@ output can never be mistaken for a real inference.
 
 ## Limitations
 
-- Detection findings and scan records are still in-memory and are lost on
-  restart. The fixed ShopLite demo uses a separate SQLite store for run
-  summaries and validated patch payloads.
+- Detection findings and generic scan records are still in-memory and are lost
+  on restart. The fixed ShopLite demo persists run and step summaries in the
+  PostgreSQL `qa_runs` and `run_steps` tables; validated proposals use
+  `patch_attempts`.
 - `OMNISIGHT_ENABLE_VLM_DETECTION` exists but does not gate these endpoints
   yet — the workflow is exercised directly so it can be verified before the
   flag has a consumer.

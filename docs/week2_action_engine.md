@@ -133,7 +133,6 @@ the request.
   0px; desktop overflow remained 0px, the order confirmation worked, and the
   browser reported no errors or attempted external requests.
 - **No host apply step.** Sandbox verification does not write the proposal to
-  the host checkout. Validated edit payloads are stored in the local SQLite
-  workflow database so they can be reviewed after an API restart; raw model
-  output is not stored. GitHub publishing remains a separate explicitly
+  the host checkout. Validated edit payloads are stored in PostgreSQL so they
+  can be reviewed after an API restart; raw model output is not stored. GitHub publishing remains a separate explicitly
   approved step.

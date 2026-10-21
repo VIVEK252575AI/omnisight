@@ -40,15 +40,20 @@ def build_engine(settings: Settings) -> Engine:
 
 
 @lru_cache(maxsize=4)
-def _engine_for_url(url: str) -> Engine:
-    return create_engine(url, pool_pre_ping=True)
+def _sessionmaker_for_url(url: str):
+    engine = create_engine(url, pool_pre_ping=True)
+    return sessionmaker(bind=engine, expire_on_commit=False)
+
+
+def get_session_factory(settings: Settings):
+    """Return the process-cached session factory for the configured PostgreSQL database."""
+    return _sessionmaker_for_url(database_url(settings))
 
 
 def get_session(
     settings: Settings = Depends(get_settings),
 ) -> Generator[Session, None, None]:
-    engine = _engine_for_url(database_url(settings))
-    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    factory = get_session_factory(settings)
     with factory() as session:
         yield session
 

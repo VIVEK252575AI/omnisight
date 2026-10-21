@@ -84,10 +84,10 @@ Every call uses the `X-OmniSight-Local-Token` header. After a successful
 ShopLite sandbox run, the Live ShopLite Demo page has the publishing panel for
 repository verification, remote-base validation, review, and confirmation.
 The general scan composer remains simulated and does not create backend
-proposal IDs. Validated proposal summaries and editable patch text are stored in
-the local SQLite state file, so a backend restart does not invalidate an
-in-progress draft-PR workflow. Raw model output is not persisted. PostgreSQL is
-still required for durable repository, validation, and publication records.
+proposal IDs. Validated proposal summaries and patch text are stored in
+PostgreSQL, so a backend restart does not invalidate an in-progress draft-PR
+workflow. Raw model output is not persisted. PostgreSQL is the durable system of
+record for workflow and publication records.
 
 The existing provider tests use mocked GitHub responses. No live App
 credentials, PostgreSQL instance, or sandbox image are configured here, so a

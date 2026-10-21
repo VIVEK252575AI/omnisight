@@ -165,6 +165,8 @@ Run the application (from `backend/`) and open the dashboard at
 `http://127.0.0.1:8000/`:
 
 ```powershell
+$env:OMNISIGHT_DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/omnisight"
+.\.venv\Scripts\alembic.exe upgrade head             # create/update PostgreSQL schema
 .\.venv\Scripts\uvicorn.exe app.main:app --reload     # serve
 .\.venv\Scripts\python.exe -m pytest tests\ -q        # test
 ```
@@ -174,10 +176,9 @@ the configured provider (MOCK by default; Gemini when explicitly configured).
 Review the proposal, type `approve-demo-only`, and confirm before the API starts
 the restricted Docker sandbox. This UI and its API only accept the fixed local
 ShopLite target. The existing scan composer remains a sample walkthrough.
-History and Recent Scans show real backend ShopLite runs. Run records and
-validated patch proposals are stored in the local SQLite file under
-`backend/data/` and survive backend restarts. PostgreSQL remains required for
-durable GitHub publishing records.
+History and Recent Scans show real backend ShopLite runs. Run records, step
+summaries, and validated patch proposals are stored in PostgreSQL and survive
+backend restarts. Apply the Alembic migrations before starting the workflow.
 
 After a successful sandbox run, the same page can verify the server-configured
 GitHub App repository, validate the proposal again against the current remote
