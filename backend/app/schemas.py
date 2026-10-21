@@ -334,6 +334,7 @@ class WebhookAcceptedResponse(BaseModel):
 #   elements[]      selector, tag, text, visible, in_viewport, box{x,y,w,h},
 #                   optional computed_style (bounded subset)
 #   console_errors[]  {message, type?}
+#   page_errors[]     {message, type?}        (uncaught page exceptions)
 #   network_errors[]  {url, method?, status?, error?, resource_type?}
 #   captured_at     ISO-8601 timestamp
 #
@@ -423,6 +424,7 @@ class Observation(BaseModel):
     )
     elements: list[Element] = Field(default_factory=list, max_length=2000)
     console_errors: list[ConsoleError] = Field(default_factory=list, max_length=500)
+    page_errors: list[ConsoleError] = Field(default_factory=list, max_length=500)
     network_errors: list[NetworkError] = Field(default_factory=list, max_length=500)
     captured_at: datetime
 

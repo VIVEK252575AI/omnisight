@@ -7,7 +7,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from playwright.sync_api import sync_playwright
 
@@ -59,6 +59,22 @@ def _visible_element(page, selector: str, viewport: dict[str, int]) -> dict | No
     }
 
 
+def _safe_network_url(value: str) -> str | None:
+    """Keep request diagnostics useful without retaining URL credentials or query data."""
+    try:
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            return None
+        host = parsed.hostname.encode("idna").decode("ascii")
+        if ":" in host:
+            host = f"[{host}]"
+        port = parsed.port
+        netloc = f"{host}:{port}" if port and port not in {80, 443} else host
+        return urlunsplit((parsed.scheme, netloc, parsed.path[:1500], "", ""))[:2000]
+    except (UnicodeError, ValueError):
+        return None
+
+
 def parse_viewports(raw: str) -> list[dict[str, int]]:
     try:
         value = json.loads(raw)
@@ -98,12 +114,42 @@ def capture(
                 page = context.new_page()
                 console_errors: list[dict] = []
                 page_errors: list[dict] = []
+                network_errors: list[dict] = []
                 page.on(
                     "console",
                     lambda message: console_errors.append(
                         {"message": message.text[:1000], "type": message.type}
                     )
                     if message.type == "error" and len(console_errors) < 20
+                    else None,
+                )
+                page.on(
+                    "requestfailed",
+                    lambda request: network_errors.append(
+                        {
+                            "url": safe_url,
+                            "method": request.method[:20],
+                            "error": "request_failed",
+                            "resource_type": request.resource_type[:100],
+                        }
+                    )
+                    if len(network_errors) < 20
+                    and (safe_url := _safe_network_url(request.url)) is not None
+                    else None,
+                )
+                page.on(
+                    "response",
+                    lambda response: network_errors.append(
+                        {
+                            "url": safe_url,
+                            "method": response.request.method[:20],
+                            "status": response.status,
+                            "resource_type": response.request.resource_type[:100],
+                        }
+                    )
+                    if response.status >= 400
+                    and len(network_errors) < 20
+                    and (safe_url := _safe_network_url(response.url)) is not None
                     else None,
                 )
                 page.on(
@@ -157,7 +203,8 @@ def capture(
                     "screenshot": screenshot.relative_to(artifact_root).as_posix(),
                     "elements": elements,
                     "console_errors": console_errors,
-                    "network_errors": [],
+                    "page_errors": page_errors,
+                    "network_errors": network_errors,
                     "captured_at": captured_at,
                 }
                 (evidence_dir / "observation.json").write_text(
@@ -181,7 +228,9 @@ def capture(
                     "observation": (
                         evidence_dir / "observation.json"
                     ).relative_to(artifact_root).as_posix(),
-                    "console_error_count": len(console_errors) + len(page_errors),
+                    "console_error_count": len(console_errors),
+                    "page_error_count": len(page_errors),
+                    "network_error_count": len(network_errors),
                 }
                 context.close()
         finally:
