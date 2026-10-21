@@ -45,7 +45,14 @@ def main() -> int:
 
                         def allow_local_only(route) -> None:
                             if route.request.url.startswith(ORIGIN + "/"):
-                                route.continue_()
+                                path = route.request.url[len(ORIGIN) :]
+                                if path.startswith(f"/{tree}/"):
+                                    route.continue_()
+                                else:
+                                    # ShopLite uses root-relative CSS and JS
+                                    # URLs. Keep those requests inside the same
+                                    # staged tree as the page under test.
+                                    route.continue_(url=f"{ORIGIN}/{tree}{path}")
                             else:
                                 blocked_requests.append(route.request.url[:300])
                                 route.abort()
