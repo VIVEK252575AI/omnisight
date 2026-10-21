@@ -14,8 +14,10 @@ import httpx
 from capture_demo_checkout import (
     ARTIFACT_ROOT,
     DEFAULT_BASE_URL,
+    DEFAULT_FLOW_VIEWPORTS,
     _base_url,
     capture,
+    parse_viewports,
 )
 
 DEFAULT_API_URL = "http://127.0.0.1:8000"
@@ -40,7 +42,16 @@ def _api_json(response: httpx.Response) -> dict:
         raise RuntimeError("OmniSight API returned an unexpected response")
     if response.is_error:
         detail = body.get("error", {}).get("message", "request failed")
-        raise RuntimeError(f"OmniSight API returned HTTP {response.status_code}: {detail[:300]}")
+        request = response.request
+        request_context = (
+            f" for {request.method} {request.url.path}"
+            if request is not None
+            else ""
+        )
+        raise RuntimeError(
+            f"OmniSight API returned HTTP {response.status_code}{request_context}: "
+            f"{detail[:300]}"
+        )
     return body
 
 
@@ -51,8 +62,12 @@ def run(
     artifacts: Path,
     expected: str,
     timeout_seconds: float,
+    viewports: list[dict[str, int]] | None = None,
 ) -> dict:
-    capture_result = capture(checkout_url, artifacts, expected)
+    configured_viewports = parse_viewports(
+        json.dumps(DEFAULT_FLOW_VIEWPORTS if viewports is None else viewports)
+    )
+    capture_result = capture(checkout_url, artifacts, expected, configured_viewports)
     if not capture_result["matches_expected"]:
         raise RuntimeError("browser capture did not match the expected layout state")
 
@@ -60,7 +75,7 @@ def run(
     observation = json.loads(observation_path.read_text(encoding="utf-8"))
     scan_request = {
         "target_url": f"{checkout_url}/checkout",
-        "viewports": [{"width": 390, "height": 844}],
+        "viewports": [configured_viewports[0]],
         "routes": ["/checkout"],
     }
 
@@ -136,6 +151,7 @@ def main() -> int:
     parser.add_argument("--artifacts", type=Path, default=ARTIFACT_ROOT)
     parser.add_argument("--expected", choices=("overflow", "no-overflow"), default="overflow")
     parser.add_argument("--timeout", type=float, default=45.0)
+    parser.add_argument("--viewports-json", default=json.dumps(DEFAULT_FLOW_VIEWPORTS))
     args = parser.parse_args()
 
     try:
@@ -145,6 +161,7 @@ def main() -> int:
             artifacts=args.artifacts.resolve(),
             expected=args.expected,
             timeout_seconds=args.timeout,
+            viewports=parse_viewports(args.viewports_json),
         )
     except Exception as exc:
         print(f"Demo detection failed: {type(exc).__name__}: {exc}", file=sys.stderr)

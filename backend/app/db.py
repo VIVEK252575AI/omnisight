@@ -18,8 +18,8 @@ def database_url(settings: Settings) -> str:
     """Resolve a configured URL without logging or exposing it."""
     if settings.database_url is None or not settings.database_url.get_secret_value().strip():
         raise DomainError(
-            ErrorCode.GITHUB_PUBLISH_UNAVAILABLE,
-            "Durable GitHub publishing is not configured",
+            ErrorCode.DATABASE_UNAVAILABLE,
+            "The durable application database is not configured",
             status_code=503,
         )
     value = settings.database_url.get_secret_value().strip()
@@ -27,8 +27,8 @@ def database_url(settings: Settings) -> str:
         value = "postgresql+psycopg://" + value.removeprefix("postgresql://")
     if not value.startswith("postgresql+psycopg://"):
         raise DomainError(
-            ErrorCode.GITHUB_PUBLISH_UNAVAILABLE,
-            "The durable publishing database must use PostgreSQL",
+            ErrorCode.DATABASE_UNAVAILABLE,
+            "The durable application database must use PostgreSQL",
             status_code=503,
         )
     return value

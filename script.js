@@ -5,17 +5,31 @@
 'use strict';
 
 const Store = {
-  route: 'landing', // 'landing' | 'models' | 'live-demo' | 'history'
+  route: 'landing', // 'landing' | 'projects' | 'models' | 'live-demo' | 'history'
   demoRunId: null,
   demoRun: null,
   demoError: null,
+  patchPreview: null,
+  patchPreviewError: null,
   demoRuns: [],
   demoHistoryError: null,
+  projects: [],
+  projectsError: null,
+  projectsLoading: false,
+  projectsRequestId: 0,
+  projectSaving: false,
+  selectedProjectId: null,
+  workspace: null,
+  workspaceError: null,
+  workspaceLoading: false,
+  workspaceSaving: false,
+  workspaceSaved: false,
   githubToken: null,
   githubConnection: null,
   githubValidation: null,
   githubIdempotencyKey: null,
   githubOperation: null,
+  githubOperations: [],
   githubError: null
 };
 
@@ -51,11 +65,12 @@ function renderLiveDemo() {
   const capture = result.capture || {};
   const findings = Array.isArray(result.findings) ? result.findings : [];
   const proposal = result.proposal || null;
+  const patchPreview = Store.patchPreview?.proposal_id === proposal?.proposal_id ? Store.patchPreview : null;
   const sandbox = result.sandbox || null;
   const checks = sandbox?.checks || {};
   const detectionIssue = result.detection_reason_message;
   const finishedStages = {
-    queued: 0, running: 0, awaiting_sandbox_approval: 3, validating: 3, completed: 3,
+    queued: 0, running: 0, awaiting_sandbox_approval: 3, proposal_rejected: 3, validating: 3, completed: 3,
     verified: 4, validation_failed: 3, patch_rejected: 2, needs_inspection: 1, failed: 0
   }[run?.status] || 0;
   const currentStage = run?.status === 'running' ? 0 : run?.status === 'validating' ? 3 : -1;
@@ -69,13 +84,14 @@ function renderLiveDemo() {
     queued: 'Queued', running: 'Running browser capture and AI analysis',
     awaiting_sandbox_approval: 'Patch proposal ready for your review',
     validating: 'Running isolated Docker verification', verified: 'Verified',
-    patch_rejected: 'Patch rejected by safety checks', needs_inspection: 'Needs human inspection',
+    patch_rejected: 'Patch rejected by safety checks', proposal_rejected: 'Proposal rejected by reviewer', needs_inspection: 'Needs human inspection',
     validation_failed: 'Sandbox checks did not pass', completed: 'Completed', failed: 'Run failed'
   }[run?.status] || 'Ready to run';
   const viewport = capture.viewports?.mobile;
   const overflowBefore = checks.baseline_mobile_overflow_px ?? viewport?.button_overflow_px;
   const overflowAfter = checks.patched_mobile_overflow_px;
-  const canApprove = run?.status === 'awaiting_sandbox_approval' && proposal?.status === 'proposed';
+  const canApprove = run?.status === 'awaiting_sandbox_approval' && proposal?.status === 'proposed' && !!patchPreview;
+  const canReject = canApprove;
   return `<div class="live-demo-view">
     <div class="panel live-demo-intro">
       <div><div class="eyebrow">Connected backend workflow</div><h1>ShopLite live demo</h1>
@@ -84,29 +100,33 @@ function renderLiveDemo() {
     </div>
     ${Store.demoError ? `<div class="error-note" role="alert">${esc(Store.demoError)}</div>` : ''}
     ${detectionIssue ? `<div class="error-note" role="alert"><strong>AI analysis did not complete:</strong> ${esc(detectionIssue)}${result.detection_reason_code === 'rate_limited' ? ' Check the Gemini project quota in Google AI Studio, wait for the limit to reset, or configure a model enabled for this API key.' : ''}</div>` : ''}
-    ${run ? `<div class="panel live-run-status"><div><span class="badge badge--${run.status === 'verified' ? 'success' : run.status === 'failed' || run.status === 'validation_failed' || run.status === 'patch_rejected' ? 'error' : 'info'}">${esc(stateLabel)}</span><span class="panel__sub">Run ${esc(run.run_id)}</span></div>${run.error ? `<p class="error-note">${esc(run.error)}</p>` : ''}</div>
+    ${run ? `<div class="panel live-run-status"><div><span class="badge badge--${run.status === 'verified' ? 'success' : run.status === 'failed' || run.status === 'validation_failed' || run.status === 'patch_rejected' || run.status === 'proposal_rejected' ? 'error' : 'info'}">${esc(stateLabel)}</span><span class="panel__sub">Run ${esc(run.run_id)}</span></div>${run.error ? `<p class="error-note">${esc(run.error)}</p>` : ''}</div>
       <div class="live-stage-grid">${stages.map(({label, done, current}) => `<div class="live-stage ${done ? 'live-stage--done' : current ? 'live-stage--current' : ''}"><span>${done ? '✓' : current ? '…' : '·'}</span>${esc(label)}</div>`).join('')}</div>
       ${capture.screenshot_artifact_id ? `<div class="panel live-evidence-shot"><div class="panel__head"><div class="panel__title">Persisted mobile screenshot evidence</div><span class="panel__sub">${esc(viewport?.button_overflow_px ?? '—')}px horizontal overflow</span></div><div class="panel__body"><img src="/api/v1/artifacts/${encodeURIComponent(capture.screenshot_artifact_id)}" alt="Captured ShopLite checkout at the mobile viewport" loading="lazy" /><p class="panel__sub">Artifact ${esc(capture.screenshot_artifact_id)} · ${esc(viewport?.viewport?.width ?? 390)} × ${esc(viewport?.viewport?.height ?? 844)}</p></div></div>` : ''}
       ${findings.length ? `<div class="panel"><div class="panel__head"><div class="panel__title">Validated visual findings (${findings.length})</div><span class="panel__sub">${result.detection_is_mock ? 'MOCK adapter' : esc(result.detection_adapter || 'Gemini')}</span></div><div class="panel__body">${findings.map(f => `<article class="live-finding"><div><span class="badge badge--high">${esc(f.category || 'visual issue')}</span><span class="mono muted">${Math.round((f.confidence || 0) * 100)}% confidence</span></div><h3>${esc(f.category === 'clipped_element' ? 'Checkout button clipped on mobile' : f.category || 'Visual issue')}</h3><p>Target: <code>${esc(f.target_candidate || 'Needs inspection')}</code></p><p>Capture: mobile ${esc(viewport?.button_overflow_px ?? '—')}px overflow · desktop ${esc(capture.viewports?.desktop?.button_overflow_px ?? '—')}px</p></article>`).join('')}</div></div>` : ''}
-      ${proposal ? `<div class="panel"><div class="panel__head"><div class="panel__title">Patch proposal</div><span class="badge badge--${proposal.status === 'proposed' ? 'success' : 'error'}">${esc(proposal.status)}</span></div><div class="panel__body">${(proposal.files || []).map(file => `<div class="live-file"><code>${esc(file.path)}</code><span>${esc(file.edits)} edit${file.edits === 1 ? '' : 's'} · ${esc(file.bytes)} bytes</span></div>`).join('')}${proposal.rejection_reasons?.length ? `<p class="error-note">Safety checks: ${proposal.rejection_reasons.map(esc).join(', ')}</p>` : ''}<p class="panel__sub">Generator: ${esc(proposal.generator_label || 'unknown')}${proposal.is_mock ? ' · simulated provider output' : ' · live provider response'}</p></div></div>` : ''}
-      ${canApprove ? `<div class="panel live-approval"><div class="panel__head"><div class="panel__title">Review before sandbox validation</div><span class="panel__sub">Fixed ShopLite demo only</span></div><div class="panel__body"><p>This runs the proposed CSS edit in a disposable container with network access disabled. It does not change the source checkout.</p><div class="field"><label for="live-demo-confirm">Type <code>approve-demo-only</code> to approve this sandbox run</label><input id="live-demo-confirm" autocomplete="off" placeholder="approve-demo-only"></div><button class="btn btn--primary" onclick="validateLiveShopLiteRun()">Approve and validate</button></div></div>` : ''}
+      ${proposal ? `<div class="panel"><div class="panel__head"><div class="panel__title">Patch proposal</div><span class="badge badge--${proposal.status === 'proposed' ? 'success' : 'error'}">${esc(proposal.status)}</span></div><div class="panel__body">${(proposal.files || []).map(file => `<div class="live-file"><code>${esc(file.path)}</code><span>${esc(file.edits)} edit${file.edits === 1 ? '' : 's'} · ${esc(file.bytes)} bytes</span></div>`).join('')}${proposal.rejection_reasons?.length ? `<p class="error-note">Review: ${proposal.rejection_reasons.map(esc).join(', ')}${result.proposal_review?.reason ? ` · ${esc(result.proposal_review.reason)}` : ''}</p>` : ''}<p class="panel__sub">Generator: ${esc(proposal.generator_label || 'unknown')}${proposal.is_mock ? ' · simulated provider output' : ' · live provider response'}</p>${run?.status === 'awaiting_sandbox_approval' ? patchPreview ? `<section class="patch-preview"><div class="patch-preview__meta"><strong>Review exact source diff</strong><span>Base ${esc(patchPreview.base_sha256.slice(0, 16))}…</span></div><p class="panel__sub">This bounded diff is what the sandbox will validate. Approval is rejected if the source changes.</p><pre aria-label="Proposed unified CSS diff"><code>${esc(patchPreview.diff)}</code></pre></section>` : `<div class="panel__sub" role="status">${Store.patchPreviewError ? `<span class="error-note">${esc(Store.patchPreviewError)}</span> <button class="btn btn--ghost" onclick="loadShopLitePatchPreview('${esc(run.run_id)}')">Reload diff</button>` : 'Loading the exact source diff for review…'}</div>` : ''}</div></div>` : ''}
+      ${canApprove ? `<div class="panel live-approval"><div class="panel__head"><div class="panel__title">Review before sandbox validation</div><span class="panel__sub">Fixed ShopLite demo only</span></div><div class="panel__body"><p>This runs the proposed CSS edit in a disposable container with network access disabled. It does not change the source checkout.</p><div class="field"><label for="live-demo-confirm">Type <code>approve-demo-only</code> to approve this sandbox run</label><input id="live-demo-confirm" autocomplete="off" placeholder="approve-demo-only"></div><button class="btn btn--primary" onclick="validateLiveShopLiteRun()">Approve and validate</button>${canReject ? `<div class="field live-rejection-field"><label for="live-demo-reject-reason">Or reject the proposal with a reason</label><textarea id="live-demo-reject-reason" maxlength="500" rows="2" placeholder="Explain what needs to change"></textarea></div><button class="btn btn--ghost" onclick="rejectLiveShopLiteProposal()">Reject proposal</button>` : ''}</div></div>` : ''}
       ${sandbox ? `<div class="panel"><div class="panel__head"><div class="panel__title">Sandbox verification</div><span class="badge badge--${sandbox.status === 'verified' ? 'success' : 'error'}">${esc(sandbox.status)}</span></div><div class="panel__body"><div class="live-metrics"><div><span>Mobile overflow</span><strong>${esc(checks.baseline_mobile_overflow_px)}px → ${esc(checks.patched_mobile_overflow_px)}px</strong></div><div><span>Desktop overflow</span><strong>${esc(checks.patched_desktop_overflow_px)}px</strong></div><div><span>Browser errors</span><strong>${esc(checks.browser_error_count)}</strong></div><div><span>External requests blocked</span><strong>${esc(checks.blocked_external_request_count)}</strong></div></div>${sandbox.baseline_screenshot_artifact_id && sandbox.candidate_screenshot_artifact_id ? `<div class="sandbox-evidence-grid"><figure><figcaption>Before · mobile</figcaption><img src="/api/v1/artifacts/${encodeURIComponent(sandbox.baseline_screenshot_artifact_id)}" alt="ShopLite before the proposed fix" loading="lazy" /></figure><figure><figcaption>After · mobile</figcaption><img src="/api/v1/artifacts/${encodeURIComponent(sandbox.candidate_screenshot_artifact_id)}" alt="ShopLite after the proposed fix" loading="lazy" /></figure></div><p class="panel__sub">Both screenshots are saved as evidence for this run.</p>` : ''}</div></div>` : ''}
       ${sandbox?.status === 'verified' ? renderLocalGithubPanel() : ''}
     ` : `<div class="panel live-empty"><div class="live-empty-icon">◎</div><h2>Ready for a real ShopLite scan</h2><p>The backend will capture the fixed checkout at desktop and mobile sizes, ask the configured vision model to identify defects, then create a safety-checked proposal.</p><p class="panel__sub">The API must be running at <code>http://127.0.0.1:8000</code>. Gemini and the local ShopLite allow-list must be configured in <code>backend/.env</code>.</p></div>`}
   </div>`;
 }
 
-async function liveDemoRequest(path, options = {}) {
+async function localApiRequest(path, options = {}) {
   if (window.location.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(window.location.hostname) || window.location.port !== '8000') {
-    throw new Error('Open the dashboard at http://127.0.0.1:8000/ to use the local ShopLite backend.');
+    throw new Error('Open the dashboard at http://127.0.0.1:8000/ to use the local OmniSight backend.');
   }
-  const response = await fetch(`${window.location.origin}/api/v1/demo/shoplite${path}`, {
+  const response = await fetch(`${window.location.origin}${path}`, {
     ...options,
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error?.message || `Backend returned HTTP ${response.status}`);
   return body;
+}
+
+async function liveDemoRequest(path, options = {}) {
+  return localApiRequest(`/api/v1/demo/shoplite${path}`, options);
 }
 
 function isLocalDashboard() {
@@ -135,6 +155,8 @@ function openDemoRun(runId) {
   Store.route = 'live-demo';
   Store.demoError = null;
   Store.demoRunId = runId;
+  Store.patchPreview = null;
+  Store.patchPreviewError = null;
   render();
   pollLiveShopLiteRun(runId);
 }
@@ -145,8 +167,113 @@ function openDemoHistory() {
   loadDemoRuns();
 }
 
+function openSettings() {
+  Store.route = 'models';
+  render();
+  loadShopLiteWorkspace();
+}
+
+function openProjects(projectId = null) {
+  Store.route = 'projects';
+  Store.selectedProjectId = projectId;
+  Store.projectsError = null;
+  render();
+  loadProjects();
+}
+
+async function loadProjects() {
+  const requestId = ++Store.projectsRequestId;
+  Store.projectsLoading = true;
+  Store.projectsError = null;
+  render();
+  try {
+    const projects = await localApiRequest('/api/v1/projects');
+    if (requestId !== Store.projectsRequestId) return;
+    Store.projects = projects;
+    if (Store.selectedProjectId && !Store.projects.some(project => project.id === Store.selectedProjectId)) {
+      Store.selectedProjectId = null;
+    }
+  } catch (error) {
+    if (requestId !== Store.projectsRequestId) return;
+    Store.projectsError = error.message;
+  } finally {
+    if (requestId === Store.projectsRequestId) {
+      Store.projectsLoading = false;
+      if (Store.route === 'projects') render();
+    }
+  }
+}
+
+async function createProject(event) {
+  event?.preventDefault();
+  if (Store.projectSaving) return;
+  const name = document.getElementById('project-name')?.value.trim() || '';
+  const targetUrl = document.getElementById('project-target-url')?.value.trim() || '';
+  const environmentKind = document.getElementById('project-environment-kind')?.value || 'staging';
+  Store.projectSaving = true;
+  Store.projectsError = null;
+  render();
+  try {
+    const project = await localApiRequest('/api/v1/projects', {
+      method: 'POST',
+      body: JSON.stringify({ name, target_url: targetUrl, environment_kind: environmentKind })
+    });
+    // Ignore any list request that started before this successful create.
+    Store.projectsRequestId += 1;
+    Store.projectsLoading = false;
+    Store.projects = [project, ...Store.projects.filter(item => item.id !== project.id)];
+    Store.selectedProjectId = project.id;
+  } catch (error) {
+    Store.projectsError = error.message;
+  } finally {
+    Store.projectSaving = false;
+    if (Store.route === 'projects') render();
+  }
+}
+
+async function loadShopLiteWorkspace() {
+  if (!isLocalDashboard()) return;
+  Store.workspaceLoading = true;
+  Store.workspaceError = null;
+  render();
+  try {
+    Store.workspace = await liveDemoRequest('/workspace');
+  } catch (error) {
+    Store.workspaceError = error.message;
+  } finally {
+    Store.workspaceLoading = false;
+    if (Store.route === 'models') render();
+  }
+}
+
+async function publishShopLiteFlowVersion() {
+  const flow = Store.workspace?.test_flow;
+  if (!flow || Store.workspaceSaving) return;
+  const viewports = [
+    { width: Number(document.getElementById('flow-mobile-width')?.value), height: Number(document.getElementById('flow-mobile-height')?.value) },
+    { width: Number(document.getElementById('flow-desktop-width')?.value), height: Number(document.getElementById('flow-desktop-height')?.value) }
+  ];
+  Store.workspaceSaving = true;
+  Store.workspaceSaved = false;
+  Store.workspaceError = null;
+  render();
+  try {
+    Store.workspace = await liveDemoRequest('/workspace/test-flow', {
+      method: 'PUT',
+      body: JSON.stringify({ expected_version: flow.version, viewports })
+    });
+    Store.workspaceSaved = true;
+  } catch (error) {
+    Store.workspaceError = error.message;
+  } finally {
+    Store.workspaceSaving = false;
+    if (Store.route === 'models') render();
+  }
+}
+
 async function startLiveShopLiteRun() {
   Store.route = 'live-demo'; Store.demoRun = null; Store.demoError = null;
+  Store.patchPreview = null; Store.patchPreviewError = null;
   Store.githubValidation = null; Store.githubIdempotencyKey = null; Store.githubOperation = null; Store.githubError = null;
   render();
   try {
@@ -168,6 +295,9 @@ async function pollLiveShopLiteRun(runId) {
     Store.demoRun = run;
     rememberDemoRun(run);
     if (Store.route === 'live-demo') render();
+    if (run.status === 'awaiting_sandbox_approval' && Store.patchPreview?.run_id !== runId && !Store.patchPreviewError) {
+      loadShopLitePatchPreview(runId);
+    }
     if (['queued', 'running', 'validating'].includes(run.status)) {
       setTimeout(() => pollLiveShopLiteRun(runId), 1200);
     }
@@ -177,17 +307,51 @@ async function pollLiveShopLiteRun(runId) {
   }
 }
 
+async function loadShopLitePatchPreview(runId) {
+  Store.patchPreview = null;
+  Store.patchPreviewError = null;
+  if (Store.route === 'live-demo') render();
+  try {
+    const preview = await liveDemoRequest(`/runs/${encodeURIComponent(runId)}/patch-preview`);
+    Store.patchPreview = { ...preview, run_id: runId };
+  } catch (error) {
+    Store.patchPreviewError = error.message;
+  }
+  if (Store.route === 'live-demo' && Store.demoRunId === runId) render();
+}
+
 async function validateLiveShopLiteRun() {
   const confirmation = document.getElementById('live-demo-confirm')?.value.trim();
   if (confirmation !== 'approve-demo-only') { toast('Type approve-demo-only to approve this run'); return; }
+  if (!Store.patchPreview || Store.patchPreview.run_id !== Store.demoRunId) { toast('Load and review the patch diff before approval'); return; }
   if (!window.confirm('Run this reviewed CSS proposal in the isolated, network-disabled ShopLite sandbox?')) return;
   const runId = Store.demoRunId;
   Store.demoRun = { ...Store.demoRun, status: 'validating' };
   render();
   try {
     Store.demoRun = await liveDemoRequest(`/runs/${encodeURIComponent(runId)}/validate`, {
-      method: 'POST', body: JSON.stringify({ confirmation })
+      method: 'POST', body: JSON.stringify({ confirmation, base_sha256: Store.patchPreview.base_sha256 })
     });
+  } catch (error) {
+    Store.demoError = error.message;
+    Store.demoRun = await liveDemoRequest(`/runs/${encodeURIComponent(runId)}`).catch(() => Store.demoRun);
+  }
+  if (Store.route === 'live-demo') render();
+}
+
+async function rejectLiveShopLiteProposal() {
+  const reason = document.getElementById('live-demo-reject-reason')?.value.trim();
+  if (!reason) { toast('Add a reason for rejecting this proposal'); return; }
+  if (!Store.patchPreview || Store.patchPreview.run_id !== Store.demoRunId) { toast('Load and review the patch diff before deciding'); return; }
+  if (!window.confirm('Reject this proposal? It will no longer be eligible for sandbox validation or draft PR publishing.')) return;
+  const runId = Store.demoRunId;
+  try {
+    Store.demoRun = await liveDemoRequest(`/runs/${encodeURIComponent(runId)}/reject-proposal`, {
+      method: 'POST', body: JSON.stringify({ reason })
+    });
+    Store.demoError = null;
+    Store.patchPreview = null;
+    rememberDemoRun(Store.demoRun);
   } catch (error) {
     Store.demoError = error.message;
     Store.demoRun = await liveDemoRequest(`/runs/${encodeURIComponent(runId)}`).catch(() => Store.demoRun);
@@ -222,6 +386,10 @@ function renderSidebar() {
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
         Overview
       </button>
+      <button class="nav-item ${Store.route==='projects'?'nav-item--active':''}" onclick="openProjects()">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 5h6M5 8h6M5 11h3"/></svg>
+        Projects
+      </button>
       <button class="nav-item ${Store.route==='live-demo'?'nav-item--active':''}" onclick="Store.route='live-demo'; render();">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M3.5 8h9M8 2c2 2 2 10 0 12M8 2c-2 2-2 10 0 12"/></svg>
         Live ShopLite Demo
@@ -230,7 +398,7 @@ function renderSidebar() {
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 13h12M4 10l3-3 2 2 3-5"/></svg>
         History
       </button>
-      <button class="nav-item ${Store.route==='models'?'nav-item--active':''}" onclick="Store.route='models'; render();">
+      <button class="nav-item ${Store.route==='models'?'nav-item--active':''}" onclick="openSettings()">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M3 13l1.4-1.4M11.6 4.4 13 3"/></svg>
         Settings
       </button>
@@ -301,10 +469,52 @@ function renderHistory() {
   </div>`;
 }
 
+function renderProjects() {
+  const project = Store.projects.find(item => item.id === Store.selectedProjectId) || null;
+  return `<div class="models-view projects-view">
+    <section class="panel">
+      <div class="panel__head"><div class="panel__title">Projects</div><span class="panel__sub">${Store.projects.length} saved ${Store.projects.length === 1 ? 'project' : 'projects'}</span></div>
+      <div class="panel__body">
+        ${Store.projectsError ? `<p class="error-note" role="alert">${esc(Store.projectsError)}</p>` : ''}
+        ${Store.projectsLoading ? '<p class="panel__sub" role="status">Loading projects from PostgreSQL…</p>' : ''}
+        ${Store.projects.length ? Store.projects.map(item => `<button class="project-list-row ${item.id === Store.selectedProjectId ? 'project-list-row--active' : ''}" onclick="openProjects('${esc(item.id)}')"><span><strong>${esc(item.name)}</strong><small>${esc(item.targets?.[0]?.base_url || 'No target configured')}</small></span><span class="badge badge--${item.targets?.[0]?.authorization_status === 'approved' ? 'success' : 'info'}">${esc(item.targets?.[0]?.authorization_status || 'target missing')}</span></button>`).join('') : !Store.projectsLoading && !Store.projectsError ? '<div class="empty">No projects yet. Add a project and its intended test URL to begin setup.</div>' : ''}
+      </div>
+    </section>
+    ${project ? `<section class="panel project-detail"><div class="panel__head"><div class="panel__title">${esc(project.name)}</div><span class="badge badge--info">${esc(project.status)}</span></div><div class="panel__body"><p class="panel__sub">Project ID <code>${esc(project.id)}</code> · slug <code>${esc(project.slug)}</code></p><h3>Test targets</h3>${project.targets?.length ? project.targets.map(target => `<article class="project-target"><div><strong>${esc(target.name)}</strong><div><code>${esc(target.base_url)}</code></div><span class="panel__sub">${esc(target.environment_kind)} environment · target version ${esc(target.version)}</span></div><span class="badge badge--info">Authorization ${esc(target.authorization_status)}</span></article>`).join('') : '<div class="empty">No target has been added.</div>'}<p class="panel__sub">This URL is saved for setup only. It has not been checked or authorized, so OmniSight will not run a browser against it. The fixed ShopLite demo remains the runnable workflow while target verification is built.</p><h3>Source repository</h3><p class="panel__sub">Not connected · patch generation and pull requests are unavailable for this project.</p></div></section>` : ''}
+    <section class="panel project-create"><div class="panel__head"><div class="panel__title">Add a project</div><span class="panel__sub">Saved locally under the current owner</span></div><form class="panel__body" onsubmit="createProject(event)"><div class="field"><label for="project-name">Project name</label><input id="project-name" name="name" maxlength="120" required placeholder="My web application" ${Store.projectSaving ? 'disabled' : ''}></div><div class="field"><label for="project-target-url">Intended test URL</label><input id="project-target-url" name="target_url" type="url" maxlength="2048" required placeholder="https://staging.example.com" ${Store.projectSaving ? 'disabled' : ''}></div><div class="field"><label for="project-environment-kind">Environment</label><select id="project-environment-kind" name="environment_kind" ${Store.projectSaving ? 'disabled' : ''}><option value="staging">Staging</option><option value="development">Development</option><option value="other">Other</option></select></div><button class="btn btn--primary" type="submit" ${Store.projectSaving ? 'disabled' : ''}>${Store.projectSaving ? 'Saving…' : 'Save project and target'}</button></form></section>
+  </div>`;
+}
+
 function renderModels() {
   const result = Store.demoRun?.result || {};
+  const workspace = Store.workspace;
+  const flow = workspace?.test_flow;
+  const definition = flow?.definition;
   return `
   <div class="models-view">
+    <div class="panel">
+      <div class="panel__head"><div class="panel__title">Project and test flow</div><span class="panel__sub">${workspace ? 'Persisted backend workspace · read-only' : 'Fixed ShopLite demo'}</span></div>
+      <div class="panel__body">
+        ${Store.workspaceError ? `<p class="error-note" role="alert">${esc(Store.workspaceError)}</p>` : ''}
+        ${Store.workspaceLoading ? '<p class="panel__sub" role="status">Loading the saved ShopLite workspace…</p>' : ''}
+        ${workspace ? `<div class="live-metrics"><div><span>Project</span><strong>${esc(workspace.project.name)}</strong></div><div><span>Target</span><strong>${esc(workspace.target.name)} · ${esc(workspace.target.environment_kind)}</strong></div><div><span>Test flow</span><strong>${esc(flow.name)} · v${esc(flow.version)}</strong></div></div>
+        <p class="panel__sub">Target URL: <code>${esc(workspace.target.base_url)}</code> · authorization ${esc(workspace.target.authorization_status)} · flow ${esc(flow.status)} / ${esc(flow.version_status)}</p>
+        <p>${esc(flow.description || '')}</p>
+        <div class="live-metrics">${(definition?.viewports || []).map((viewport, index) => `<div><span>${index === 0 ? 'Mobile viewport' : 'Desktop viewport'}</span><strong>${esc(viewport.width)} × ${esc(viewport.height)}</strong></div>`).join('')}</div>
+        <p class="panel__sub">Checks: ${(definition?.assertions || []).map(assertion => `<code>${esc(assertion)}</code>`).join(' · ')}</p>
+        <p class="panel__sub">Definition SHA-256: <code>${esc(flow.definition_hash)}</code></p>` : !Store.workspaceLoading && !Store.workspaceError ? '<p class="panel__sub">Open this dashboard at <code>http://127.0.0.1:8000/</code> to load the local workspace.</p>' : ''}
+        ${workspace ? `<div class="field-grid">
+          <div class="field"><label for="flow-mobile-width">Mobile width</label><input id="flow-mobile-width" type="number" min="320" max="600" value="${esc(definition?.viewports?.[0]?.width ?? 390)}" ${Store.workspaceSaving ? 'disabled' : ''}></div>
+          <div class="field"><label for="flow-mobile-height">Mobile height</label><input id="flow-mobile-height" type="number" min="480" max="2160" value="${esc(definition?.viewports?.[0]?.height ?? 844)}" ${Store.workspaceSaving ? 'disabled' : ''}></div>
+          <div class="field"><label for="flow-desktop-width">Desktop width</label><input id="flow-desktop-width" type="number" min="800" max="1920" value="${esc(definition?.viewports?.[1]?.width ?? 1440)}" ${Store.workspaceSaving ? 'disabled' : ''}></div>
+          <div class="field"><label for="flow-desktop-height">Desktop height</label><input id="flow-desktop-height" type="number" min="480" max="2160" value="${esc(definition?.viewports?.[1]?.height ?? 900)}" ${Store.workspaceSaving ? 'disabled' : ''}></div>
+        </div>
+        <p class="panel__sub">Saving publishes a new immutable flow version. New runs use its saved viewport sizes; previous runs keep their original version.</p>
+        ${Store.workspaceSaved ? '<p class="success-note" role="status">New test-flow version published.</p>' : ''}
+        <button class="btn btn--primary" onclick="publishShopLiteFlowVersion()" ${Store.workspaceSaving ? 'disabled' : ''}>${Store.workspaceSaving ? 'Publishing…' : 'Publish test-flow version'}</button>` : ''}
+        <button class="btn" onclick="loadShopLiteWorkspace()">Refresh workspace</button>
+      </div>
+    </div>
     <div class="panel">
       <div class="panel__head"><div class="panel__title">Backend workflow configuration</div><span class="panel__sub">Credentials stay server-side</span></div>
       <div class="panel__body">
@@ -331,6 +541,7 @@ function renderLocalGithubPanel() {
         <button class="btn" onclick="verifyLocalGithub()">Verify configured repository</button>
         <button class="btn" ${!proposalId || !Store.githubConnection ? 'disabled' : ''} onclick="validateLocalProposal()">Validate proposal at current base</button>
       </div>
+      <button class="btn btn--ghost github-restore" onclick="loadLocalGithubState()">Load saved GitHub publishing state</button>
       ${Store.githubError ? `<p class="error-note" role="alert">${esc(Store.githubError)}</p>` : ''}
       ${Store.githubConnection ? `<p class="success-note" role="status">Verified <b>${esc(Store.githubConnection.repository)}</b> · ${esc(Store.githubConnection.base_branch)} · base <code>${esc(Store.githubConnection.base_sha)}</code>.</p>` : ''}
       ${report ? `<section class="panel" style="margin-top:18px" aria-labelledby="validation-summary-heading">
@@ -341,9 +552,10 @@ function renderLocalGithubPanel() {
           <p><b>Report:</b> <code>${esc(report.report_id)}</code></p>
           <p><b>Sandbox checks:</b> ${esc(JSON.stringify(report.checks))}</p>
           ${report.status === 'verified' ? `<div class="field"><label for="gh-confirmation">Type <code>create-draft-pr</code> to confirm opening this draft PR</label><input id="gh-confirmation" autocomplete="off" placeholder="create-draft-pr" /></div>
-            <button class="btn btn--primary" ${operation?.status === 'running' ? 'disabled' : ''} onclick="createLocalDraftPR()">${operation?.status === 'remote_outcome_unknown' ? 'Retry or reconcile draft PR' : 'Create draft pull request'}</button>` : '<p class="error-note">This report did not pass. Run validation again after correcting the proposal.</p>'}
+            <button class="btn btn--primary" ${['running','succeeded','failed','canceled'].includes(operation?.status) ? 'disabled' : ''} onclick="createLocalDraftPR()">${operation?.status === 'succeeded' ? 'Draft PR already created' : operation?.status === 'remote_outcome_unknown' ? 'Retry or reconcile draft PR' : operation?.status === 'running' ? 'Draft PR request running' : 'Create draft pull request'}</button>` : '<p class="error-note">This report did not pass. Run validation again after correcting the proposal.</p>'}
         </div>
       </section>` : ''}
+      ${Store.githubOperations.length ? `<section class="github-operation-history"><div class="panel__title">Saved draft PR operations</div>${Store.githubOperations.slice(0, 5).map(item => `<div class="github-operation-row"><span class="badge badge--${item.status === 'succeeded' ? 'success' : ['failed','canceled'].includes(item.status) ? 'error' : 'info'}">${esc(item.status)}</span><span class="mono">${esc(item.proposal_id)}</span>${item.pull_request_url ? `<a href="${esc(item.pull_request_url)}" target="_blank" rel="noopener noreferrer">PR #${esc(item.pull_request_number)} ↗</a>` : `<span class="panel__sub">${esc(item.safe_error_code || item.operation_id)}</span>`}</div>`).join('')}</section>` : ''}
       ${operation ? `<div class="panel" role="status" aria-live="polite"><div class="panel__head"><div class="panel__title">Draft PR operation: ${esc(operation.status)}</div></div><div class="panel__body">${operation.pull_request_url ? `<p>Draft PR #${esc(operation.pull_request_number)} created successfully.</p><a href="${esc(operation.pull_request_url)}" target="_blank" rel="noopener noreferrer">Open draft pull request ↗</a>` : `<p>${esc(operation.safe_error_code || 'The operation is still being reconciled.')}</p>`}<p><code>${esc(operation.operation_id)}</code></p></div></div>` : ''}
       <p class="panel__sub">Publishing is opt-in. The backend requires the local auth token, a verified GitHub App installation, PostgreSQL, and sandbox settings. It creates a draft PR and does not merge or deploy.</p>
     </div>
@@ -376,6 +588,21 @@ async function verifyLocalGithub() {
   render();
 }
 
+async function loadLocalGithubState() {
+  Store.githubError = null;
+  try {
+    const state = await localGithubRequest('/api/v1/local/github/state');
+    Store.githubConnection = state.connection || null;
+    Store.githubOperations = state.operations || [];
+    Store.githubOperation = Store.githubOperations[0] || null;
+    Store.githubValidation = Store.githubOperation
+      ? state.validations.find(item => item.report_id === Store.githubOperation.validation_report_id) || null
+      : state.validations[0] || null;
+    Store.githubIdempotencyKey = Store.githubOperation?.idempotency_key || null;
+  } catch (error) { Store.githubError = error.message; }
+  render();
+}
+
 async function validateLocalProposal() {
   const proposalId = Store.demoRun?.result?.proposal?.proposal_id || Store.githubValidation?.proposal_id;
   if (!proposalId) { Store.githubError = 'Run and verify the ShopLite demo first.'; render(); return; }
@@ -400,13 +627,15 @@ async function createLocalDraftPR() {
       method: 'POST', headers: { 'Idempotency-Key': Store.githubIdempotencyKey },
       body: JSON.stringify({ validation_report_id: Store.githubValidation.report_id, confirmation })
     });
+    Store.githubIdempotencyKey = Store.githubOperation.idempotency_key;
+    Store.githubOperations = [Store.githubOperation, ...Store.githubOperations.filter(item => item.operation_id !== Store.githubOperation.operation_id)];
   } catch (error) { Store.githubError = error.message; }
   render();
 }
 
 function render() {
   const root = document.getElementById('app');
-  const crumb = Store.route === 'models' ? 'Settings' : Store.route === 'history' ? 'History' : Store.route === 'live-demo' ? 'Live ShopLite Demo' : 'Overview';
+  const crumb = Store.route === 'models' ? 'Settings' : Store.route === 'projects' ? 'Projects' : Store.route === 'history' ? 'History' : Store.route === 'live-demo' ? 'Live ShopLite Demo' : 'Overview';
   const canExport = Store.route === 'live-demo' && Store.demoRun?.status === 'verified';
   const canPublish = Store.route === 'live-demo' && Store.demoRun?.status === 'verified';
   root.innerHTML = `
@@ -421,11 +650,11 @@ function render() {
           <div class="topbar__actions">
             <button class="btn" onclick="toggleTheme()" aria-label="Toggle dark mode">${document.documentElement.dataset.theme === 'dark' ? '☀ Light' : '☾ Dark'}</button>
             ${canExport ? `<button class="btn" onclick="downloadLiveReport()">Export report</button>` : ''}
-            ${canPublish ? `<button class="btn btn--primary" onclick="Store.route='models';render();document.querySelector('.panel__title')?.scrollIntoView({behavior:'smooth'})">Open GitHub publishing</button>` : ''}
+            ${canPublish ? `<button class="btn btn--primary" onclick="openSettings();document.querySelector('.panel__title')?.scrollIntoView({behavior:'smooth'})">Open GitHub publishing</button>` : ''}
           </div>
         </header>
         <div class="main-content">
-          ${Store.route === 'models' ? renderModels() : Store.route === 'history' ? renderHistory() : Store.route === 'live-demo' ? renderLiveDemo() : renderLanding()}
+          ${Store.route === 'projects' ? renderProjects() : Store.route === 'models' ? renderModels() : Store.route === 'history' ? renderHistory() : Store.route === 'live-demo' ? renderLiveDemo() : renderLanding()}
         </div>
       </div>
     </div>`;

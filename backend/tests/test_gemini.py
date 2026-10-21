@@ -165,3 +165,22 @@ def test_gemini_stops_after_bounded_transient_retries(monkeypatch):
     assert error.value.kind == "unavailable"
     assert len(calls) == 3
     assert delays == [1.0, 2.0]
+
+
+def test_plain_text_generation_honors_output_token_limit(monkeypatch):
+    adapter = GeminiTextAdapter(Settings(gemini_api_key=SecretStr("test-secret")))
+    observed = {}
+
+    def fake_post(url, *, headers, json, timeout):
+        observed.update(url=url, headers=headers, payload=json, timeout=timeout)
+        return httpx.Response(200, json=_provider_response())
+
+    monkeypatch.setattr("app.ai.adapters.gemini.httpx.post", fake_post)
+
+    adapter.generate_json(
+        system_instruction="Return JSON.",
+        user_content="Check connectivity.",
+        max_output_tokens=32,
+    )
+
+    assert observed["payload"]["generationConfig"]["maxOutputTokens"] == 32

@@ -37,7 +37,7 @@ from app.config import Settings, get_settings
 from app.errors import register_exception_handlers
 from app.evidence_storage import get_evidence_store
 from app.gemini import router as ai_router
-from app.routers import ci_webhooks, demo_runs, detection, evidence, github_publish, patches, scans
+from app.routers import ci_webhooks, demo_runs, detection, evidence, github_publish, patches, projects, scans
 
 logger = logging.getLogger("omnisight")
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -83,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(demo_runs.router)
     app.include_router(patches.router)
     app.include_router(github_publish.router)
+    app.include_router(projects.router)
     app.include_router(ai_router)
 
     if settings.ci_webhook_secret:

@@ -3,6 +3,8 @@ name: ShopLite sandbox verification
 on:
   push:
     branches: [vivek]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -13,9 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  shoplite-sandbox:
+  backend-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       PYTHONPATH: backend
     steps:
@@ -35,16 +37,56 @@ jobs:
       - name: Run backend tests
         run: python -m pytest backend/tests -q
 
+  shoplite-sandbox:
+    needs: backend-tests
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: backend
+      OMNISIGHT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omnisight
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: omnisight
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d omnisight"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.txt
+
       - name: Build pinned sandbox image
         run: docker build --tag omnisight-shoplite-sandbox:1 --file demo-app/sandbox/Dockerfile demo-app/sandbox
 
       - name: Install browser for the local demo capture
         run: python -m playwright install --with-deps chromium
 
+      - name: Apply database migrations
+        run: python -m alembic upgrade head
+        working-directory: backend
+
       - name: Verify ShopLite patch inside restricted container
         run: python backend/scripts/verify_shoplite_sandbox.py
 
-      - name: Run the full capture-to-sandbox pipeline
+      - name: Run the dashboard capture-to-sandbox workflow
         env:
           OMNISIGHT_VLM_ADAPTER: mock
           OMNISIGHT_PATCH_GENERATOR: mock
@@ -54,23 +96,19 @@ jobs:
           OMNISIGHT_ENABLE_SHOPLITE_SANDBOX: "true"
           OMNISIGHT_SHOPLITE_SANDBOX_TOKEN: ci-local-sandbox-token
         run: |
-          python -m http.server 4173 --bind 127.0.0.1 --directory demo-app > /tmp/shoplite-demo.log 2>&1 &
-          demo_pid=$!
           (cd backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000) > /tmp/omnisight-api.log 2>&1 &
           api_pid=$!
           cleanup() {
-            kill "$api_pid" "$demo_pid" 2>/dev/null || true
+            kill "$api_pid" 2>/dev/null || true
           }
           trap cleanup EXIT
 
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:8000/health > /dev/null \
-              && curl --fail --silent http://127.0.0.1:4173/checkout/ > /dev/null; then
+            if curl --fail --silent http://127.0.0.1:8000/health > /dev/null; then
               break
             fi
             sleep 1
           done
           curl --fail --silent http://127.0.0.1:8000/health > /dev/null
-          curl --fail --silent http://127.0.0.1:4173/checkout/ > /dev/null
           cd backend
-          python scripts/run_demo_pipeline.py --approve-sandbox
+          python scripts/verify_dashboard_workflow.py --base-url http://127.0.0.1:8000

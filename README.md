@@ -9,9 +9,10 @@ OmniSight is an **AI-powered autonomous QA workflow** designed to detect visual 
 ### Client demo
 
 Open the [OmniSight client demo](client-demo/index.html) for a concise
-walkthrough of the live Gemini + ShopLite sandbox result. To rerun that flow
-locally, use the [client demo instructions](client-demo/README.md); Docker
-Desktop and local Gemini / sandbox settings are required.
+walkthrough of the mock-provider ShopLite workflow and verified sandbox run.
+The interactive dashboard can be run with the
+[client demo instructions](client-demo/README.md); Docker Desktop, a rotated
+Gemini key, and local sandbox settings are required for a live-provider run.
 
 Traditional UI tests mainly inspect the DOM and depend on hardcoded selectors. However, users experience an application visually through pixels. A test may therefore pass functionally while problems such as clipping, overlap, poor contrast, and broken responsive layouts remain visible.
 
@@ -123,13 +124,17 @@ The Week 1 and Week 2 backend (FastAPI) is implemented and tested (`backend/`):
 | ShopLite-only Docker patch verification | Implemented behind explicit local approval; live sandbox smoke is configured in GitHub Actions |
 | GitHub App authentication and ShopLite draft PR publisher | Local loopback-only owner flow with PostgreSQL-backed project, validation, idempotent operation, event, and draft PR records. Requires explicit confirmation and remains disabled by default ([setup and workflow](docs/week4_github_app_connection.md)) |
 | Local interactive dashboard | Main scan, persisted before/after screenshots, run history, findings, patch review, sandbox approval, and optional GitHub publishing use the fixed ShopLite backend workflow |
+| Local Projects setup | Projects and intended target URLs persist through the API and dashboard; newly saved targets stay pending authorization and cannot be scanned yet |
 | General repository patching, PR merge/deploy, production dashboard | Not implemented; publishing is limited to the fixed ShopLite CSS demo and draft PRs |
 
 VLM detection and patch generation default to deterministic offline **MOCK**
 adapters. The dashboard exposes the fixed ShopLite workflow and uses its
 server-configured providers for browser capture → finding → safe proposal.
 Raw model output is validated and never executed or applied automatically.
-Arbitrary URL scanning is not exposed as a working dashboard feature yet.
+The Projects page can save a local project and its intended target URL. Target
+authorization and scanning are separate steps and are not available for those
+new targets yet; the fixed ShopLite workflow remains the only runnable browser
+scan.
 
 Endpoints currently served:
 
@@ -145,17 +150,23 @@ GET      /api/v1/webhooks/events/{event_id}
 POST     /api/v1/scans/{scan_id}/evidence
 GET      /api/v1/scans/{scan_id}/evidence
 GET      /api/v1/artifacts/{artifact_id}
+GET      /api/v1/projects                            # local-owner projects + saved targets
+POST     /api/v1/projects                            # create project + pending target
+GET      /api/v1/projects/{project_id}
 POST     /api/v1/scans/{scan_id}/detect           # VLM detection (MOCK or Gemini)
 GET      /api/v1/scans/{scan_id}/findings         # validated findings + run
 POST     /api/v1/demo/shoplite/runs               # local fixed-target real scan
 GET      /api/v1/demo/shoplite/runs               # list current local demo runs
 GET      /api/v1/demo/shoplite/runs/{run_id}      # poll run and proposal status
+GET      /api/v1/demo/shoplite/runs/{run_id}/patch-preview # exact source diff + base hash
 POST     /api/v1/demo/shoplite/runs/{run_id}/validate # explicit confirmation + Docker sandbox
+POST     /api/v1/demo/shoplite/runs/{run_id}/reject-proposal # record human rejection + reason
 GET      /api/v1/findings/{finding_id}
 POST     /api/v1/findings/{finding_id}/patch-proposals   # propose only, no writes
 GET      /api/v1/findings/{finding_id}/patch-proposals
 POST     /api/v1/demo/shoplite/patch-proposals/{proposal_id}/validate  # approved, fixed-target Docker check
 POST     /api/v1/local/github/connection/verify                        # local owner; server-configured repo only
+GET      /api/v1/local/github/state                                    # restore connection, validation, and PR operations
 POST     /api/v1/local/shoplite/proposals/{proposal_id}/validate        # remote base SHA + Docker report
 POST     /api/v1/local/github/draft-prs                                 # explicit confirmation + idempotency key
 GET      /api/v1/local/github/operations/{operation_id}
@@ -173,12 +184,20 @@ $env:OMNISIGHT_DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432
 
 Use **Live ShopLite Demo** from the dashboard for the backend workflow. It uses
 the configured provider (MOCK by default; Gemini when explicitly configured).
-Review the proposal, type `approve-demo-only`, and confirm before the API starts
-the restricted Docker sandbox. This UI and its API only accept the fixed local
+Review the exact source diff, then either reject the proposal with a recorded
+reason or type `approve-demo-only` and confirm before the API starts the
+restricted Docker sandbox. A rejected proposal cannot be sandbox-validated or
+published. This UI and its API only accept the fixed local
 ShopLite target; arbitrary URL scans are not exposed as supported UI actions.
 History and Recent Scans show real backend ShopLite runs. Run records, step
 summaries, and validated patch proposals are stored in PostgreSQL and survive
 backend restarts. Apply the Alembic migrations before starting the workflow.
+
+In **Settings → Project and test flow**, you can adjust the fixed demo's mobile
+and desktop viewport sizes and publish a new immutable flow version. New runs
+pin that version and use its saved sizes during browser capture; earlier runs
+retain their original version. The checkout route and supported assertions
+remain fixed to the controlled ShopLite demo.
 
 After a successful sandbox run, the same page can verify the server-configured
 GitHub App repository, validate the proposal again against the current remote
@@ -186,8 +205,17 @@ base in Docker, and create a draft pull request after you type
 `create-draft-pr`. This publishing path is disabled by default and requires
 PostgreSQL plus the local owner and GitHub App configuration in
 [`docs/week4_github_app_connection.md`](docs/week4_github_app_connection.md).
+After a browser refresh, enter the local owner token and select **Load saved
+GitHub publishing state** to recover the verified connection, recent validation
+report, draft PR outcome, and idempotency key for safe retry/reconciliation.
 
-Test suite: **334 passed, 1 skipped** (offline; the skip is a Windows
+The **Projects** page creates and lists PostgreSQL-backed local-owner projects.
+Saving an intended test URL does not contact it or authorize it: the target is
+stored as `pending`, and only the fixed ShopLite demo can currently be scanned.
+The page also says when a source repository is not connected, so a project
+without GitHub setup is not shown as ready for patch or PR work.
+
+Test suite: **356 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
@@ -200,10 +228,14 @@ Design docs live under `docs/`:
 - `docs/week2_testing_note.md`
 - `docs/week3_shoplite_sandbox.md`
 
-The CI webhook is a **simulation** — there is no real GitHub Actions/Jenkins
-integration. Patch proposals are never applied to the source repository. The
-opt-in ShopLite endpoint copies one reviewed CSS proposal into a temporary
-staging tree and verifies it in a restricted Docker container; see
+The generic CI webhook endpoint accepts synthetic events. Separately, the
+GitHub Actions workflow runs backend tests, the dashboard-driven capture-to-
+sandbox workflow, and the real restricted Docker smoke on pushes to `vivek`;
+pull requests targeting `main` run the backend test job. The workflow does not
+send events to a running OmniSight server. Patch proposals are never
+applied to the source repository. The opt-in ShopLite endpoint copies one
+reviewed CSS proposal into a temporary staging tree and verifies it in a
+restricted Docker container; see
 [`docs/week3_shoplite_sandbox.md`](docs/week3_shoplite_sandbox.md). It is a
 local demo milestone, not a general repository sandbox or production security
 boundary.
@@ -1258,6 +1290,18 @@ candidate passes the mobile/desktop Playwright checks.
 The backend exposes `POST /api/ai/patch-suggestions` for a direct, review-only Gemini proposal. It also supports Gemini through the standard finding workflow: set `OMNISIGHT_PATCH_GENERATOR=gemini`, then call `POST /api/v1/findings/{finding_id}/patch-proposals`. That workflow loads only backend-approved source files and runs the existing extractor, path allowlist, edit applicability, and code checks before recording a proposal. Neither endpoint writes or executes code.
 
 Copy `backend/.env.example` to `backend/.env`, set `OMNISIGHT_GEMINI_API_KEY`, and configure `OMNISIGHT_PATCH_SOURCE_ROOT` plus `OMNISIGHT_APPROVED_PATCH_PATHS` for the source checkout being tested. The key remains on the backend and is sent to Google in the `x-goog-api-key` header. Keep it out of frontend code and source control. Set `OMNISIGHT_GEMINI_MODEL` if a different model is enabled for your key. The default generator remains `mock` until you explicitly switch it to `gemini`.
+
+To verify the configured key and model with one small, bounded request, run
+from `backend/` after rotating any key that was shared outside the local
+`.env`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_gemini.py
+```
+
+The command prints only the provider, model, and connection result. It never
+prints the key or the provider response body; Gemini quota and authentication
+errors are reported with sanitized messages.
 
 ### Gemini visual detection
 

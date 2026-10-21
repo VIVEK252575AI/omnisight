@@ -31,8 +31,19 @@ DEMO_FLOW_DEFINITION = {
     "viewports": [{"width": 390, "height": 844}, {"width": 1440, "height": 900}],
     "assertions": ["checkout_button_visible", "mobile_overflow_measured", "order_confirmation"],
 }
-DEMO_FLOW_HASH = sha256(json.dumps(DEMO_FLOW_DEFINITION, sort_keys=True).encode()).hexdigest()
+
+
+def _flow_definition_hash(definition: dict[str, Any]) -> str:
+    canonical = json.dumps(definition, sort_keys=True)
+    return sha256(canonical.encode()).hexdigest()
+
+
+DEMO_FLOW_HASH = _flow_definition_hash(DEMO_FLOW_DEFINITION)
 DEMO_FLOW_NAME = "ShopLite checkout visual QA"
+
+
+class FlowVersionConflict(Exception):
+    """The published flow changed since the caller loaded its version."""
 
 
 @dataclass
@@ -68,6 +79,93 @@ class DemoRunStore:
         self._settings = settings or get_settings()
         self._runs: dict[str, DemoRun] = {}
         self._lock = threading.Lock()
+
+    def workspace(self) -> dict[str, Any]:
+        """Return the persisted, fixed ShopLite project and published flow."""
+        if self._database is None:
+            raise RuntimeError("The ShopLite workspace requires the configured database")
+        with self._database() as session:
+            project, target, flow, flow_version = self._ensure_demo_records(session)
+            session.commit()
+            return {
+                "project": {"id": project.id, "name": project.name, "status": project.status},
+                "target": {
+                    "name": target.name,
+                    "base_url": target.base_url,
+                    "environment_kind": target.environment_kind,
+                    "authorization_status": target.authorization_status,
+                },
+                "test_flow": {
+                    "name": flow.name,
+                    "description": flow.description,
+                    "status": flow.status,
+                    "version": flow_version.version_number,
+                    "version_status": flow_version.status,
+                    "definition": flow_version.definition_json,
+                    "definition_hash": flow_version.definition_hash,
+                },
+            }
+
+    def publish_flow_viewports(
+        self, *, expected_version: int, viewports: list[dict[str, int]]
+    ) -> dict[str, Any]:
+        """Publish viewport changes as a new immutable ShopLite flow version."""
+        if self._database is None:
+            raise RuntimeError("The ShopLite workspace requires the configured database")
+        with self._database() as session:
+            project, _target, flow, _current = self._ensure_demo_records(session)
+            session.scalar(select(Project).where(Project.id == project.id).with_for_update())
+            session.refresh(flow)
+            if flow.version != expected_version:
+                raise FlowVersionConflict
+            current = session.scalar(select(TestFlowVersion).where(
+                TestFlowVersion.test_flow_id == flow.id,
+                TestFlowVersion.version_number == flow.version,
+            ))
+            if current is None or current.status != "published":
+                raise RuntimeError("The current ShopLite flow version is unavailable")
+            definition = dict(current.definition_json)
+            definition["viewports"] = viewports
+            next_version = flow.version + 1
+            current.status = "retired"
+            flow.version = next_version
+            flow.updated_at = utcnow()
+            next_flow_version = TestFlowVersion(
+                id=str(uuid4()), test_flow_id=flow.id, version_number=next_version,
+                schema_version=current.schema_version, definition_json=definition,
+                definition_hash=_flow_definition_hash(definition),
+                status="published", created_by="local-owner",
+            )
+            session.add(next_flow_version)
+            session.commit()
+            return {
+                "project": {"id": project.id, "name": project.name, "status": project.status},
+                "target": {
+                    "name": _target.name, "base_url": _target.base_url,
+                    "environment_kind": _target.environment_kind,
+                    "authorization_status": _target.authorization_status,
+                },
+                "test_flow": {
+                    "name": flow.name, "description": flow.description,
+                    "status": flow.status, "version": next_version,
+                    "version_status": next_flow_version.status,
+                    "definition": definition,
+                    "definition_hash": next_flow_version.definition_hash,
+                },
+            }
+
+    def flow_definition_for_run(self, run_id: str) -> dict[str, Any]:
+        """Load the immutable definition already pinned to a durable run."""
+        if self._database is None:
+            return DEMO_FLOW_DEFINITION
+        with self._database() as session:
+            run = session.get(QARun, run_id)
+            if run is None:
+                raise ValueError("ShopLite run not found")
+            version = session.get(TestFlowVersion, run.test_flow_version_id)
+            if version is None or version.status not in {"published", "retired"}:
+                raise ValueError("ShopLite run flow version is unavailable")
+            return version.definition_json
 
     def _ensure_demo_records(self, session) -> tuple[Project, TargetEnvironment, TestFlow, TestFlowVersion]:
         settings = self._settings
@@ -110,7 +208,7 @@ class DemoRunStore:
 
         flow_version = session.scalar(select(TestFlowVersion).where(
             TestFlowVersion.test_flow_id == flow.id,
-            TestFlowVersion.version_number == 1,
+            TestFlowVersion.version_number == flow.version,
         ))
         if flow_version is None:
             flow_version = TestFlowVersion(
@@ -187,7 +285,7 @@ class DemoRunStore:
                     test_flow_version_id=flow_version.id, status="queued",
                     outcome="not_applicable", current_stage="preflight",
                     trigger_source="manual", requested_by="local-owner",
-                    viewport_matrix_json=DEMO_FLOW_DEFINITION["viewports"],
+                    viewport_matrix_json=flow_version.definition_json["viewports"],
                     correlation_id=str(uuid4()), created_at=now, updated_at=now,
                 )
                 session.add(run)
@@ -211,6 +309,8 @@ class DemoRunStore:
         if run.outcome == "analysis_inconclusive":
             return "needs_inspection"
         if patch:
+            if patch.status == "canceled" and "human_rejected" in patch.policy_check_result.get("rejection_reasons", []):
+                return "proposal_rejected"
             return {
                 "proposed": "awaiting_sandbox_approval",
                 "validating": "validating",
@@ -229,7 +329,17 @@ class DemoRunStore:
             result.update(step.result_summary_json or {})
         patch = session.scalar(select(PatchAttempt).where(PatchAttempt.run_id == run.id).order_by(PatchAttempt.created_at.desc()).limit(1))
         if patch is not None:
-            result.update({"proposal": patch.proposal_record_json})
+            proposal_summary = dict(patch.proposal_record_json)
+            proposal_summary["status"] = patch.policy_check_result.get("status", proposal_summary.get("status", "proposed"))
+            proposal_summary["rejection_reasons"] = patch.policy_check_result.get("rejection_reasons", [])
+            proposal_summary["human_review_reason"] = patch.policy_check_result.get("human_review_reason")
+            result.update({"proposal": proposal_summary})
+            if "human_rejected" in proposal_summary["rejection_reasons"]:
+                result["proposal_review"] = {
+                    "decision": "rejected",
+                    "reason": proposal_summary["human_review_reason"],
+                    "reviewed_at": patch.finished_at.isoformat() if patch.finished_at else None,
+                }
         if run.failure_code:
             result["failure_code"] = run.failure_code
         return DemoRun(
@@ -330,6 +440,7 @@ class DemoRunStore:
                 patch_status = {
                     "awaiting_sandbox_approval": "proposed",
                     "patch_rejected": "rejected_by_policy",
+                    "proposal_rejected": "canceled",
                     "validating": "validating",
                     "verified": "validation_passed",
                     "validation_failed": "validation_failed",
@@ -362,7 +473,7 @@ class DemoRunStore:
                     for attempt in targets:
                         attempt.status = patch_status
                         attempt.updated_at = now
-                        attempt.finished_at = now if patch_status in {"rejected_by_policy", "validation_passed", "validation_failed"} else attempt.finished_at
+                        attempt.finished_at = now if patch_status in {"rejected_by_policy", "validation_passed", "validation_failed", "canceled"} else attempt.finished_at
                 if status == "needs_inspection":
                     run.outcome = "analysis_inconclusive"
                     run.status = "completed"
@@ -373,7 +484,7 @@ class DemoRunStore:
                 result_steps = [
                     (2, "browser_capture", "browser_execution", "Capture ShopLite browser evidence", {"capture": result.get("capture")}, "passed"),
                     (3, "visual_analysis", "visual_analysis", "Analyze checkout evidence", {key: result[key] for key in ("scan_id", "findings", "detection_adapter", "detection_is_mock", "detection_status", "detection_reason_code", "detection_reason_message") if key in result}, "passed" if result.get("findings") else "inconclusive"),
-                    (4, "patch_generation", "patch_generation", "Generate a safe patch proposal", {"proposal_attempts": result.get("proposal_attempts", [])}, "failed" if result.get("status") == "patch_rejected" else "passed"),
+                    (4, "patch_generation", "patch_generation", "Generate a safe patch proposal", {"proposal_attempts": result.get("proposal_attempts", []), "proposal_review": result.get("proposal_review")}, "failed" if result.get("status") == "patch_rejected" else "passed"),
                     (5, "patch_validation", "patch_validation", "Validate the candidate patch", {"sandbox": result.get("sandbox")} if result.get("sandbox") else {}, "passed" if result.get("status") == "verified" else "failed" if result.get("status") == "validation_failed" else "skipped"),
                 ]
                 for ordinal, key, step_type, label, summary, step_status in result_steps:

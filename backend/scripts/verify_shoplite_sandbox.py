@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sys
 from pathlib import Path
 
@@ -10,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import Settings
 from app.patch_schemas import PatchEdit, PatchFile, PatchProposal
-from app.shoplite_sandbox import SandboxFailure, run_shoplite_sandbox
+from app.shoplite_sandbox import DEMO_ROOT, SandboxFailure, run_shoplite_sandbox
 
 
 def main() -> int:
@@ -33,6 +34,9 @@ def main() -> int:
         approved_patch_paths=["styles/checkout.css"],
         patch_allowed_extensions=[".css"],
     )
+    expected_base_sha256 = hashlib.sha256(
+        (DEMO_ROOT / "styles" / "checkout.css").read_bytes()
+    ).hexdigest()
     screenshot_sizes: dict[str, int] = {}
 
     def record_screenshot(image_bytes: bytes, label: str) -> str:
@@ -45,6 +49,7 @@ def main() -> int:
             proposal_id="shoplite-sandbox-smoke",
             settings=settings,
             screenshot_store=record_screenshot,
+            expected_base_sha256=expected_base_sha256,
         )
     except SandboxFailure as exc:
         print(f"ShopLite sandbox smoke failed [{exc.code}]: {exc}", file=sys.stderr)

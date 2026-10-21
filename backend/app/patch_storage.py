@@ -102,8 +102,49 @@ class PatchStore:
         data["attempt"] = row.attempt_number
         data["created_at"] = row.created_at
         data["status"] = row.policy_check_result.get("status", "rejected")
+        data["rejection_reasons"] = row.policy_check_result.get("rejection_reasons", [])
+        data["human_review_reason"] = row.policy_check_result.get("human_review_reason")
         data["proposal"] = None
         return PatchProposalRecord.model_validate(data)
+
+    def reject_by_human(self, proposal_id: str, *, reason: str) -> PatchProposalRecord | None:
+        """Record the local owner's decision and make the proposal ineligible for execution."""
+        record = self.get(proposal_id)
+        if record is None or record.status != PatchProposalStatus.proposed:
+            return None
+        now = utcnow()
+        rejected = record.model_copy(update={
+            "status": PatchProposalStatus.rejected,
+            "rejection_reasons": ["human_rejected"],
+            "human_review_reason": reason,
+        })
+        if self._database is not None:
+            with self._database() as session:
+                row = session.get(PatchAttempt, proposal_id, with_for_update=True)
+                if row is None or row.project_id != self._settings.local_project_id:
+                    return None
+                if row.status != "proposed":
+                    return None
+                row.status = "canceled"
+                row.policy_check_result = {
+                    **(row.policy_check_result or {}),
+                    "status": "rejected",
+                    "rejection_reasons": ["human_rejected"],
+                    "human_review_reason": reason,
+                }
+                row.proposal_record_json = {
+                    **(row.proposal_record_json or {}),
+                    "human_review_reason": reason,
+                }
+                row.updated_at = now
+                row.finished_at = now
+                session.commit()
+        with self._lock:
+            current = self._records.get(proposal_id)
+            if current is not None and current.status != PatchProposalStatus.proposed:
+                return None
+            self._records[proposal_id] = rejected.model_copy(update={"proposal": None})
+        return rejected
 
     def list_for_finding(self, finding_id: str) -> list[PatchProposalRecord]:
         if self._database is not None:
