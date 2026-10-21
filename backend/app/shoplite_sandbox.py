@@ -10,6 +10,7 @@ to the staged files.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -153,9 +154,13 @@ def _container_start_failure(stderr: str) -> SandboxFailure:
         category = "missing container executable or path"
     else:
         category = "Docker runtime failure"
+    detail = next((line.strip() for line in (stderr or "").splitlines() if line.strip()), "")
+    detail = re.sub(r"/tmp/omnisight-shoplite-[^/\s]+", "<staged-demo>", detail)
+    detail = detail[:180]
+    suffix = f": {detail}" if detail else ""
     return SandboxFailure(
         "SANDBOX_CONTAINER_START_FAILED",
-        f"Docker could not start the ShopLite container ({category})",
+        f"Docker could not start the ShopLite container ({category}){suffix}",
     )
 
 
