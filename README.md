@@ -151,7 +151,7 @@ Run it (from `backend/`):
 .\.venv\Scripts\python.exe -m pytest tests\ -q        # test
 ```
 
-Test suite: **309 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **311 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:

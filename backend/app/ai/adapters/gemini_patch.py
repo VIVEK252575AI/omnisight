@@ -14,7 +14,9 @@ from app.ai.prompts import load_prompt
 from app.config import Settings
 from app.source_context import SourceContext
 
-MAX_PATCH_CONTEXT_BYTES = 16_384
+# Independent hard cap on the fully serialized finding + source context. It is
+# larger than the source-context budget because JSON adds metadata and escapes.
+MAX_PATCH_REQUEST_BYTES = 65_536
 
 
 class GeminiPatchGenerator:
@@ -42,7 +44,7 @@ class GeminiPatchGenerator:
             ],
         }
         user_content = json.dumps(context, ensure_ascii=False, separators=(",", ":"))
-        if len(user_content.encode("utf-8")) > MAX_PATCH_CONTEXT_BYTES:
+        if len(user_content.encode("utf-8")) > MAX_PATCH_REQUEST_BYTES:
             raise PatchGeneratorError(
                 "Gemini patch context exceeded the request size limit"
             )
@@ -57,6 +59,10 @@ class GeminiPatchGenerator:
                     "repo-relative file paths exactly."
                 ),
                 user_content=user_content,
+                timeout_seconds=min(
+                    self._settings.patch_timeout_seconds,
+                    self._settings.gemini_timeout_seconds,
+                ),
             )
         except GeminiProviderError as exc:
             if exc.kind == "timeout":

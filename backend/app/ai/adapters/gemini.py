@@ -32,10 +32,17 @@ class GeminiTextAdapter:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
 
-    def generate_json(self, *, system_instruction: str, user_content: str) -> str:
+    def generate_json(
+        self,
+        *,
+        system_instruction: str,
+        user_content: str,
+        timeout_seconds: float | None = None,
+    ) -> str:
         return self._generate_json(
             system_instruction=system_instruction,
             parts=[{"text": user_content}],
+            timeout_seconds=timeout_seconds,
         )
 
     def generate_json_with_images(

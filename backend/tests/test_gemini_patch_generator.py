@@ -6,11 +6,13 @@ import json as jsonlib
 from uuid import uuid4
 
 import httpx
+import pytest
 
 from app.ai.adapters.patch import create_patch_generator
 from app.ai.contracts import Finding, FindingCategory, FindingStatus, Severity
 from app.config import Settings
 from app.detection_schemas import FindingRecord
+from app.source_context import SourceContext, SourceFile
 
 
 def _make_finding(detection_store) -> str:
@@ -43,6 +45,8 @@ def test_gemini_runs_through_the_standard_approved_patch_pipeline(
         patch_generator="gemini",
         patch_source_root=str(tmp_path),
         approved_patch_paths=["styles/**"],
+        patch_timeout_seconds=7,
+        gemini_timeout_seconds=12,
         gemini_api_key="test-key",
     )
     generator = create_patch_generator(settings)
@@ -96,7 +100,52 @@ def test_gemini_runs_through_the_standard_approved_patch_pipeline(
     assert body["is_mock"] is False
     assert body["files"][0]["path"] == "styles/checkout.css"
     assert observed["headers"]["x-goog-api-key"] == "test-key"
+    assert observed["timeout"] == 7
     assert str(tmp_path) not in observed["payload"]["contents"][0]["parts"][0]["text"]
+
+
+@pytest.mark.parametrize(
+    ("patch_timeout", "gemini_timeout"),
+    [(5, 30), (30, 5)],
+)
+def test_gemini_serialized_context_allows_16k_and_uses_shorter_timeout(
+    monkeypatch, patch_timeout, gemini_timeout
+):
+    settings = Settings(
+        patch_generator="gemini",
+        patch_context_max_bytes=16_384,
+        patch_timeout_seconds=patch_timeout,
+        gemini_timeout_seconds=gemini_timeout,
+        gemini_api_key="test-key",
+    )
+    generator = create_patch_generator(settings)
+    finding = Finding(
+        category=FindingCategory.clipped_element,
+        target_candidate="#submit",
+        observation="The button clips on mobile.",
+        severity=Severity.high,
+        confidence=0.9,
+    )
+    context = SourceContext(
+        files=[
+            SourceFile(
+                path="styles/checkout.css",
+                text="a" * 16_384,
+                bytes=16_384,
+            )
+        ]
+    )
+    observed = {}
+
+    def fake_generate_json(**kwargs):
+        observed.update(kwargs)
+        return "{}"
+
+    monkeypatch.setattr(generator._adapter, "generate_json", fake_generate_json)
+
+    assert generator.propose(finding, context) == "{}"
+    assert len(observed["user_content"].encode("utf-8")) > 16_384
+    assert observed["timeout_seconds"] == min(patch_timeout, gemini_timeout)
 
 
 def test_gemini_patch_generator_without_key_is_recorded_as_rejected(
