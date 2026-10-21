@@ -18,6 +18,16 @@ Implemented in `backend/app/routers/detection.py`,
 Only `evidence_collection`, `detection_failed` and `needs_inspection` can
 start a run — the same set `LEGAL_TRANSITIONS` allows to reach `detecting`.
 
+## Evidence and artifact persistence
+
+Observation metadata is stored in PostgreSQL and remains available after an
+API restart. Screenshot bytes stay in the configured private `artifacts_dir`;
+PostgreSQL stores only an opaque artifact id, relative storage key, media type,
+byte size, and SHA-256 digest. The API resolves artifact ids beneath that root
+and returns no file if it is missing, has changed, or resolves outside the
+configured directory. Back up the artifact directory alongside the database
+for a complete local deployment restore.
+
 ## State machine additions
 
 ```

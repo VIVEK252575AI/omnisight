@@ -4,6 +4,8 @@ Production configuration is PostgreSQL-only; SQLite here is an isolated test
 fixture and is never selected by application settings.
 """
 
+from pathlib import Path
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -11,7 +13,7 @@ from sqlalchemy.pool import StaticPool
 from app.ai.contracts import Finding as VlmFinding
 from app.ai.contracts import FindingCategory, FindingStatus, Severity, VlmOutcome
 from app.config import Settings
-from app.db_models import Base, DetectionAttempt, FindingRecordRow, QARun, WorkflowEvent
+from app.db_models import Artifact, Base, DetectionAttempt, Evidence, FindingRecordRow, QARun, WorkflowEvent
 from app.detection_schemas import DetectionRun, FindingRecord
 from app.detection_storage import DetectionStore
 from app.demo_run_store import DemoRunStore
@@ -24,8 +26,10 @@ from app.patch_schemas import (
     PatchProposalStatus,
 )
 from app.patch_storage import PatchStore
-from app.schemas import ScanCreateRequest, ScanStatus, Viewport
+from app.evidence_storage import EvidenceStore
+from app.schemas import EvidenceRecord, Observation, ScanCreateRequest, ScanStatus, Viewport
 from app.storage import ScanStore
+from uuid import uuid4
 
 
 def _database():
@@ -90,6 +94,45 @@ def test_legacy_scan_api_records_are_durable_qa_runs():
         expected=frozenset({ScanStatus.created}),
         to_status=ScanStatus.evidence_collection,
     ) is None
+
+
+def test_evidence_metadata_and_artifact_reference_survive_restart(tmp_path):
+    database = _database()
+    settings = Settings()
+    scan = ScanStore(database, settings=settings).create(ScanCreateRequest(
+        target_url="https://shop.example/checkout",
+        viewports=[Viewport(width=390, height=844)],
+        routes=["/checkout"],
+    ))
+    observation_path = Path(__file__).parent / "fixtures" / "observation_fixture.json"
+    observation = Observation.model_validate_json(observation_path.read_bytes())
+    screenshot = tmp_path / "checkout.png"
+    screenshot.write_bytes(b"demo screenshot bytes, stored on disk only")
+    artifact_id = uuid4()
+    record = EvidenceRecord(
+        evidence_id=uuid4(), scan_id=scan.scan_id, observation=observation,
+        screenshot_artifact_id=artifact_id,
+    )
+
+    EvidenceStore(database, settings=settings, artifacts_root=tmp_path).add(
+        record, artifact_id=artifact_id, artifact_path=screenshot,
+    )
+    restarted = EvidenceStore(database, settings=settings, artifacts_root=tmp_path)
+    assert restarted.list_for_scan(scan.scan_id) == [record]
+    assert restarted.get_artifact(artifact_id).read_bytes() == screenshot.read_bytes()
+    with database() as session:
+        artifact = session.get(Artifact, str(artifact_id))
+        stored_evidence = session.get(Evidence, str(record.evidence_id))
+        assert artifact is not None
+        assert artifact.object_key == "checkout.png"
+        assert artifact.byte_size == screenshot.stat().st_size
+        assert len(artifact.sha256) == 64
+        assert stored_evidence is not None
+        assert "bytes" not in str(stored_evidence.observation_json)
+        assert "demo screenshot" not in str(stored_evidence.observation_json)
+
+    screenshot.write_bytes(b"tampered")
+    assert restarted.get_artifact(artifact_id) is None
 
 
 def test_detection_attempts_and_current_findings_survive_restart_without_raw_text():

@@ -337,7 +337,7 @@ OmniSight/
 │   │   ├── errors.py               # single error envelope
 │   │   ├── storage.py              # PostgreSQL QA run repository
 │   │   ├── event_storage.py        # CI event store
-│   │   ├── evidence_storage.py     # evidence + artifact registry
+│   │   ├── evidence_storage.py     # PostgreSQL evidence metadata + private file refs
 │   │   ├── artifacts.py            # safe artifact resolution
 │   │   ├── detection_*.py          # VLM detection + persistent finding repository
 │   │   ├── action_engine.py        # safe patch-proposal engine (W2.5)

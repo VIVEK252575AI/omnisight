@@ -58,7 +58,7 @@ def create_app() -> FastAPI:
     # misconfigured deployment never starts. The adapter is stored on app.state
     # for later orchestration to consume; nothing calls it on a request yet.
     vision_analyzer = create_vision_analyzer(
-        settings, resolver=get_evidence_store().get_artifact
+        settings, resolver=get_evidence_store(settings).get_artifact
     )
     app.state.vision_analyzer = vision_analyzer
     logger.info(

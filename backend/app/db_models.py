@@ -210,6 +210,43 @@ class RunStep(Base):
     )
 
 
+class Artifact(Base):
+    """Private-file metadata; image bytes remain in local/object storage."""
+
+    __tablename__ = "artifacts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False)
+    run_id: Mapped[str] = mapped_column(ForeignKey("qa_runs.id", ondelete="RESTRICT"), nullable=False)
+    storage_backend: Mapped[str] = mapped_column(String(24), nullable=False, default="local")
+    object_key: Mapped[str] = mapped_column(String(1000), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    __table_args__ = (
+        CheckConstraint("storage_backend IN ('local')", name="ck_artifacts_storage_backend"),
+        CheckConstraint("byte_size > 0", name="ck_artifacts_byte_size"),
+        Index("ix_artifacts_run_created", "run_id", "created_at"),
+    )
+
+
+class Evidence(Base):
+    """Bounded observation metadata associated with a captured artifact."""
+
+    __tablename__ = "evidence"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False)
+    run_id: Mapped[str] = mapped_column(ForeignKey("qa_runs.id", ondelete="RESTRICT"), nullable=False)
+    artifact_id: Mapped[str] = mapped_column(ForeignKey("artifacts.id", ondelete="RESTRICT"), nullable=False)
+    observation_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    __table_args__ = (Index("ix_evidence_run_created", "run_id", "created_at", "id"),)
+
+
 class DetectionAttempt(Base):
     __tablename__ = "detection_attempts"
 
