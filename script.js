@@ -5,7 +5,7 @@
 'use strict';
 
 const Store = {
-  route: 'landing', // 'landing' | 'models' | 'live-demo' | 'history'
+  route: 'landing', // 'landing' | 'projects' | 'models' | 'live-demo' | 'history'
   demoRunId: null,
   demoRun: null,
   demoError: null,
@@ -13,6 +13,11 @@ const Store = {
   patchPreviewError: null,
   demoRuns: [],
   demoHistoryError: null,
+  projects: [],
+  projectsError: null,
+  projectsLoading: false,
+  projectSaving: false,
+  selectedProjectId: null,
   workspace: null,
   workspaceError: null,
   workspaceLoading: false,
@@ -106,17 +111,21 @@ function renderLiveDemo() {
   </div>`;
 }
 
-async function liveDemoRequest(path, options = {}) {
+async function localApiRequest(path, options = {}) {
   if (window.location.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(window.location.hostname) || window.location.port !== '8000') {
-    throw new Error('Open the dashboard at http://127.0.0.1:8000/ to use the local ShopLite backend.');
+    throw new Error('Open the dashboard at http://127.0.0.1:8000/ to use the local OmniSight backend.');
   }
-  const response = await fetch(`${window.location.origin}/api/v1/demo/shoplite${path}`, {
+  const response = await fetch(`${window.location.origin}${path}`, {
     ...options,
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error?.message || `Backend returned HTTP ${response.status}`);
   return body;
+}
+
+async function liveDemoRequest(path, options = {}) {
+  return localApiRequest(`/api/v1/demo/shoplite${path}`, options);
 }
 
 function isLocalDashboard() {
@@ -161,6 +170,55 @@ function openSettings() {
   Store.route = 'models';
   render();
   loadShopLiteWorkspace();
+}
+
+function openProjects(projectId = null) {
+  Store.route = 'projects';
+  Store.selectedProjectId = projectId;
+  Store.projectsError = null;
+  render();
+  loadProjects();
+}
+
+async function loadProjects() {
+  Store.projectsLoading = true;
+  Store.projectsError = null;
+  render();
+  try {
+    Store.projects = await localApiRequest('/api/v1/projects');
+    if (Store.selectedProjectId && !Store.projects.some(project => project.id === Store.selectedProjectId)) {
+      Store.selectedProjectId = null;
+    }
+  } catch (error) {
+    Store.projectsError = error.message;
+  } finally {
+    Store.projectsLoading = false;
+    if (Store.route === 'projects') render();
+  }
+}
+
+async function createProject(event) {
+  event?.preventDefault();
+  if (Store.projectSaving) return;
+  const name = document.getElementById('project-name')?.value.trim() || '';
+  const targetUrl = document.getElementById('project-target-url')?.value.trim() || '';
+  const environmentKind = document.getElementById('project-environment-kind')?.value || 'staging';
+  Store.projectSaving = true;
+  Store.projectsError = null;
+  render();
+  try {
+    const project = await localApiRequest('/api/v1/projects', {
+      method: 'POST',
+      body: JSON.stringify({ name, target_url: targetUrl, environment_kind: environmentKind })
+    });
+    Store.projects = [project, ...Store.projects.filter(item => item.id !== project.id)];
+    Store.selectedProjectId = project.id;
+  } catch (error) {
+    Store.projectsError = error.message;
+  } finally {
+    Store.projectSaving = false;
+    if (Store.route === 'projects') render();
+  }
 }
 
 async function loadShopLiteWorkspace() {
@@ -318,6 +376,10 @@ function renderSidebar() {
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
         Overview
       </button>
+      <button class="nav-item ${Store.route==='projects'?'nav-item--active':''}" onclick="openProjects()">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 5h6M5 8h6M5 11h3"/></svg>
+        Projects
+      </button>
       <button class="nav-item ${Store.route==='live-demo'?'nav-item--active':''}" onclick="Store.route='live-demo'; render();">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M3.5 8h9M8 2c2 2 2 10 0 12M8 2c-2 2-2 10 0 12"/></svg>
         Live ShopLite Demo
@@ -394,6 +456,22 @@ function renderHistory() {
         }).join('') : '<div class="empty">No backend ShopLite runs yet. Start one from Live ShopLite Demo.</div>'}
       </div>
     </div>
+  </div>`;
+}
+
+function renderProjects() {
+  const project = Store.projects.find(item => item.id === Store.selectedProjectId) || null;
+  return `<div class="models-view projects-view">
+    <section class="panel">
+      <div class="panel__head"><div class="panel__title">Projects</div><span class="panel__sub">${Store.projects.length} saved ${Store.projects.length === 1 ? 'project' : 'projects'}</span></div>
+      <div class="panel__body">
+        ${Store.projectsError ? `<p class="error-note" role="alert">${esc(Store.projectsError)}</p>` : ''}
+        ${Store.projectsLoading ? '<p class="panel__sub" role="status">Loading projects from PostgreSQL…</p>' : ''}
+        ${Store.projects.length ? Store.projects.map(item => `<button class="project-list-row ${item.id === Store.selectedProjectId ? 'project-list-row--active' : ''}" onclick="openProjects('${esc(item.id)}')"><span><strong>${esc(item.name)}</strong><small>${esc(item.targets?.[0]?.base_url || 'No target configured')}</small></span><span class="badge badge--${item.targets?.[0]?.authorization_status === 'approved' ? 'success' : 'info'}">${esc(item.targets?.[0]?.authorization_status || 'target missing')}</span></button>`).join('') : !Store.projectsLoading && !Store.projectsError ? '<div class="empty">No projects yet. Add a project and its intended test URL to begin setup.</div>' : ''}
+      </div>
+    </section>
+    ${project ? `<section class="panel project-detail"><div class="panel__head"><div class="panel__title">${esc(project.name)}</div><span class="badge badge--info">${esc(project.status)}</span></div><div class="panel__body"><p class="panel__sub">Project ID <code>${esc(project.id)}</code> · slug <code>${esc(project.slug)}</code></p><h3>Test targets</h3>${project.targets?.length ? project.targets.map(target => `<article class="project-target"><div><strong>${esc(target.name)}</strong><div><code>${esc(target.base_url)}</code></div><span class="panel__sub">${esc(target.environment_kind)} environment · target version ${esc(target.version)}</span></div><span class="badge badge--info">Authorization ${esc(target.authorization_status)}</span></article>`).join('') : '<div class="empty">No target has been added.</div>'}<p class="panel__sub">This URL is saved for setup only. It has not been checked or authorized, so OmniSight will not run a browser against it. The fixed ShopLite demo remains the runnable workflow while target verification is built.</p><h3>Source repository</h3><p class="panel__sub">Not connected · patch generation and pull requests are unavailable for this project.</p></div></section>` : ''}
+    <section class="panel project-create"><div class="panel__head"><div class="panel__title">Add a project</div><span class="panel__sub">Saved locally under the current owner</span></div><form class="panel__body" onsubmit="createProject(event)"><div class="field"><label for="project-name">Project name</label><input id="project-name" name="name" maxlength="120" required placeholder="My web application" ${Store.projectSaving ? 'disabled' : ''}></div><div class="field"><label for="project-target-url">Intended test URL</label><input id="project-target-url" name="target_url" type="url" maxlength="2048" required placeholder="https://staging.example.com" ${Store.projectSaving ? 'disabled' : ''}></div><div class="field"><label for="project-environment-kind">Environment</label><select id="project-environment-kind" name="environment_kind" ${Store.projectSaving ? 'disabled' : ''}><option value="staging">Staging</option><option value="development">Development</option><option value="other">Other</option></select></div><button class="btn btn--primary" type="submit" ${Store.projectSaving ? 'disabled' : ''}>${Store.projectSaving ? 'Saving…' : 'Save project and target'}</button></form></section>
   </div>`;
 }
 
@@ -547,7 +625,7 @@ async function createLocalDraftPR() {
 
 function render() {
   const root = document.getElementById('app');
-  const crumb = Store.route === 'models' ? 'Settings' : Store.route === 'history' ? 'History' : Store.route === 'live-demo' ? 'Live ShopLite Demo' : 'Overview';
+  const crumb = Store.route === 'models' ? 'Settings' : Store.route === 'projects' ? 'Projects' : Store.route === 'history' ? 'History' : Store.route === 'live-demo' ? 'Live ShopLite Demo' : 'Overview';
   const canExport = Store.route === 'live-demo' && Store.demoRun?.status === 'verified';
   const canPublish = Store.route === 'live-demo' && Store.demoRun?.status === 'verified';
   root.innerHTML = `
@@ -566,7 +644,7 @@ function render() {
           </div>
         </header>
         <div class="main-content">
-          ${Store.route === 'models' ? renderModels() : Store.route === 'history' ? renderHistory() : Store.route === 'live-demo' ? renderLiveDemo() : renderLanding()}
+          ${Store.route === 'projects' ? renderProjects() : Store.route === 'models' ? renderModels() : Store.route === 'history' ? renderHistory() : Store.route === 'live-demo' ? renderLiveDemo() : renderLanding()}
         </div>
       </div>
     </div>`;
