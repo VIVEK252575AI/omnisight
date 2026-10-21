@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f8fa" />
+    <title>ShopLite · Checkout</title>
+    <link rel="stylesheet" href="/styles/checkout.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="ShopLite home">Shop<span>Lite</span></a>
+      <span class="secure-label">Demo checkout</span>
+    </header>
+
+    <main class="page-shell">
+      <div class="page-heading">
+        <p class="eyebrow">YOUR BAG · 1 ITEM</p>
+        <h1>Checkout</h1>
+        <p class="subheading">A small demo store for OmniSight's visual QA flow.</p>
+      </div>
+
+      <div class="checkout-layout">
+        <section class="checkout-card" aria-labelledby="delivery-heading">
+          <h2 id="delivery-heading">Delivery details</h2>
+          <form id="checkout-form">
+            <label for="full-name">Full name</label>
+            <input id="full-name" name="name" autocomplete="name" value="Alex Morgan" required />
+            <label for="email">Email address</label>
+            <input id="email" name="email" type="email" autocomplete="email" value="alex@example.test" required />
+            <button id="place-order" type="submit">Place demo order · $48.00</button>
+            <p id="order-status" class="order-status" role="status" aria-live="polite"></p>
+          </form>
+        </section>
+
+        <aside class="summary-card" data-testid="checkout-summary" aria-labelledby="summary-heading">
+          <h2 id="summary-heading">Order summary</h2>
+          <div class="product-row">
+            <div class="product-image" aria-hidden="true">☕</div>
+            <div>
+              <p class="product-name">Everyday ceramic mug</p>
+              <p class="product-meta">Sand · Qty 1</p>
+            </div>
+            <strong>$42.00</strong>
+          </div>
+          <div class="price-row"><span>Shipping</span><span>$6.00</span></div>
+          <div class="price-row total"><span>Total</span><span>$48.00</span></div>
+          <p class="demo-note">No payment is collected. This is a local test app.</p>
+        </aside>
+      </div>
+    </main>
+  </body>
+</html>
