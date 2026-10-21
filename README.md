@@ -113,7 +113,7 @@ The Week 1 and Week 2 backend (FastAPI) is implemented and tested (`backend/`):
 | Code-response extraction & rejection (W2.6) | Tested with mocks |
 | Week 2 test matrix: valid / malformed / missing / unsupported / failed (W2.7) | Tested with mocks |
 | Local Playwright checkout capture and scan runner | Tested with the local demo and backend |
-| ShopLite-only Docker patch verification | Implemented behind explicit local approval; live Docker execution must be run on a host with Docker Engine |
+| ShopLite-only Docker patch verification | Implemented behind explicit local approval; live sandbox smoke is configured in GitHub Actions |
 | Applying changes to a repository, GitHub PR delivery, React dashboard | Not implemented |
 
 VLM detection and patch generation default to deterministic offline **MOCK**

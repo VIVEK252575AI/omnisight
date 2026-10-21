@@ -78,10 +78,12 @@ def test_docker_command_is_restricted_and_never_mounts_socket(monkeypatch, tmp_p
 
     assert command[0] == "docker.exe"
     assert "--network=none" in command
+    assert "--init" in command
     assert "--pull=never" in command
     assert "--cpus=1" in command
     assert "--memory=512m" in command
     assert "--pids-limit=128" in command
+    assert "--shm-size=128m" in command
     assert "--read-only" in command
     assert "--cap-drop=ALL" in command
     assert "--security-opt=no-new-privileges" in command

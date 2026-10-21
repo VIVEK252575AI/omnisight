@@ -14,6 +14,18 @@ needs network access to download its base image):
 docker build --tag omnisight-shoplite-sandbox:1 --file demo-app/sandbox/Dockerfile demo-app/sandbox
 ```
 
+To run a deterministic live smoke proposal without the API or a Gemini key,
+run this from `backend/` after the image builds:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_shoplite_sandbox.py
+```
+
+The `ShopLite sandbox verification` GitHub Actions workflow runs the same
+smoke against a fresh Docker-enabled hosted runner on pushes to `vivek` and
+manual dispatch. It runs backend tests first and grants the job read-only
+repository permission.
+
 Configure `backend/.env` for the existing proposal flow and this opt-in demo:
 
 ```dotenv
@@ -53,9 +65,10 @@ is unavailable, or the run exceeds its time budget.
 - The fixed ShopLite app is copied to a temporary host directory; the original
   checkout is never edited. The container sees that stage read-only.
 - Candidate browser execution occurs in Docker, not in the FastAPI process.
-- Each run uses `--network=none`, `--pull=never`, 1 CPU, 512 MiB RAM, 128 PIDs,
-  a read-only root filesystem, a 64 MiB no-exec temporary filesystem, a
-  non-root UID, dropped capabilities, and `no-new-privileges`.
+- Each run uses `--network=none`, `--pull=never`, `--init`, 1 CPU, 512 MiB RAM,
+  128 PIDs, 128 MiB shared memory, a read-only root filesystem, and a 64 MiB
+  no-exec temporary filesystem. It runs as a non-root UID with all
+  capabilities dropped and `no-new-privileges` enabled.
 - The Docker socket is never mounted in the container. The trusted API host
   still needs Docker daemon access to start/stop a container; this is a local
   development-only trust boundary, not a production deployment design.
@@ -64,7 +77,7 @@ is unavailable, or the run exceeds its time budget.
 - Container network isolation does not replace host/daemon isolation. Do not
   enable this endpoint on a shared or public backend.
 
-The current configured machine did not have a running Docker daemon when this
-slice was implemented. The Python-side policy, temporary staging, endpoint
-gates, and Docker command are covered by tests; run the one-time setup above on
-a machine with Docker Desktop/Linux Engine to verify the actual container.
+The current configured machine has no running Docker daemon. The Python-side
+policy, temporary staging, endpoint gates, and Docker command are covered by
+tests. The GitHub Actions smoke is the live container check; inspect that run
+before treating Docker execution as verified.
