@@ -54,6 +54,13 @@ def run(base_url: str, timeout_ms: int) -> dict:
         if response is None or response.status != 200:
             raise RuntimeError("The OmniSight dashboard did not load successfully")
 
+        page.get_by_role("button", name="Settings").click()
+        page.get_by_text("Project and test flow", exact=True).wait_for(timeout=timeout_ms)
+        page.get_by_text("OmniSight ShopLite Demo", exact=True).wait_for(timeout=timeout_ms)
+        page.get_by_text("ShopLite checkout visual QA", exact=True).wait_for(timeout=timeout_ms)
+        page.get_by_text("Definition SHA-256", exact=False).wait_for(timeout=timeout_ms)
+        page.get_by_role("button", name="Live ShopLite Demo").click()
+
         run_id = _start_and_verify_run(
             page, start_button=re.compile("Start ShopLite scan"), timeout_ms=timeout_ms
         )
@@ -86,6 +93,7 @@ def run(base_url: str, timeout_ms: int) -> dict:
             "ui_reviewed_patch_diff": True,
             "ui_approved_sandbox_runs": 2,
             "independent_runs_survived_refresh": 2,
+            "persisted_workspace_reviewed": True,
             "browser_error_count": len(browser_errors),
         }
         browser.close()

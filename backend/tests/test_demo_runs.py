@@ -3,10 +3,14 @@ from __future__ import annotations
 import hashlib
 
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app import main
 from app.config import Settings, get_settings
 from app.demo_run_store import DemoRunStore, get_demo_run_store
+from app.db_models import Base, Project, TargetEnvironment, TestFlow as _TestFlowRow, TestFlowVersion as _TestFlowVersionRow
 from app.evidence_storage import EvidenceStore, get_evidence_store
 from app.patch_schemas import PatchProposal, PatchProposalRecord, PatchProposalStatus
 from app.patch_storage import PatchStore, get_patch_store
@@ -42,6 +46,46 @@ def test_demo_run_rejects_missing_or_untrusted_origin():
         assert untrusted.status_code == 403
     finally:
         main.app.dependency_overrides.clear()
+
+
+def test_shoplite_workspace_exposes_persisted_fixed_project_and_flow():
+    engine = create_engine(
+        "sqlite+pysqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    database = sessionmaker(bind=engine, expire_on_commit=False)
+    settings = Settings(allowed_origins=["http://127.0.0.1:8000"])
+    store = DemoRunStore(database, settings=settings)
+    main.app.dependency_overrides[get_settings] = lambda: settings
+    main.app.dependency_overrides[get_demo_run_store] = lambda: store
+    try:
+        with _local_client() as client:
+            response = client.get("/api/v1/demo/shoplite/workspace")
+        assert response.status_code == 200
+        workspace = response.json()
+        assert workspace["project"]["name"] == settings.local_project_name
+        assert workspace["target"] == {
+            "name": "ShopLite local demo",
+            "base_url": "http://127.0.0.1",
+            "environment_kind": "demo",
+            "authorization_status": "approved",
+        }
+        flow = workspace["test_flow"]
+        assert flow["name"] == "ShopLite checkout visual QA"
+        assert flow["version"] == 1
+        assert flow["version_status"] == "published"
+        assert flow["definition"]["viewports"] == [
+            {"width": 390, "height": 844}, {"width": 1440, "height": 900}
+        ]
+        assert len(flow["definition_hash"]) == 64
+        with database() as session:
+            assert session.get(Project, settings.local_project_id) is not None
+            assert session.query(TargetEnvironment).count() == 1
+            assert session.query(_TestFlowRow).count() == 1
+            assert session.query(_TestFlowVersionRow).count() == 1
+    finally:
+        main.app.dependency_overrides.clear()
+        engine.dispose()
 
 
 def test_demo_run_starts_fixed_pipeline_and_exposes_status(monkeypatch):

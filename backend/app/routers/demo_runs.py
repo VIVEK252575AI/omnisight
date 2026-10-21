@@ -232,6 +232,25 @@ def start_shoplite_run(
     return run.response()
 
 
+@router.get("/workspace")
+def get_shoplite_workspace(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: DemoRunStore = Depends(get_demo_run_store),
+) -> dict:
+    """Show the persisted fixed ShopLite project and published test-flow version."""
+    _require_local_ui(request, settings, require_origin=False)
+    try:
+        return store.workspace()
+    except Exception as exc:
+        # Keep database internals out of the response while retaining server diagnostics.
+        raise DomainError(
+            ErrorCode.INTERNAL_ERROR,
+            "The ShopLite workspace could not be loaded. Check the local database connection.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        ) from exc
+
+
 @router.get("/runs")
 def list_shoplite_runs(
     request: Request,

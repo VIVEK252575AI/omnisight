@@ -13,6 +13,9 @@ const Store = {
   patchPreviewError: null,
   demoRuns: [],
   demoHistoryError: null,
+  workspace: null,
+  workspaceError: null,
+  workspaceLoading: false,
   githubToken: null,
   githubConnection: null,
   githubValidation: null,
@@ -152,6 +155,27 @@ function openDemoHistory() {
   loadDemoRuns();
 }
 
+function openSettings() {
+  Store.route = 'models';
+  render();
+  loadShopLiteWorkspace();
+}
+
+async function loadShopLiteWorkspace() {
+  if (!isLocalDashboard()) return;
+  Store.workspaceLoading = true;
+  Store.workspaceError = null;
+  render();
+  try {
+    Store.workspace = await liveDemoRequest('/workspace');
+  } catch (error) {
+    Store.workspaceError = error.message;
+  } finally {
+    Store.workspaceLoading = false;
+    if (Store.route === 'models') render();
+  }
+}
+
 async function startLiveShopLiteRun() {
   Store.route = 'live-demo'; Store.demoRun = null; Store.demoError = null;
   Store.patchPreview = null; Store.patchPreviewError = null;
@@ -275,7 +299,7 @@ function renderSidebar() {
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 13h12M4 10l3-3 2 2 3-5"/></svg>
         History
       </button>
-      <button class="nav-item ${Store.route==='models'?'nav-item--active':''}" onclick="Store.route='models'; render();">
+      <button class="nav-item ${Store.route==='models'?'nav-item--active':''}" onclick="openSettings()">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M3 13l1.4-1.4M11.6 4.4 13 3"/></svg>
         Settings
       </button>
@@ -348,8 +372,25 @@ function renderHistory() {
 
 function renderModels() {
   const result = Store.demoRun?.result || {};
+  const workspace = Store.workspace;
+  const flow = workspace?.test_flow;
+  const definition = flow?.definition;
   return `
   <div class="models-view">
+    <div class="panel">
+      <div class="panel__head"><div class="panel__title">Project and test flow</div><span class="panel__sub">${workspace ? 'Persisted backend workspace · read-only' : 'Fixed ShopLite demo'}</span></div>
+      <div class="panel__body">
+        ${Store.workspaceError ? `<p class="error-note" role="alert">${esc(Store.workspaceError)}</p>` : ''}
+        ${Store.workspaceLoading ? '<p class="panel__sub" role="status">Loading the saved ShopLite workspace…</p>' : ''}
+        ${workspace ? `<div class="live-metrics"><div><span>Project</span><strong>${esc(workspace.project.name)}</strong></div><div><span>Target</span><strong>${esc(workspace.target.name)} · ${esc(workspace.target.environment_kind)}</strong></div><div><span>Test flow</span><strong>${esc(flow.name)} · v${esc(flow.version)}</strong></div></div>
+        <p class="panel__sub">Target URL: <code>${esc(workspace.target.base_url)}</code> · authorization ${esc(workspace.target.authorization_status)} · flow ${esc(flow.status)} / ${esc(flow.version_status)}</p>
+        <p>${esc(flow.description || '')}</p>
+        <div class="live-metrics">${(definition?.viewports || []).map(viewport => `<div><span>Viewport</span><strong>${esc(viewport.width)} × ${esc(viewport.height)}</strong></div>`).join('')}</div>
+        <p class="panel__sub">Checks: ${(definition?.assertions || []).map(assertion => `<code>${esc(assertion)}</code>`).join(' · ')}</p>
+        <p class="panel__sub">Definition SHA-256: <code>${esc(flow.definition_hash)}</code></p>` : !Store.workspaceLoading && !Store.workspaceError ? '<p class="panel__sub">Open this dashboard at <code>http://127.0.0.1:8000/</code> to load the local workspace.</p>' : ''}
+        <button class="btn" onclick="loadShopLiteWorkspace()">Refresh workspace</button>
+      </div>
+    </div>
     <div class="panel">
       <div class="panel__head"><div class="panel__title">Backend workflow configuration</div><span class="panel__sub">Credentials stay server-side</span></div>
       <div class="panel__body">
@@ -485,7 +526,7 @@ function render() {
           <div class="topbar__actions">
             <button class="btn" onclick="toggleTheme()" aria-label="Toggle dark mode">${document.documentElement.dataset.theme === 'dark' ? '☀ Light' : '☾ Dark'}</button>
             ${canExport ? `<button class="btn" onclick="downloadLiveReport()">Export report</button>` : ''}
-            ${canPublish ? `<button class="btn btn--primary" onclick="Store.route='models';render();document.querySelector('.panel__title')?.scrollIntoView({behavior:'smooth'})">Open GitHub publishing</button>` : ''}
+            ${canPublish ? `<button class="btn btn--primary" onclick="openSettings();document.querySelector('.panel__title')?.scrollIntoView({behavior:'smooth'})">Open GitHub publishing</button>` : ''}
           </div>
         </header>
         <div class="main-content">

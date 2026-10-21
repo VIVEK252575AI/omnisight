@@ -69,6 +69,32 @@ class DemoRunStore:
         self._runs: dict[str, DemoRun] = {}
         self._lock = threading.Lock()
 
+    def workspace(self) -> dict[str, Any]:
+        """Return the persisted, fixed ShopLite project and published flow."""
+        if self._database is None:
+            raise RuntimeError("The ShopLite workspace requires the configured database")
+        with self._database() as session:
+            project, target, flow, flow_version = self._ensure_demo_records(session)
+            session.commit()
+            return {
+                "project": {"id": project.id, "name": project.name, "status": project.status},
+                "target": {
+                    "name": target.name,
+                    "base_url": target.base_url,
+                    "environment_kind": target.environment_kind,
+                    "authorization_status": target.authorization_status,
+                },
+                "test_flow": {
+                    "name": flow.name,
+                    "description": flow.description,
+                    "status": flow.status,
+                    "version": flow_version.version_number,
+                    "version_status": flow_version.status,
+                    "definition": flow_version.definition_json,
+                    "definition_hash": flow_version.definition_hash,
+                },
+            }
+
     def _ensure_demo_records(self, session) -> tuple[Project, TargetEnvironment, TestFlow, TestFlowVersion]:
         settings = self._settings
         project = session.get(Project, settings.local_project_id)
