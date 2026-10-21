@@ -137,6 +137,22 @@ def test_run_returns_verified_report_from_bounded_container(monkeypatch):
     assert "--network=none" in observed["command"]
 
 
+def test_run_rejects_source_that_changed_after_patch_preview(monkeypatch):
+    monkeypatch.setattr(
+        "app.shoplite_sandbox.subprocess.run",
+        lambda *args, **kwargs: pytest.fail("Docker must not start for a stale review"),
+    )
+    with pytest.raises(SandboxFailure) as failure:
+        run_shoplite_sandbox(
+            _proposal(),
+            proposal_id="proposal-stale-review",
+            settings=_settings(),
+            expected_base_sha256="0" * 64,
+        )
+
+    assert failure.value.code == "SANDBOX_SOURCE_CHANGED"
+
+
 def test_run_persists_before_after_screenshots_through_callback(monkeypatch):
     from app import shoplite_sandbox
 
