@@ -10,6 +10,7 @@ to the staged files.
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import shutil
 import subprocess
@@ -53,6 +54,7 @@ class ShopLiteSandboxReport(BaseModel):
     proposal_id: str
     report_id: str = ""
     base_revision: str | None = None
+    base_source_sha256: str | None = None
     diff_hash: str | None = None
     baseline_screenshot_artifact_id: str | None = None
     candidate_screenshot_artifact_id: str | None = None
@@ -200,6 +202,7 @@ def run_shoplite_sandbox(
     base_revision: str | None = None,
     source_files: dict[str, str] | None = None,
     screenshot_store: Callable[[bytes, str], str] | None = None,
+    expected_base_sha256: str | None = None,
 ) -> ShopLiteSandboxReport:
     """Run the isolated browser check after validating the fixed demo edit."""
     if not settings.enable_shoplite_sandbox:
@@ -215,6 +218,19 @@ def run_shoplite_sandbox(
             output_root.mkdir(parents=True)
             output_root.chmod(0o777)
             _stage_demo(proposal, stage_root, settings, source_files=source_files)
+            if expected_base_sha256 is not None:
+                staged_source = stage_root / "baseline" / "styles" / "checkout.css"
+                try:
+                    staged_sha256 = hashlib.sha256(staged_source.read_bytes()).hexdigest()
+                except OSError:
+                    raise SandboxFailure(
+                        "SANDBOX_SOURCE_MISSING", "The staged ShopLite CSS source could not be verified"
+                    ) from None
+                if staged_sha256 != expected_base_sha256:
+                    raise SandboxFailure(
+                        "SANDBOX_SOURCE_CHANGED",
+                        "The ShopLite source changed after review; reload the preview before approving",
+                    )
             container_name = f"omni-shoplite-{uuid4().hex[:16]}"
             command = _docker_command(stage_root, output_root, container_name)
             try:
@@ -330,12 +346,14 @@ def run_shoplite_sandbox(
             if not passed:
                 return ShopLiteSandboxReport(
                     status="failed", proposal_id=proposal_id, report_id=str(uuid4()),
-                    base_revision=base_revision, diff_hash=shoplite_diff_hash(proposal),
+                    base_revision=base_revision, base_source_sha256=expected_base_sha256,
+                    diff_hash=shoplite_diff_hash(proposal),
                     **screenshot_ids, checks=checks
                 )
             return ShopLiteSandboxReport(
                 status="verified", proposal_id=proposal_id, report_id=str(uuid4()),
-                base_revision=base_revision, diff_hash=shoplite_diff_hash(proposal),
+                base_revision=base_revision, base_source_sha256=expected_base_sha256,
+                diff_hash=shoplite_diff_hash(proposal),
                 **screenshot_ids, checks=checks
             )
     finally:

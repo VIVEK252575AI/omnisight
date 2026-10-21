@@ -9,6 +9,8 @@ const Store = {
   demoRunId: null,
   demoRun: null,
   demoError: null,
+  patchPreview: null,
+  patchPreviewError: null,
   demoRuns: [],
   demoHistoryError: null,
   githubToken: null,
@@ -51,6 +53,7 @@ function renderLiveDemo() {
   const capture = result.capture || {};
   const findings = Array.isArray(result.findings) ? result.findings : [];
   const proposal = result.proposal || null;
+  const patchPreview = Store.patchPreview?.proposal_id === proposal?.proposal_id ? Store.patchPreview : null;
   const sandbox = result.sandbox || null;
   const checks = sandbox?.checks || {};
   const detectionIssue = result.detection_reason_message;
@@ -75,7 +78,7 @@ function renderLiveDemo() {
   const viewport = capture.viewports?.mobile;
   const overflowBefore = checks.baseline_mobile_overflow_px ?? viewport?.button_overflow_px;
   const overflowAfter = checks.patched_mobile_overflow_px;
-  const canApprove = run?.status === 'awaiting_sandbox_approval' && proposal?.status === 'proposed';
+  const canApprove = run?.status === 'awaiting_sandbox_approval' && proposal?.status === 'proposed' && !!patchPreview;
   return `<div class="live-demo-view">
     <div class="panel live-demo-intro">
       <div><div class="eyebrow">Connected backend workflow</div><h1>ShopLite live demo</h1>
@@ -88,7 +91,7 @@ function renderLiveDemo() {
       <div class="live-stage-grid">${stages.map(({label, done, current}) => `<div class="live-stage ${done ? 'live-stage--done' : current ? 'live-stage--current' : ''}"><span>${done ? '✓' : current ? '…' : '·'}</span>${esc(label)}</div>`).join('')}</div>
       ${capture.screenshot_artifact_id ? `<div class="panel live-evidence-shot"><div class="panel__head"><div class="panel__title">Persisted mobile screenshot evidence</div><span class="panel__sub">${esc(viewport?.button_overflow_px ?? '—')}px horizontal overflow</span></div><div class="panel__body"><img src="/api/v1/artifacts/${encodeURIComponent(capture.screenshot_artifact_id)}" alt="Captured ShopLite checkout at the mobile viewport" loading="lazy" /><p class="panel__sub">Artifact ${esc(capture.screenshot_artifact_id)} · ${esc(viewport?.viewport?.width ?? 390)} × ${esc(viewport?.viewport?.height ?? 844)}</p></div></div>` : ''}
       ${findings.length ? `<div class="panel"><div class="panel__head"><div class="panel__title">Validated visual findings (${findings.length})</div><span class="panel__sub">${result.detection_is_mock ? 'MOCK adapter' : esc(result.detection_adapter || 'Gemini')}</span></div><div class="panel__body">${findings.map(f => `<article class="live-finding"><div><span class="badge badge--high">${esc(f.category || 'visual issue')}</span><span class="mono muted">${Math.round((f.confidence || 0) * 100)}% confidence</span></div><h3>${esc(f.category === 'clipped_element' ? 'Checkout button clipped on mobile' : f.category || 'Visual issue')}</h3><p>Target: <code>${esc(f.target_candidate || 'Needs inspection')}</code></p><p>Capture: mobile ${esc(viewport?.button_overflow_px ?? '—')}px overflow · desktop ${esc(capture.viewports?.desktop?.button_overflow_px ?? '—')}px</p></article>`).join('')}</div></div>` : ''}
-      ${proposal ? `<div class="panel"><div class="panel__head"><div class="panel__title">Patch proposal</div><span class="badge badge--${proposal.status === 'proposed' ? 'success' : 'error'}">${esc(proposal.status)}</span></div><div class="panel__body">${(proposal.files || []).map(file => `<div class="live-file"><code>${esc(file.path)}</code><span>${esc(file.edits)} edit${file.edits === 1 ? '' : 's'} · ${esc(file.bytes)} bytes</span></div>`).join('')}${proposal.rejection_reasons?.length ? `<p class="error-note">Safety checks: ${proposal.rejection_reasons.map(esc).join(', ')}</p>` : ''}<p class="panel__sub">Generator: ${esc(proposal.generator_label || 'unknown')}${proposal.is_mock ? ' · simulated provider output' : ' · live provider response'}</p></div></div>` : ''}
+      ${proposal ? `<div class="panel"><div class="panel__head"><div class="panel__title">Patch proposal</div><span class="badge badge--${proposal.status === 'proposed' ? 'success' : 'error'}">${esc(proposal.status)}</span></div><div class="panel__body">${(proposal.files || []).map(file => `<div class="live-file"><code>${esc(file.path)}</code><span>${esc(file.edits)} edit${file.edits === 1 ? '' : 's'} · ${esc(file.bytes)} bytes</span></div>`).join('')}${proposal.rejection_reasons?.length ? `<p class="error-note">Safety checks: ${proposal.rejection_reasons.map(esc).join(', ')}</p>` : ''}<p class="panel__sub">Generator: ${esc(proposal.generator_label || 'unknown')}${proposal.is_mock ? ' · simulated provider output' : ' · live provider response'}</p>${run?.status === 'awaiting_sandbox_approval' ? patchPreview ? `<section class="patch-preview"><div class="patch-preview__meta"><strong>Review exact source diff</strong><span>Base ${esc(patchPreview.base_sha256.slice(0, 16))}…</span></div><p class="panel__sub">This bounded diff is what the sandbox will validate. Approval is rejected if the source changes.</p><pre aria-label="Proposed unified CSS diff"><code>${esc(patchPreview.diff)}</code></pre></section>` : `<div class="panel__sub" role="status">${Store.patchPreviewError ? `<span class="error-note">${esc(Store.patchPreviewError)}</span> <button class="btn btn--ghost" onclick="loadShopLitePatchPreview('${esc(run.run_id)}')">Reload diff</button>` : 'Loading the exact source diff for review…'}</div>` : ''}</div></div>` : ''}
       ${canApprove ? `<div class="panel live-approval"><div class="panel__head"><div class="panel__title">Review before sandbox validation</div><span class="panel__sub">Fixed ShopLite demo only</span></div><div class="panel__body"><p>This runs the proposed CSS edit in a disposable container with network access disabled. It does not change the source checkout.</p><div class="field"><label for="live-demo-confirm">Type <code>approve-demo-only</code> to approve this sandbox run</label><input id="live-demo-confirm" autocomplete="off" placeholder="approve-demo-only"></div><button class="btn btn--primary" onclick="validateLiveShopLiteRun()">Approve and validate</button></div></div>` : ''}
       ${sandbox ? `<div class="panel"><div class="panel__head"><div class="panel__title">Sandbox verification</div><span class="badge badge--${sandbox.status === 'verified' ? 'success' : 'error'}">${esc(sandbox.status)}</span></div><div class="panel__body"><div class="live-metrics"><div><span>Mobile overflow</span><strong>${esc(checks.baseline_mobile_overflow_px)}px → ${esc(checks.patched_mobile_overflow_px)}px</strong></div><div><span>Desktop overflow</span><strong>${esc(checks.patched_desktop_overflow_px)}px</strong></div><div><span>Browser errors</span><strong>${esc(checks.browser_error_count)}</strong></div><div><span>External requests blocked</span><strong>${esc(checks.blocked_external_request_count)}</strong></div></div>${sandbox.baseline_screenshot_artifact_id && sandbox.candidate_screenshot_artifact_id ? `<div class="sandbox-evidence-grid"><figure><figcaption>Before · mobile</figcaption><img src="/api/v1/artifacts/${encodeURIComponent(sandbox.baseline_screenshot_artifact_id)}" alt="ShopLite before the proposed fix" loading="lazy" /></figure><figure><figcaption>After · mobile</figcaption><img src="/api/v1/artifacts/${encodeURIComponent(sandbox.candidate_screenshot_artifact_id)}" alt="ShopLite after the proposed fix" loading="lazy" /></figure></div><p class="panel__sub">Both screenshots are saved as evidence for this run.</p>` : ''}</div></div>` : ''}
       ${sandbox?.status === 'verified' ? renderLocalGithubPanel() : ''}
@@ -135,6 +138,8 @@ function openDemoRun(runId) {
   Store.route = 'live-demo';
   Store.demoError = null;
   Store.demoRunId = runId;
+  Store.patchPreview = null;
+  Store.patchPreviewError = null;
   render();
   pollLiveShopLiteRun(runId);
 }
@@ -147,6 +152,7 @@ function openDemoHistory() {
 
 async function startLiveShopLiteRun() {
   Store.route = 'live-demo'; Store.demoRun = null; Store.demoError = null;
+  Store.patchPreview = null; Store.patchPreviewError = null;
   Store.githubValidation = null; Store.githubIdempotencyKey = null; Store.githubOperation = null; Store.githubError = null;
   render();
   try {
@@ -168,6 +174,9 @@ async function pollLiveShopLiteRun(runId) {
     Store.demoRun = run;
     rememberDemoRun(run);
     if (Store.route === 'live-demo') render();
+    if (run.status === 'awaiting_sandbox_approval' && Store.patchPreview?.run_id !== runId && !Store.patchPreviewError) {
+      loadShopLitePatchPreview(runId);
+    }
     if (['queued', 'running', 'validating'].includes(run.status)) {
       setTimeout(() => pollLiveShopLiteRun(runId), 1200);
     }
@@ -177,16 +186,30 @@ async function pollLiveShopLiteRun(runId) {
   }
 }
 
+async function loadShopLitePatchPreview(runId) {
+  Store.patchPreview = null;
+  Store.patchPreviewError = null;
+  if (Store.route === 'live-demo') render();
+  try {
+    const preview = await liveDemoRequest(`/runs/${encodeURIComponent(runId)}/patch-preview`);
+    Store.patchPreview = { ...preview, run_id: runId };
+  } catch (error) {
+    Store.patchPreviewError = error.message;
+  }
+  if (Store.route === 'live-demo' && Store.demoRunId === runId) render();
+}
+
 async function validateLiveShopLiteRun() {
   const confirmation = document.getElementById('live-demo-confirm')?.value.trim();
   if (confirmation !== 'approve-demo-only') { toast('Type approve-demo-only to approve this run'); return; }
+  if (!Store.patchPreview || Store.patchPreview.run_id !== Store.demoRunId) { toast('Load and review the patch diff before approval'); return; }
   if (!window.confirm('Run this reviewed CSS proposal in the isolated, network-disabled ShopLite sandbox?')) return;
   const runId = Store.demoRunId;
   Store.demoRun = { ...Store.demoRun, status: 'validating' };
   render();
   try {
     Store.demoRun = await liveDemoRequest(`/runs/${encodeURIComponent(runId)}/validate`, {
-      method: 'POST', body: JSON.stringify({ confirmation })
+      method: 'POST', body: JSON.stringify({ confirmation, base_sha256: Store.patchPreview.base_sha256 })
     });
   } catch (error) {
     Store.demoError = error.message;

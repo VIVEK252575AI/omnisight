@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from fastapi.testclient import TestClient
 
 from app import main
@@ -87,12 +89,83 @@ def test_demo_run_starts_fixed_pipeline_and_exposes_status(monkeypatch):
         main.app.dependency_overrides.clear()
 
 
+def test_patch_preview_returns_safe_diff_and_blocks_stale_source(tmp_path, monkeypatch):
+    source_root = tmp_path / "source"
+    css_path = source_root / "styles" / "checkout.css"
+    css_path.parent.mkdir(parents=True)
+    css_path.write_text("#place-order {\n  width: 520px;\n}\n", encoding="utf-8")
+    settings = Settings(
+        allowed_origins=["http://127.0.0.1:8000"],
+        patch_source_root=str(source_root),
+        approved_patch_paths=["styles/checkout.css"],
+        patch_allowed_extensions=[".css"],
+    )
+    monkeypatch.setattr(demo_runs, "DEMO_APP_ROOT", source_root)
+    run_store = DemoRunStore()
+    run = run_store.create()
+    proposal = PatchProposal(
+        finding_id="finding-preview",
+        files=[{"path": "styles/checkout.css", "edits": [{"old_text": "width: 520px;", "new_text": "width: 100%;"}]}],
+        rationale="Keep the checkout action within the viewport.",
+        generator_label="MOCK",
+    )
+    patch_store = PatchStore()
+    patch_store.add(
+        PatchProposalRecord(
+            proposal_id="proposal-preview",
+            finding_id=proposal.finding_id,
+            status=PatchProposalStatus.proposed,
+            generator_label="MOCK",
+            proposal=proposal,
+        ),
+        proposal,
+    )
+    run_store.update(
+        run.run_id,
+        status="awaiting_sandbox_approval",
+        result={
+            "findings": [{"finding_id": proposal.finding_id}],
+            "proposal": {"proposal_id": "proposal-preview"},
+        },
+    )
+    main.app.dependency_overrides[get_settings] = lambda: settings
+    main.app.dependency_overrides[get_demo_run_store] = lambda: run_store
+    main.app.dependency_overrides[get_patch_store] = lambda: patch_store
+    try:
+        with _local_client() as client:
+            response = client.get(f"/api/v1/demo/shoplite/runs/{run.run_id}/patch-preview")
+            assert response.status_code == 200
+            body = response.json()
+            assert body["proposal_id"] == "proposal-preview"
+            assert body["file_path"] == "demo-app/styles/checkout.css"
+            assert "-  width: 520px;" in body["diff"]
+            assert "+  width: 100%;" in body["diff"]
+            assert len(body["base_sha256"]) == 64
+            assert len(body["candidate_sha256"]) == 64
+            assert len(body["diff_sha256"]) == 64
+
+            css_path.write_text("#place-order {\n  width: 480px;\n}\n", encoding="utf-8")
+            stale = client.get(f"/api/v1/demo/shoplite/runs/{run.run_id}/patch-preview")
+        assert stale.status_code == 409
+        assert "start a new scan" in stale.json()["error"]["message"]
+    finally:
+        main.app.dependency_overrides.clear()
+
+
 def test_demo_run_requires_explicit_sandbox_approval_and_shows_before_after_evidence(monkeypatch, tmp_path):
+    source_root = tmp_path / "shoplite-source"
+    css_path = source_root / "styles" / "checkout.css"
+    css_path.parent.mkdir(parents=True)
+    css_path.write_text(".checkout { color: old; }\n", encoding="utf-8")
+    monkeypatch.setattr(demo_runs, "DEMO_APP_ROOT", source_root)
     settings = Settings(
         allowed_origins=["http://127.0.0.1:8000"],
         enable_shoplite_sandbox=True,
         shoplite_sandbox_token="test-approval-token",
         artifacts_dir=tmp_path,
+        patch_source_root=str(source_root),
+        approved_patch_paths=["styles/checkout.css"],
+        patch_allowed_extensions=[".css"],
     )
     evidence_store = EvidenceStore(settings=settings, artifacts_root=tmp_path)
     run_store = DemoRunStore()
@@ -100,7 +173,10 @@ def test_demo_run_requires_explicit_sandbox_approval_and_shows_before_after_evid
     run_store.update(
         run.run_id,
         status="awaiting_sandbox_approval",
-        result={"proposal": {"proposal_id": "proposal-demo"}},
+        result={
+            "findings": [{"finding_id": "finding-demo"}],
+            "proposal": {"proposal_id": "proposal-demo"},
+        },
     )
     patch_store = PatchStore()
     proposal = PatchProposal(
@@ -124,8 +200,9 @@ def test_demo_run_requires_explicit_sandbox_approval_and_shows_before_after_evid
     main.app.dependency_overrides[get_patch_store] = lambda: patch_store
     main.app.dependency_overrides[get_evidence_store] = lambda: evidence_store
 
-    def fake_sandbox(proposed, *, proposal_id, settings, screenshot_store):
+    def fake_sandbox(proposed, *, proposal_id, settings, screenshot_store, expected_base_sha256):
         assert proposed == proposal
+        assert expected_base_sha256 == hashlib.sha256(css_path.read_bytes()).hexdigest()
         image = b"\x89PNG\r\n\x1a\nshoplite-evidence"
         baseline_id = screenshot_store(image, "baseline_screenshot_artifact_id")
         candidate_id = screenshot_store(image, "candidate_screenshot_artifact_id")
@@ -149,7 +226,10 @@ def test_demo_run_requires_explicit_sandbox_approval_and_shows_before_after_evid
         with _local_client() as client:
             response = client.post(
                 f"/api/v1/demo/shoplite/runs/{run.run_id}/validate",
-                json={"confirmation": "approve-demo-only"},
+                json={
+                    "confirmation": "approve-demo-only",
+                    "base_sha256": hashlib.sha256(css_path.read_bytes()).hexdigest(),
+                },
                 headers={"Origin": "http://127.0.0.1:8000"},
             )
             baseline_image = client.get(

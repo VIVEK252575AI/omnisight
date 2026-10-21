@@ -901,6 +901,12 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .live-finding p { margin: 4px 0; color: var(--text-2); font-size: 12px; }
 .live-file { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
 .live-file span { color: var(--muted); }
+.patch-preview { margin-top: 16px; }
+.patch-preview__meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; }
+.patch-preview__meta span { color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.patch-preview > p { margin: 7px 0 10px; }
+.patch-preview pre { max-height: 360px; overflow: auto; margin: 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; tab-size: 2; }
+.patch-preview code { white-space: pre; }
 .live-approval p { max-width: 700px; color: var(--text-2); font-size: 13px; }
 .live-approval .field { max-width: 420px; margin-top: 14px; }
 .live-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
