@@ -187,7 +187,7 @@ base in Docker, and create a draft pull request after you type
 PostgreSQL plus the local owner and GitHub App configuration in
 [`docs/week4_github_app_connection.md`](docs/week4_github_app_connection.md).
 
-Test suite: **331 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **333 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
@@ -335,11 +335,11 @@ OmniSight/
 │   │   ├── config.py               # env-driven Settings
 │   │   ├── schemas.py              # scan + observation/v1 contracts
 │   │   ├── errors.py               # single error envelope
-│   │   ├── storage.py              # in-memory scan store
+│   │   ├── storage.py              # PostgreSQL QA run repository
 │   │   ├── event_storage.py        # CI event store
 │   │   ├── evidence_storage.py     # evidence + artifact registry
 │   │   ├── artifacts.py            # safe artifact resolution
-│   │   ├── detection_*.py          # VLM detection workflow (W2.4)
+│   │   ├── detection_*.py          # VLM detection + persistent finding repository
 │   │   ├── action_engine.py        # safe patch-proposal engine (W2.5)
 │   │   ├── patch_*.py              # schemas, paths, validation, extraction
 │   │   ├── source_context.py       # read-only approved-source context

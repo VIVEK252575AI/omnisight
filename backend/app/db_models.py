@@ -15,6 +15,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -48,6 +49,8 @@ class Project(Base):
     test_flows: Mapped[list["TestFlow"]] = relationship(back_populates="project")
     qa_runs: Mapped[list["QARun"]] = relationship(back_populates="project")
     patch_attempts: Mapped[list["PatchAttempt"]] = relationship(back_populates="project")
+    detection_attempts: Mapped[list["DetectionAttempt"]] = relationship(back_populates="project")
+    findings: Mapped[list["FindingRecordRow"]] = relationship(back_populates="project")
     validation_reports: Mapped[list["ValidationReport"]] = relationship(back_populates="project")
     github_operations: Mapped[list["GitHubOperation"]] = relationship(back_populates="project")
 
@@ -162,6 +165,11 @@ class QARun(Base):
     test_flow_version: Mapped[TestFlowVersion] = relationship(back_populates="qa_runs")
     steps: Mapped[list["RunStep"]] = relationship(back_populates="run", order_by="RunStep.ordinal")
     patch_attempts: Mapped[list["PatchAttempt"]] = relationship(back_populates="run")
+    detection_attempts: Mapped[list["DetectionAttempt"]] = relationship(back_populates="run")
+    findings: Mapped[list["FindingRecordRow"]] = relationship(back_populates="run")
+    workflow_events: Mapped[list["WorkflowEvent"]] = relationship(
+        back_populates="run", order_by="(WorkflowEvent.occurred_at, WorkflowEvent.id)"
+    )
 
     __table_args__ = (
         CheckConstraint("status IN ('created','queued','running','completed','failed','canceled','timed_out','partial')", name="ck_qa_run_status"),
@@ -199,6 +207,69 @@ class RunStep(Base):
         CheckConstraint("status IN ('queued','running','passed','failed','skipped','timed_out','canceled','unavailable','inconclusive','blocked')", name="ck_run_step_status"),
         UniqueConstraint("run_id", "ordinal", name="uq_run_step_ordinal"),
         Index("ix_run_steps_run", "run_id", "ordinal"),
+    )
+
+
+class DetectionAttempt(Base):
+    __tablename__ = "detection_attempts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False)
+    run_id: Mapped[str] = mapped_column(ForeignKey("qa_runs.id", ondelete="RESTRICT"), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    adapter_label: Mapped[str] = mapped_column(String(100), nullable=False)
+    is_mock: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    model_label: Mapped[str | None] = mapped_column(String(200))
+    prompt_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    duration_ms: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    outcome: Mapped[str | None] = mapped_column(String(32))
+    reason_code: Mapped[str | None] = mapped_column(String(64))
+    reason_message: Mapped[str | None] = mapped_column(String(500))
+    findings_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warnings: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    project: Mapped[Project] = relationship(back_populates="detection_attempts")
+    run: Mapped[QARun] = relationship(back_populates="detection_attempts")
+
+    __table_args__ = (
+        CheckConstraint("attempts > 0", name="ck_detection_attempts_count"),
+        CheckConstraint("findings_count >= 0", name="ck_detection_attempts_findings"),
+        CheckConstraint("duration_ms >= 0", name="ck_detection_attempts_duration"),
+        Index("ix_detection_attempts_run_created", "run_id", "created_at", "id"),
+    )
+
+
+class FindingRecordRow(Base):
+    __tablename__ = "findings"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False)
+    run_id: Mapped[str] = mapped_column(ForeignKey("qa_runs.id", ondelete="RESTRICT"), nullable=False)
+    detection_attempt_id: Mapped[str | None] = mapped_column(ForeignKey("detection_attempts.id", ondelete="RESTRICT"))
+    category: Mapped[str] = mapped_column(String(48), nullable=False)
+    severity: Mapped[str | None] = mapped_column(String(24))
+    confidence: Mapped[float | None] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    record_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    project: Mapped[Project] = relationship(back_populates="findings")
+    run: Mapped[QARun] = relationship(back_populates="findings")
+    detection_attempt: Mapped[DetectionAttempt | None] = relationship()
+
+    __table_args__ = (
+        CheckConstraint("status IN ('detected','patch_proposed')", name="ck_findings_status"),
+        CheckConstraint("version > 0", name="ck_findings_version"),
+        Index("ix_findings_run_current_created", "run_id", "is_current", "created_at"),
+        Index("ix_findings_project_status_created", "project_id", "status", "created_at"),
     )
 
 
@@ -397,6 +468,9 @@ class WorkflowEvent(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False)
+    run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("qa_runs.id", ondelete="RESTRICT", name="fk_workflow_events_run_id_qa_runs")
+    )
     github_operation_id: Mapped[str | None] = mapped_column(
         ForeignKey("github_operations.id", ondelete="RESTRICT")
     )
@@ -408,7 +482,10 @@ class WorkflowEvent(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
 
+    run: Mapped[QARun | None] = relationship(back_populates="workflow_events")
+
     __table_args__ = (
         CheckConstraint("event_version > 0", name="ck_workflow_events_version"),
         Index("ix_workflow_events_project_occurred", "project_id", "occurred_at"),
+        Index("ix_workflow_events_run_occurred", "run_id", "occurred_at"),
     )

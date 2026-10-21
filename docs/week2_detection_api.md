@@ -101,10 +101,17 @@ output can never be mistaken for a real inference.
 
 ## Limitations
 
-- Detection findings and generic scan records are still in-memory and are lost
-  on restart. The fixed ShopLite demo persists run and step summaries in the
-  PostgreSQL `qa_runs` and `run_steps` tables; validated proposals use
-  `patch_attempts`.
+- The generic scan API stores its run, target, immutable request version, and
+  state events in PostgreSQL (`qa_runs`, `target_environments`,
+  `test_flow_versions`, and `workflow_events`). Detection attempts and
+  validated findings persist in `detection_attempts` and `findings`; prior
+  findings are marked superseded when a newer attempt replaces them. Raw model
+  text stays in memory only. The fixed ShopLite demo also persists run steps in
+  `run_steps`; validated proposals use `patch_attempts`.
+- Evidence metadata and the artifact-id-to-file registry are still held in
+  memory. After a backend restart, scan and finding history remains available,
+  but screenshot lookup and a new analysis using the prior evidence are not
+  restored yet.
 - `OMNISIGHT_ENABLE_VLM_DETECTION` exists but does not gate these endpoints
   yet — the workflow is exercised directly so it can be verified before the
   flag has a consumer.
