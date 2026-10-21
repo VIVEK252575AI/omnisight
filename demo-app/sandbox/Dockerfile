@@ -2,6 +2,10 @@
 # Every verification run uses --network=none and --pull=never.
 FROM mcr.microsoft.com/playwright/python:v1.64.0-noble
 
+# The image supplies the matching browser binaries and OS dependencies, but
+# the Python Playwright client must also be installed for the harness.
+RUN python -m pip install --no-cache-dir playwright==1.64.0
+
 RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin sandbox \
     && mkdir -p /opt/omnisight-sandbox \
     && chown -R sandbox:sandbox /opt/omnisight-sandbox
