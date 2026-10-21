@@ -909,6 +909,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .patch-preview code { white-space: pre; }
 .live-approval p { max-width: 700px; color: var(--text-2); font-size: 13px; }
 .live-approval .field { max-width: 420px; margin-top: 14px; }
+.live-rejection-field { margin-top: 18px; }
+.live-rejection-field textarea { width: 100%; resize: vertical; }
 .live-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .live-metrics > div { padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
 .live-metrics span, .live-metrics strong { display: block; }

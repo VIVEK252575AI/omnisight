@@ -49,6 +49,7 @@ class RejectionReason(str, Enum):
       ``too_many_files``, ``too_large``, ``duplicate_path``, ``empty_edit``;
     - **generator lifecycle** (``app.action_engine``): ``generator_timeout``,
       ``generator_error``.
+    - **human review** (ShopLite review endpoint): ``human_rejected``.
 
     Known names from the W2.6 spec are used verbatim (``path_not_approved``,
     ``unsupported_file_type``, ``schema_invalid``, ...). ``too_large`` is the
@@ -79,6 +80,7 @@ class RejectionReason(str, Enum):
     # Generator lifecycle.
     generator_timeout = "generator_timeout"
     generator_error = "generator_error"
+    human_rejected = "human_rejected"
 
 
 class PatchProposalStatus(str, Enum):

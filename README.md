@@ -150,7 +150,9 @@ GET      /api/v1/scans/{scan_id}/findings         # validated findings + run
 POST     /api/v1/demo/shoplite/runs               # local fixed-target real scan
 GET      /api/v1/demo/shoplite/runs               # list current local demo runs
 GET      /api/v1/demo/shoplite/runs/{run_id}      # poll run and proposal status
+GET      /api/v1/demo/shoplite/runs/{run_id}/patch-preview # exact source diff + base hash
 POST     /api/v1/demo/shoplite/runs/{run_id}/validate # explicit confirmation + Docker sandbox
+POST     /api/v1/demo/shoplite/runs/{run_id}/reject-proposal # record human rejection + reason
 GET      /api/v1/findings/{finding_id}
 POST     /api/v1/findings/{finding_id}/patch-proposals   # propose only, no writes
 GET      /api/v1/findings/{finding_id}/patch-proposals
@@ -173,8 +175,10 @@ $env:OMNISIGHT_DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432
 
 Use **Live ShopLite Demo** from the dashboard for the backend workflow. It uses
 the configured provider (MOCK by default; Gemini when explicitly configured).
-Review the proposal, type `approve-demo-only`, and confirm before the API starts
-the restricted Docker sandbox. This UI and its API only accept the fixed local
+Review the exact source diff, then either reject the proposal with a recorded
+reason or type `approve-demo-only` and confirm before the API starts the
+restricted Docker sandbox. A rejected proposal cannot be sandbox-validated or
+published. This UI and its API only accept the fixed local
 ShopLite target; arbitrary URL scans are not exposed as supported UI actions.
 History and Recent Scans show real backend ShopLite runs. Run records, step
 summaries, and validated patch proposals are stored in PostgreSQL and survive
@@ -187,7 +191,7 @@ base in Docker, and create a draft pull request after you type
 PostgreSQL plus the local owner and GitHub App configuration in
 [`docs/week4_github_app_connection.md`](docs/week4_github_app_connection.md).
 
-Test suite: **334 passed, 1 skipped** (offline; the skip is a Windows
+Test suite: **341 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
@@ -200,10 +204,13 @@ Design docs live under `docs/`:
 - `docs/week2_testing_note.md`
 - `docs/week3_shoplite_sandbox.md`
 
-The CI webhook is a **simulation** — there is no real GitHub Actions/Jenkins
-integration. Patch proposals are never applied to the source repository. The
-opt-in ShopLite endpoint copies one reviewed CSS proposal into a temporary
-staging tree and verifies it in a restricted Docker container; see
+The generic CI webhook endpoint accepts synthetic events. Separately, the
+GitHub Actions workflow runs backend tests, the capture-to-sandbox pipeline,
+and the real restricted Docker smoke test on pushes to `vivek`; it does not
+send workflow events to a running OmniSight server. Patch proposals are never
+applied to the source repository. The opt-in ShopLite endpoint copies one
+reviewed CSS proposal into a temporary staging tree and verifies it in a
+restricted Docker container; see
 [`docs/week3_shoplite_sandbox.md`](docs/week3_shoplite_sandbox.md). It is a
 local demo milestone, not a general repository sandbox or production security
 boundary.

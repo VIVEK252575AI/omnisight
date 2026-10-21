@@ -302,6 +302,43 @@ def test_demo_runs_survive_store_restart_in_domain_tables():
     assert verified is not None and verified.status == "verified"
     assert verified.result["sandbox"]["status"] == "verified"
 
+    rejected_run = first.create()
+    assert rejected_run is not None
+    rejected_proposal = _proposal()
+    PatchStore(database, settings=settings).add(PatchProposalRecord(
+        proposal_id="proposal-human-reviewed",
+        finding_id="finding-1",
+        scan_id=scan.scan_id,
+        status=PatchProposalStatus.proposed,
+        attempt=2,
+        generator_label="MOCK",
+        proposal=rejected_proposal,
+    ), rejected_proposal)
+    first.update(rejected_run.run_id, status="awaiting_sandbox_approval", result={
+        "scan_id": str(scan.scan_id),
+        "findings": [{"finding_id": "finding-1"}],
+        "proposal": {"proposal_id": "proposal-human-reviewed"},
+    })
+    PatchStore(database, settings=settings).reject_by_human(
+        "proposal-human-reviewed",
+        reason="Please narrow the CSS selector.",
+    )
+    first.update(rejected_run.run_id, status="proposal_rejected", result={
+        "scan_id": str(scan.scan_id),
+        "findings": [{"finding_id": "finding-1"}],
+        "proposal": {"proposal_id": "proposal-human-reviewed", "status": "rejected"},
+        "proposal_review": {
+            "decision": "rejected",
+            "reason": "Please narrow the CSS selector.",
+            "reviewed_at": "2026-10-21T00:00:00+00:00",
+        },
+    })
+    restored_rejection = DemoRunStore(database, settings=settings).get(rejected_run.run_id)
+    assert restored_rejection is not None
+    assert restored_rejection.status == "proposal_rejected"
+    assert restored_rejection.result["proposal"]["status"] == "rejected"
+    assert restored_rejection.result["proposal_review"]["reason"] == "Please narrow the CSS selector."
+
 
 def test_validated_patch_is_durable_but_not_in_safe_record():
     database = _database()
@@ -327,3 +364,30 @@ def test_validated_patch_is_durable_but_not_in_safe_record():
     assert restarted.count_for_finding("finding-1") == 1
     assert restored_proposal == proposal
     assert restored_proposal.files[0].edits[0].old_text == "width: 520px;"
+
+
+def test_human_rejected_patch_is_durable_and_cannot_be_reloaded_as_proposed():
+    database = _database()
+    settings = Settings()
+    proposal = _proposal()
+    record = PatchProposalRecord(
+        proposal_id="proposal-human-rejected",
+        finding_id="finding-human-review",
+        status=PatchProposalStatus.proposed,
+        generator_label="MOCK",
+        proposal=proposal,
+    )
+    PatchStore(database, settings=settings).add(record, proposal)
+
+    first_store = PatchStore(database, settings=settings)
+    rejected = first_store.reject_by_human(
+        record.proposal_id,
+        reason="The proposed selector is too broad.",
+    )
+    restored = PatchStore(database, settings=settings).get(record.proposal_id)
+
+    assert rejected is not None
+    assert rejected.status == PatchProposalStatus.rejected
+    assert restored is not None
+    assert restored.status == PatchProposalStatus.rejected
+    assert restored.rejection_reasons == ["human_rejected"]

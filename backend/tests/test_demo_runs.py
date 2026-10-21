@@ -152,6 +152,61 @@ def test_patch_preview_returns_safe_diff_and_blocks_stale_source(tmp_path, monke
         main.app.dependency_overrides.clear()
 
 
+def test_reviewer_can_reject_proposal_with_a_persisted_reason():
+    settings = Settings(allowed_origins=["http://127.0.0.1:8000"])
+    run_store = DemoRunStore()
+    run = run_store.create()
+    proposal = PatchProposal(
+        finding_id="finding-review",
+        files=[{"path": "styles/checkout.css", "edits": [{"old_text": "width: 520px;", "new_text": "width: 100%;"}]}],
+        rationale="Make the action fit on mobile.",
+        generator_label="MOCK",
+    )
+    patch_store = PatchStore()
+    patch_store.add(
+        PatchProposalRecord(
+            proposal_id="proposal-review",
+            finding_id=proposal.finding_id,
+            status=PatchProposalStatus.proposed,
+            generator_label="MOCK",
+            proposal=proposal,
+        ),
+        proposal,
+    )
+    run_store.update(
+        run.run_id,
+        status="awaiting_sandbox_approval",
+        result={
+            "findings": [{"finding_id": proposal.finding_id}],
+            "proposal": {"proposal_id": "proposal-review"},
+        },
+    )
+    main.app.dependency_overrides[get_settings] = lambda: settings
+    main.app.dependency_overrides[get_demo_run_store] = lambda: run_store
+    main.app.dependency_overrides[get_patch_store] = lambda: patch_store
+    try:
+        with _local_client() as client:
+            rejected = client.post(
+                f"/api/v1/demo/shoplite/runs/{run.run_id}/reject-proposal",
+                json={"reason": "The proposed selector is too broad."},
+                headers={"Origin": "http://127.0.0.1:8000"},
+            )
+            duplicate = client.post(
+                f"/api/v1/demo/shoplite/runs/{run.run_id}/reject-proposal",
+                json={"reason": "Second decision must be blocked."},
+                headers={"Origin": "http://127.0.0.1:8000"},
+            )
+        assert rejected.status_code == 200
+        assert rejected.json()["status"] == "proposal_rejected"
+        assert rejected.json()["result"]["proposal_review"]["decision"] == "rejected"
+        assert rejected.json()["result"]["proposal_review"]["reason"] == "The proposed selector is too broad."
+        assert patch_store.get("proposal-review").status == PatchProposalStatus.rejected
+        assert patch_store.get("proposal-review").rejection_reasons == ["human_rejected"]
+        assert duplicate.status_code == 409
+    finally:
+        main.app.dependency_overrides.clear()
+
+
 def test_demo_run_requires_explicit_sandbox_approval_and_shows_before_after_evidence(monkeypatch, tmp_path):
     source_root = tmp_path / "shoplite-source"
     css_path = source_root / "styles" / "checkout.css"

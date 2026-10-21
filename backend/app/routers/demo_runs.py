@@ -25,6 +25,7 @@ from app.config import Settings, get_settings
 from app.demo_run_store import DemoRunStore, get_demo_run_store
 from app.evidence_storage import EvidenceStore, get_evidence_store
 from app.errors import DomainError, ErrorCode
+from app.ids import utcnow
 from app.artifacts import artifact_root
 from app.patch_storage import PatchStore, get_patch_store
 from app.patch_validation import validate_patch_proposal
@@ -45,6 +46,12 @@ class SandboxConfirmation(BaseModel):
 
     confirmation: Literal["approve-demo-only"]
     base_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class ProposalRejection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=500)
 
 
 def _persist_sandbox_screenshot(
@@ -434,3 +441,61 @@ def validate_shoplite_run(
     state = "verified" if report.status == "verified" else "validation_failed"
     updated = store.update(run_id, status=state, result=result)
     return updated.response() if updated else {"run_id": run_id, "status": state, "result": result}
+
+
+@router.post("/runs/{run_id}/reject-proposal")
+def reject_shoplite_proposal(
+    run_id: str,
+    decision: ProposalRejection,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: DemoRunStore = Depends(get_demo_run_store),
+    patch_store: PatchStore = Depends(get_patch_store),
+) -> dict:
+    """Persist a local owner's rejection and prevent later validation or publishing."""
+    _require_local_ui(request, settings)
+    run = store.get(run_id)
+    if run is None:
+        raise DomainError(ErrorCode.NOT_FOUND, "ShopLite run not found", status_code=status.HTTP_404_NOT_FOUND)
+    if run.status != "awaiting_sandbox_approval":
+        raise DomainError(
+            ErrorCode.CONFLICT,
+            "This ShopLite run is no longer waiting for a proposal decision",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    proposal_info = run.result.get("proposal")
+    proposal_id = proposal_info.get("proposal_id") if isinstance(proposal_info, dict) else None
+    record = patch_store.get(proposal_id) if isinstance(proposal_id, str) else None
+    finding_ids = {
+        item.get("finding_id") for item in run.result.get("findings", [])
+        if isinstance(item, dict) and isinstance(item.get("finding_id"), str)
+    }
+    if record is None or record.status.value != "proposed" or record.finding_id not in finding_ids:
+        raise DomainError(
+            ErrorCode.PATCH_PROPOSAL_NOT_FOUND,
+            "The proposed patch is no longer available for review",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+    reason = decision.reason.strip()
+    if not reason:
+        raise DomainError(
+            ErrorCode.VALIDATION_ERROR,
+            "Enter a reason so the review decision is recorded",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+    rejected = patch_store.reject_by_human(proposal_id, reason=reason)
+    if rejected is None:
+        raise DomainError(
+            ErrorCode.CONFLICT,
+            "The proposal changed while the review decision was being saved",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    reviewed_at = utcnow().isoformat()
+    result = {
+        **run.result,
+        "proposal": {**proposal_info, "status": "rejected", "rejection_reasons": ["human_rejected"]},
+        "proposal_review": {"decision": "rejected", "reason": reason, "reviewed_at": reviewed_at},
+    }
+    updated = store.update(run_id, status="proposal_rejected", result=result)
+    return updated.response() if updated else {"run_id": run_id, "status": "proposal_rejected", "result": result}

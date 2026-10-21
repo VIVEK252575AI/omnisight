@@ -211,6 +211,8 @@ class DemoRunStore:
         if run.outcome == "analysis_inconclusive":
             return "needs_inspection"
         if patch:
+            if patch.status == "canceled" and "human_rejected" in patch.policy_check_result.get("rejection_reasons", []):
+                return "proposal_rejected"
             return {
                 "proposed": "awaiting_sandbox_approval",
                 "validating": "validating",
@@ -229,7 +231,10 @@ class DemoRunStore:
             result.update(step.result_summary_json or {})
         patch = session.scalar(select(PatchAttempt).where(PatchAttempt.run_id == run.id).order_by(PatchAttempt.created_at.desc()).limit(1))
         if patch is not None:
-            result.update({"proposal": patch.proposal_record_json})
+            proposal_summary = dict(patch.proposal_record_json)
+            proposal_summary["status"] = patch.policy_check_result.get("status", proposal_summary.get("status", "proposed"))
+            proposal_summary["rejection_reasons"] = patch.policy_check_result.get("rejection_reasons", [])
+            result.update({"proposal": proposal_summary})
         if run.failure_code:
             result["failure_code"] = run.failure_code
         return DemoRun(
@@ -330,6 +335,7 @@ class DemoRunStore:
                 patch_status = {
                     "awaiting_sandbox_approval": "proposed",
                     "patch_rejected": "rejected_by_policy",
+                    "proposal_rejected": "canceled",
                     "validating": "validating",
                     "verified": "validation_passed",
                     "validation_failed": "validation_failed",
@@ -362,7 +368,7 @@ class DemoRunStore:
                     for attempt in targets:
                         attempt.status = patch_status
                         attempt.updated_at = now
-                        attempt.finished_at = now if patch_status in {"rejected_by_policy", "validation_passed", "validation_failed"} else attempt.finished_at
+                        attempt.finished_at = now if patch_status in {"rejected_by_policy", "validation_passed", "validation_failed", "canceled"} else attempt.finished_at
                 if status == "needs_inspection":
                     run.outcome = "analysis_inconclusive"
                     run.status = "completed"
@@ -373,7 +379,7 @@ class DemoRunStore:
                 result_steps = [
                     (2, "browser_capture", "browser_execution", "Capture ShopLite browser evidence", {"capture": result.get("capture")}, "passed"),
                     (3, "visual_analysis", "visual_analysis", "Analyze checkout evidence", {key: result[key] for key in ("scan_id", "findings", "detection_adapter", "detection_is_mock", "detection_status", "detection_reason_code", "detection_reason_message") if key in result}, "passed" if result.get("findings") else "inconclusive"),
-                    (4, "patch_generation", "patch_generation", "Generate a safe patch proposal", {"proposal_attempts": result.get("proposal_attempts", [])}, "failed" if result.get("status") == "patch_rejected" else "passed"),
+                    (4, "patch_generation", "patch_generation", "Generate a safe patch proposal", {"proposal_attempts": result.get("proposal_attempts", []), "proposal_review": result.get("proposal_review")}, "failed" if result.get("status") == "patch_rejected" else "passed"),
                     (5, "patch_validation", "patch_validation", "Validate the candidate patch", {"sandbox": result.get("sandbox")} if result.get("sandbox") else {}, "passed" if result.get("status") == "verified" else "failed" if result.get("status") == "validation_failed" else "skipped"),
                 ]
                 for ordinal, key, step_type, label, summary, step_status in result_steps:
