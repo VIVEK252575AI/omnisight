@@ -18,6 +18,9 @@ const Store = {
   projectsLoading: false,
   projectsRequestId: 0,
   projectSaving: false,
+  projectFormName: '',
+  projectFormTargetUrl: '',
+  projectFormEnvironment: 'staging',
   selectedProjectId: null,
   targetAuthorizationEvents: [],
   targetAuthorizationEventsRequestId: 0,
@@ -214,9 +217,9 @@ async function loadProjects() {
 async function createProject(event) {
   event?.preventDefault();
   if (Store.projectSaving) return;
-  const name = document.getElementById('project-name')?.value.trim() || '';
-  const targetUrl = document.getElementById('project-target-url')?.value.trim() || '';
-  const environmentKind = document.getElementById('project-environment-kind')?.value || 'staging';
+  const name = Store.projectFormName.trim();
+  const targetUrl = Store.projectFormTargetUrl.trim();
+  const environmentKind = Store.projectFormEnvironment;
   Store.projectSaving = true;
   Store.projectsError = null;
   render();
@@ -230,12 +233,25 @@ async function createProject(event) {
     Store.projectsLoading = false;
     Store.projects = [project, ...Store.projects.filter(item => item.id !== project.id)];
     Store.selectedProjectId = project.id;
+    Store.projectFormName = '';
+    Store.projectFormTargetUrl = '';
+    Store.projectFormEnvironment = 'staging';
   } catch (error) {
     Store.projectsError = error.message;
   } finally {
     Store.projectSaving = false;
     if (Store.route === 'projects') render();
   }
+}
+
+function updateProjectForm(field, value) {
+  const formFields = {
+    name: 'projectFormName',
+    target_url: 'projectFormTargetUrl',
+    environment_kind: 'projectFormEnvironment'
+  };
+  const stateField = formFields[field];
+  if (stateField) Store[stateField] = value;
 }
 
 async function loadTargetAuthorizationEvents(projectId) {
@@ -559,7 +575,7 @@ function renderProjects() {
       </div>
     </section>
     ${project ? `<section class="panel project-detail"><div class="panel__head"><div class="panel__title">${esc(project.name)}</div><span class="badge badge--info">${esc(project.status)}</span></div><div class="panel__body"><p class="panel__sub">Project ID <code>${esc(project.id)}</code> · slug <code>${esc(project.slug)}</code></p><h3>Test targets</h3>${project.targets?.length ? project.targets.map(target => `<article class="project-target"><div><strong>${esc(target.name)}</strong><div><code>${esc(target.base_url)}</code></div><span class="panel__sub">${esc(target.environment_kind)} environment · target version ${esc(target.version)}</span>${targetControl(target)}<p class="panel__sub">Authorization checks HTTPS and public DNS only; it does not load the website. Target scanning remains unavailable until the browser worker enforces destination and redirect policy at connection time.</p></div><span class="badge badge--${target.authorization_status === 'approved' ? 'success' : target.authorization_status === 'revoked' ? 'warning' : 'info'}">Authorization ${esc(target.authorization_status)}</span></article>`).join('') : '<div class="empty">No target has been added.</div>'}<h3>Authorization history</h3>${Store.targetAuthorizationEvents.length ? `<ul class="target-auth-history">${Store.targetAuthorizationEvents.map(item => `<li><strong>${esc(item.action)}</strong> · ${new Date(item.created_at).toLocaleString()} · ${esc(item.actor_id)} · <code>${esc(item.allowed_hosts_snapshot.join(', ') || 'no allowed hosts')}</code></li>`).join('')}</ul>` : '<p class="panel__sub">No authorization changes recorded.</p>'}<h3>Source repository</h3><p class="panel__sub">Not connected · patch generation and pull requests are unavailable for this project.</p></div></section>` : ''}
-    <section class="panel project-create"><div class="panel__head"><div class="panel__title">Add a project</div><span class="panel__sub">Saved locally under the current owner</span></div><form class="panel__body" onsubmit="createProject(event)"><div class="field"><label for="project-name">Project name</label><input id="project-name" name="name" maxlength="120" required placeholder="My web application" ${Store.projectSaving ? 'disabled' : ''}></div><div class="field"><label for="project-target-url">Intended test URL</label><input id="project-target-url" name="target_url" type="url" maxlength="2048" required placeholder="https://staging.example.com" ${Store.projectSaving ? 'disabled' : ''}></div><div class="field"><label for="project-environment-kind">Environment</label><select id="project-environment-kind" name="environment_kind" ${Store.projectSaving ? 'disabled' : ''}><option value="staging">Staging</option><option value="development">Development</option><option value="other">Other</option></select></div><button class="btn btn--primary" type="submit" ${Store.projectSaving ? 'disabled' : ''}>${Store.projectSaving ? 'Saving…' : 'Save project and target'}</button></form></section>
+    <section class="panel project-create"><div class="panel__head"><div class="panel__title">Add a project</div><span class="panel__sub">Saved locally under the current owner</span></div><form class="panel__body" onsubmit="createProject(event)"><div class="field"><label for="project-name">Project name</label><input id="project-name" name="name" value="${esc(Store.projectFormName)}" oninput="updateProjectForm('name',this.value)" maxlength="120" required placeholder="My web application" ${Store.projectSaving ? 'disabled' : ''}></div><div class="field"><label for="project-target-url">Intended test URL</label><input id="project-target-url" name="target_url" type="url" value="${esc(Store.projectFormTargetUrl)}" oninput="updateProjectForm('target_url',this.value)" maxlength="2048" required placeholder="https://staging.example.com" ${Store.projectSaving ? 'disabled' : ''}></div><div class="field"><label for="project-environment-kind">Environment</label><select id="project-environment-kind" name="environment_kind" onchange="updateProjectForm('environment_kind',this.value)" ${Store.projectSaving ? 'disabled' : ''}><option value="staging" ${Store.projectFormEnvironment === 'staging' ? 'selected' : ''}>Staging</option><option value="development" ${Store.projectFormEnvironment === 'development' ? 'selected' : ''}>Development</option><option value="other" ${Store.projectFormEnvironment === 'other' ? 'selected' : ''}>Other</option></select></div><button class="btn btn--primary" type="submit" ${Store.projectSaving ? 'disabled' : ''}>${Store.projectSaving ? 'Saving…' : 'Save project and target'}</button></form></section>
   </div>`;
 }
 
