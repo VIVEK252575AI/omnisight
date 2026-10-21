@@ -64,7 +64,7 @@ def _wait_for_pending_project_target(page, timeout_ms: int, diagnostics: list[li
         message = page.locator(".projects-view [role='alert']").inner_text()
         raise RuntimeError(f"Project setup failed in the dashboard: {message}")
     detail_text = project_detail.inner_text()
-    if "Authorization pending" not in detail_text:
+    if "authorization pending" not in detail_text.casefold():
         raise RuntimeError(f"Project target did not remain pending authorization: {detail_text}")
 
 
