@@ -8,7 +8,7 @@ import re
 import sys
 from urllib.parse import urlsplit
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
 
 
 def _loopback_url(value: str) -> str:
@@ -46,11 +46,16 @@ def _start_and_verify_run(page, *, start_button: str | re.Pattern[str], timeout_
 
 def _wait_for_pending_project_target(page, timeout_ms: int) -> None:
     setup_timeout_ms = min(timeout_ms, 15_000)
-    page.wait_for_function(
-        """() => document.querySelector('.project-detail') ||
-          document.querySelector('.projects-view [role="alert"]')""",
-        timeout=setup_timeout_ms,
-    )
+    try:
+        page.wait_for_function(
+            """() => document.querySelector('.project-detail') ||
+              document.querySelector('.projects-view [role="alert"]')""",
+            timeout=setup_timeout_ms,
+        )
+    except PlaywrightTimeoutError:
+        view = page.locator(".projects-view")
+        page_text = view.inner_text() if view.count() else page.locator("body").inner_text()
+        raise RuntimeError(f"Project setup did not update the dashboard: {page_text}") from None
     project_detail = page.locator(".project-detail")
     if project_detail.count() == 0:
         message = page.locator(".projects-view [role='alert']").inner_text()
