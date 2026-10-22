@@ -33,7 +33,7 @@ from app.patch_schemas import (
     RejectionReason,
 )
 from app.patch_validation import validate_patch_proposal
-from app.source_context import build_source_context
+from app.source_context import SourceContext, SourceFile, build_source_context
 
 CSS_TEXT = "#submit {\n  width: 220px;\n  color: red;\n}\n"
 
@@ -598,6 +598,32 @@ def test_source_tree_is_byte_identical_across_a_full_propose_flow(
 
     after = _snapshot(_REPO_ROOT)
     assert after == before
+
+
+def test_shoplite_mock_scenario_proposes_only_the_small_approved_width_edit():
+    finding = Finding(
+        category=FindingCategory.clipped_element,
+        target_candidate="#place-order",
+        observation="The checkout button overflows the mobile viewport.",
+        evidence="Right edge exceeds the viewport by 167px.",
+        severity=Severity.high,
+        confidence=0.9,
+    )
+    source = SourceContext(files=[SourceFile(
+        path="styles/checkout.css",
+        text="#place-order { width: 520px; height: 48px; }\n",
+        bytes=48,
+    )])
+
+    payload = json.loads(MockPatchGenerator("shoplite_checkout_fix").propose(finding, source))
+
+    assert payload["files"] == [{
+        "path": "styles/checkout.css",
+        "edits": [{
+            "old_text": "width: 520px;",
+            "new_text": "width: 100%; max-width: 100%;",
+        }],
+    }]
 
 
 # ---------------------------------------------------------------------------

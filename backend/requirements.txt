@@ -4,3 +4,8 @@ pydantic==2.10.4
 pydantic-settings==2.7.1
 httpx==0.28.1
 pytest==8.3.4
+playwright==1.64.0
+PyJWT[crypto]==2.15.1
+SQLAlchemy==2.0.55
+alembic==1.20.0
+psycopg[binary]==3.3.6

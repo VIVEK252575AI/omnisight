@@ -11,9 +11,9 @@ into RAW TEXT. Like the VLM adapter it mirrors:
   :func:`app.patch_validation.validate_patch_proposal` approves it.
 
 The factory selects the implementation from ``OMNISIGHT_PATCH_GENERATOR``;
-``mock`` (deterministic, offline, labelled ``MOCK``) is the default and the
-only one implemented. An unknown value fails fast rather than silently
-falling back.
+``mock`` (deterministic, offline, labelled ``MOCK``) is the default, and
+``gemini`` is the optional server-side Google Gemini implementation. An
+unknown value fails fast rather than silently falling back.
 
 Interface, errors, the mock and the factory share this module because the
 boundary is deliberately tiny — unlike the VLM adapter there is no image
@@ -34,7 +34,12 @@ MOCK_LABEL = "MOCK"
 FENCE_TAG = PATCH_FENCE_TAG
 MOCK_PATCH_GENERATOR = "mock"
 TEAMMATE_PATCH_GENERATOR = "teammate"
-KNOWN_PATCH_GENERATORS = (MOCK_PATCH_GENERATOR, TEAMMATE_PATCH_GENERATOR)
+GEMINI_PATCH_GENERATOR = "gemini"
+KNOWN_PATCH_GENERATORS = (
+    MOCK_PATCH_GENERATOR,
+    GEMINI_PATCH_GENERATOR,
+    TEAMMATE_PATCH_GENERATOR,
+)
 
 # Offline, deterministic scenarios for :class:`MockPatchGenerator`. The extras
 # exist so the W2.6 extraction rules can be exercised without a provider:
@@ -43,8 +48,10 @@ KNOWN_PATCH_GENERATORS = (MOCK_PATCH_GENERATOR, TEAMMATE_PATCH_GENERATOR)
 #   two_tagged_fences   two `omnisight-patch` blocks (ambiguous_multiple_patches)
 #   prose_only          no JSON at all (no_patch_found)
 #   truncated           cut-off JSON (truncated)
+#   shoplite_checkout_fix minimal deterministic fix for the fixed ShopLite demo
 SCENARIOS = (
     "ok",
+    "shoplite_checkout_fix",
     "timeout",
     "error",
     "invalid_json",
@@ -191,6 +198,29 @@ class MockPatchGenerator:
             return base
 
         source_file = _pick_source_file(source_context)
+        if self.scenario == "shoplite_checkout_fix":
+            path = source_file.path if source_file is not None else self.fallback_path
+            old_text = "width: 520px;"
+            if (
+                path == "styles/checkout.css"
+                and source_file is not None
+                and source_file.text.count(old_text) == 1
+            ):
+                base["files"] = [{
+                    "path": path,
+                    "edits": [{
+                        "old_text": old_text,
+                        "new_text": "width: 100%; max-width: 100%;",
+                    }],
+                }]
+                return base
+            # A special demo fixture must fail closed if its expected source
+            # declaration is absent or ambiguous.
+            base["files"] = [{
+                "path": path,
+                "edits": [{"old_text": old_text, "new_text": "width: 100%; max-width: 100%;"}],
+            }]
+            return base
         if source_file is None or not source_file.text.strip():
             path, old_text = self.fallback_path, "color: red;"
         else:
@@ -214,6 +244,11 @@ def create_patch_generator(settings: Settings) -> PatchGenerator:
             settings.patch_mock_scenario,
             timeout_seconds=settings.patch_timeout_seconds,
         )
+
+    if name == GEMINI_PATCH_GENERATOR:
+        from app.ai.adapters.gemini_patch import GeminiPatchGenerator
+
+        return GeminiPatchGenerator(settings)
 
     if name == TEAMMATE_PATCH_GENERATOR:
         raise PatchGeneratorError(

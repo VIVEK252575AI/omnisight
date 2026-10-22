@@ -6,6 +6,14 @@ OmniSight is an **AI-powered autonomous QA workflow** designed to detect visual 
 
 > **Core Loop:** Detect → Fix → Verify → Deliver
 
+### Client demo
+
+Open the [OmniSight client demo](client-demo/index.html) for a concise
+walkthrough of the mock-provider ShopLite workflow and verified sandbox run.
+The interactive dashboard can be run with the
+[client demo instructions](client-demo/README.md); Docker Desktop, a rotated
+Gemini key, and local sandbox settings are required for a live-provider run.
+
 Traditional UI tests mainly inspect the DOM and depend on hardcoded selectors. However, users experience an application visually through pixels. A test may therefore pass functionally while problems such as clipping, overlap, poor contrast, and broken responsive layouts remain visible.
 
 OmniSight combines **browser automation, visual AI, code reasoning, automated validation, and CI/CD** to create a self-healing UI testing workflow.
@@ -98,8 +106,7 @@ The major stages are:
 > This section reflects the **actual repository state**. The rest of this
 > document describes the target design.
 
-The Week 1 and Week 2 backend (FastAPI) is implemented, tested and pushed on the
-`lakshy` branch (`backend/`):
+The Week 1 and Week 2 backend (FastAPI) is implemented and tested (`backend/`):
 
 | Area | Status |
 |---|---|
@@ -110,13 +117,29 @@ The Week 1 and Week 2 backend (FastAPI) is implemented, tested and pushed on the
 | Structured visual-finding schema + strict parser (W2.3) | Tested with mocks |
 | VLM detection workflow (W2.4) | Tested with mocks |
 | Safe action engine / patch proposals (W2.5) | Tested with mocks |
+| Gemini visual analyzer and safe patch generator | Implemented; provider calls are covered by mocked tests. Live API verification requires a configured key and available quota |
 | Code-response extraction & rejection (W2.6) | Tested with mocks |
 | Week 2 test matrix: valid / malformed / missing / unsupported / failed (W2.7) | Tested with mocks |
-| Playwright collector, real VLM provider, patch apply + sandbox, PyGithub, React dashboard | Not implemented |
+| Local Playwright checkout capture and scan runner | Tested with the local demo and backend |
+| ShopLite-only Docker patch verification | Implemented behind explicit local approval; live sandbox smoke is configured in GitHub Actions |
+| GitHub App authentication and ShopLite draft PR publisher | Local loopback-only owner flow with PostgreSQL-backed project, validation, idempotent operation, event, and draft PR records. Requires explicit confirmation and remains disabled by default ([setup and workflow](docs/week4_github_app_connection.md)) |
+| Local interactive dashboard | Main scan, persisted before/after screenshots, run history, findings, patch review, sandbox approval, and optional GitHub publishing use the fixed ShopLite backend workflow |
+| Local Projects setup | Projects and intended target URLs persist through the API and dashboard; newly saved targets stay pending authorization and cannot be scanned yet |
+| Target authorization | Local owner can explicitly authorize or revoke a development/staging HTTPS hostname after public-DNS checks; each decision records an immutable event. Connection-time browser egress and general target scans are not implemented |
+| General repository patching, PR merge/deploy, production dashboard | Not implemented; publishing is limited to the fixed ShopLite CSS demo and draft PRs |
 
-All Week 2 AI work runs against a deterministic, **offline MOCK adapter** — no
-live VLM provider has been selected yet, and raw model output is never executed,
-imported, or written to disk.
+VLM detection and patch generation default to deterministic offline **MOCK**
+adapters. The dashboard exposes the fixed ShopLite workflow and uses its
+server-configured providers for browser capture → finding → safe proposal.
+Raw model output is validated and never executed or applied automatically.
+The Projects page can save a local project and its intended target URL. A local
+owner can explicitly authorize a development/staging hostname after the API
+confirms it uses HTTPS, standard port 443, and currently resolves only to public
+addresses; this check does not load the website. Approval/revocation events and
+the exact allowed hostname are persisted. It is not yet safe to run a browser
+against newly configured targets: connection-time DNS/redirect enforcement and
+the general target runner are still being built. The fixed ShopLite workflow
+remains the only runnable browser scan.
 
 Endpoints currently served:
 
@@ -132,21 +155,75 @@ GET      /api/v1/webhooks/events/{event_id}
 POST     /api/v1/scans/{scan_id}/evidence
 GET      /api/v1/scans/{scan_id}/evidence
 GET      /api/v1/artifacts/{artifact_id}
-POST     /api/v1/scans/{scan_id}/detect           # VLM detection (MOCK adapter)
+GET      /api/v1/projects                            # local-owner projects + saved targets
+POST     /api/v1/projects                            # create project + pending target
+GET      /api/v1/projects/{project_id}
+POST     /api/v1/projects/{project_id}/targets/{target_id}/authorize
+POST     /api/v1/projects/{project_id}/targets/{target_id}/revoke
+GET      /api/v1/projects/{project_id}/targets/{target_id}/authorization-events
+POST     /api/v1/scans/{scan_id}/detect           # VLM detection (MOCK or Gemini)
 GET      /api/v1/scans/{scan_id}/findings         # validated findings + run
+POST     /api/v1/demo/shoplite/runs               # local fixed-target real scan
+GET      /api/v1/demo/shoplite/runs               # list current local demo runs
+GET      /api/v1/demo/shoplite/runs/{run_id}      # poll run and proposal status
+GET      /api/v1/demo/shoplite/runs/{run_id}/patch-preview # exact source diff + base hash
+POST     /api/v1/demo/shoplite/runs/{run_id}/validate # explicit confirmation + Docker sandbox
+POST     /api/v1/demo/shoplite/runs/{run_id}/reject-proposal # record human rejection + reason
 GET      /api/v1/findings/{finding_id}
 POST     /api/v1/findings/{finding_id}/patch-proposals   # propose only, no writes
 GET      /api/v1/findings/{finding_id}/patch-proposals
+POST     /api/v1/demo/shoplite/patch-proposals/{proposal_id}/validate  # approved, fixed-target Docker check
+POST     /api/v1/local/github/connection/verify                        # local owner; server-configured repo only
+GET      /api/v1/local/github/state                                    # restore connection, validation, and PR operations
+POST     /api/v1/local/shoplite/proposals/{proposal_id}/validate        # remote base SHA + Docker report
+POST     /api/v1/local/github/draft-prs                                 # explicit confirmation + idempotency key
+GET      /api/v1/local/github/operations/{operation_id}
 ```
 
-Run it (from `backend/`):
+Run the application (from `backend/`) and open the dashboard at
+`http://127.0.0.1:8000/`:
 
 ```powershell
+$env:OMNISIGHT_DATABASE_URL = "postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/omnisight"
+.\.venv\Scripts\alembic.exe upgrade head             # create/update PostgreSQL schema
 .\.venv\Scripts\uvicorn.exe app.main:app --reload     # serve
 .\.venv\Scripts\python.exe -m pytest tests\ -q        # test
 ```
 
-Test suite: **289 passed, 1 skipped** (offline; the skip is a Windows
+Use **Live ShopLite Demo** from the dashboard for the backend workflow. It uses
+the configured provider (MOCK by default; Gemini when explicitly configured).
+Review the exact source diff, then either reject the proposal with a recorded
+reason or type `approve-demo-only` and confirm before the API starts the
+restricted Docker sandbox. A rejected proposal cannot be sandbox-validated or
+published. This UI and its API only accept the fixed local
+ShopLite target; arbitrary URL scans are not exposed as supported UI actions.
+History and Recent Scans show real backend ShopLite runs. Run records, step
+summaries, and validated patch proposals are stored in PostgreSQL and survive
+backend restarts. Apply the Alembic migrations before starting the workflow.
+
+In **Settings → Project and test flow**, you can adjust the fixed demo's mobile
+and desktop viewport sizes and publish a new immutable flow version. New runs
+pin that version and use its saved sizes during browser capture; earlier runs
+retain their original version. The checkout route and supported assertions
+remain fixed to the controlled ShopLite demo.
+
+After a successful sandbox run, the same page can verify the server-configured
+GitHub App repository, validate the proposal again against the current remote
+base in Docker, and create a draft pull request after you type
+`create-draft-pr`. This publishing path is disabled by default and requires
+PostgreSQL plus the local owner and GitHub App configuration in
+[`docs/week4_github_app_connection.md`](docs/week4_github_app_connection.md).
+After a browser refresh, enter the local owner token and select **Load saved
+GitHub publishing state** to recover the verified connection, recent validation
+report, draft PR outcome, and idempotency key for safe retry/reconciliation.
+
+The **Projects** page creates and lists PostgreSQL-backed local-owner projects.
+Saving an intended test URL does not contact it or authorize it: the target is
+stored as `pending`, and only the fixed ShopLite demo can currently be scanned.
+The page also says when a source repository is not connected, so a project
+without GitHub setup is not shown as ready for patch or PR work.
+
+Test suite: **366 passed, 1 skipped** (offline; the skip is a Windows
 `symlink` test).
 
 Design docs live under `docs/`:
@@ -157,10 +234,19 @@ Design docs live under `docs/`:
 - `docs/week2_action_engine.md`
 - `docs/week2_code_extraction.md`
 - `docs/week2_testing_note.md`
+- `docs/week3_shoplite_sandbox.md`
 
-The CI webhook is a **simulation** — there is no real GitHub Actions/Jenkins
-integration. The patch-proposal endpoint only **validates and stores** a
-proposal; nothing is written to disk or applied to a repository in this slice.
+The generic CI webhook endpoint accepts synthetic events. Separately, the
+GitHub Actions workflow runs backend tests, the dashboard-driven capture-to-
+sandbox workflow, and the real restricted Docker smoke on pushes to `vivek`;
+pull requests targeting `main` run the backend test job. The workflow does not
+send events to a running OmniSight server. Patch proposals are never
+applied to the source repository. The opt-in ShopLite endpoint copies one
+reviewed CSS proposal into a temporary staging tree and verifies it in a
+restricted Docker container; see
+[`docs/week3_shoplite_sandbox.md`](docs/week3_shoplite_sandbox.md). It is a
+local demo milestone, not a general repository sandbox or production security
+boundary.
 
 ---
 
@@ -289,11 +375,11 @@ OmniSight/
 │   │   ├── config.py               # env-driven Settings
 │   │   ├── schemas.py              # scan + observation/v1 contracts
 │   │   ├── errors.py               # single error envelope
-│   │   ├── storage.py              # in-memory scan store
+│   │   ├── storage.py              # PostgreSQL QA run repository
 │   │   ├── event_storage.py        # CI event store
-│   │   ├── evidence_storage.py     # evidence + artifact registry
+│   │   ├── evidence_storage.py     # PostgreSQL evidence metadata + private file refs
 │   │   ├── artifacts.py            # safe artifact resolution
-│   │   ├── detection_*.py          # VLM detection workflow (W2.4)
+│   │   ├── detection_*.py          # VLM detection + persistent finding repository
 │   │   ├── action_engine.py        # safe patch-proposal engine (W2.5)
 │   │   ├── patch_*.py              # schemas, paths, validation, extraction
 │   │   ├── source_context.py       # read-only approved-source context
@@ -415,6 +501,7 @@ Browser evidence is converted into machine-readable context.
     }
   ],
   "console_errors": [],
+  "page_errors": [],
   "network_errors": [],
   "captured_at": "2026-01-01T00:00:00Z"
 }
@@ -1140,14 +1227,130 @@ The backend and worker services are separate from the frontend and need their ow
 
 ### MVP Demo
 
-Demonstrate one known visual defect end to end:
+Demonstrate one known visual defect through the supported local workflow:
 
-1. Submit the ShopLite checkout URL.
+1. Start the fixed ShopLite checkout scan.
 2. Capture the mobile viewport (for example, 390 × 844).
 3. Detect the clipped Checkout button.
-4. Propose and apply a minimal CSS fix.
-5. Re-capture and verify the UI.
-6. Show the before/after evidence and validation status.
-7. Display the resulting reviewable PR and wait for human review.
+4. Review the restricted CSS patch proposal.
+5. Explicitly approve isolated Docker verification.
+6. Compare the persisted before/after mobile screenshots, browser checks, and run history.
+7. Optionally validate and publish a draft PR when GitHub App configuration is enabled.
 
-> **Demo success:** Detect → Fix → Verify → Reviewable PR.
+> **Demo success:** Detect → Review proposal → Verify in the sandbox → Optionally publish a draft PR.
+
+### Local checkout browser fixture
+
+`demo-app/` is a deterministic, local-only ShopLite checkout used to exercise
+the browser evidence step. Its mobile Place Order button is intentionally too
+wide so the runner has a known defect to find. The order action is simulated;
+it does not collect payment or send order data.
+
+From the repository root, install the backend dependencies and Chromium once:
+
+```powershell
+cd backend
+..\.venv\Scripts\python.exe -m pip install -r requirements.txt
+..\.venv\Scripts\python.exe -m playwright install chromium
+```
+
+In one PowerShell window, serve the fixture from the repository root:
+
+```powershell
+cd demo-app
+python -m http.server 4173 --bind 127.0.0.1
+```
+
+In another PowerShell window, capture desktop and mobile evidence:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe scripts\capture_demo_checkout.py
+```
+
+The fixed flow checks the checkout heading and summary, exercises the simulated
+order action, records console errors, measures the button, and writes
+`observation/v1` JSON plus screenshots under `backend/artifacts/demo-checkout/`.
+The live collector records console errors, uncaught page exceptions, and failed
+or HTTP-error requests separately. Network evidence omits URL credentials,
+query strings, and fragments so common tokens are not copied into run records.
+Gemini receives only bounded error counts and allow-listed request method,
+status, and resource-type metadata; page error text and request URLs are omitted.
+By default it expects the deliberate mobile overflow and exits successfully
+when it detects it. After fixing the CSS, run
+`scripts\capture_demo_checkout.py --expected no-overflow`; it succeeds only
+when the button fits the mobile viewport. The runner only accepts HTTP loopback
+URLs and does not execute supplied flow data or modify application files.
+
+To capture the page and also upload the mobile evidence to a running backend,
+trigger detection, and wait for the result, run this from `backend/`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_demo_detection.py
+```
+
+The output labels the analyzer as `MOCK` or `GEMINI`. The default mock uses the
+captured element bounds, so it can demonstrate both the broken and fixed state
+without a provider key.
+
+To run the complete fixed-demo flow through detection, safe patch proposal, and
+the isolated Docker browser check, see
+[`docs/week3_shoplite_sandbox.md`](docs/week3_shoplite_sandbox.md#run-the-complete-gemini-to-browser-verification-demo).
+The runner requires `--approve-sandbox` and reports success only when the
+candidate passes the mobile/desktop Playwright checks.
+
+## Gemini patch suggestions (backend)
+
+The backend exposes `POST /api/ai/patch-suggestions` for a direct, review-only Gemini proposal. It also supports Gemini through the standard finding workflow: set `OMNISIGHT_PATCH_GENERATOR=gemini`, then call `POST /api/v1/findings/{finding_id}/patch-proposals`. That workflow loads only backend-approved source files and runs the existing extractor, path allowlist, edit applicability, and code checks before recording a proposal. Neither endpoint writes or executes code.
+
+Copy `backend/.env.example` to `backend/.env`, set `OMNISIGHT_GEMINI_API_KEY`, and configure `OMNISIGHT_PATCH_SOURCE_ROOT` plus `OMNISIGHT_APPROVED_PATCH_PATHS` for the source checkout being tested. The key remains on the backend and is sent to Google in the `x-goog-api-key` header. Keep it out of frontend code and source control. Set `OMNISIGHT_GEMINI_MODEL` if a different model is enabled for your key. The default generator remains `mock` until you explicitly switch it to `gemini`.
+
+To verify the configured key and model with one small, bounded request, run
+from `backend/` after rotating any key that was shared outside the local
+`.env`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_gemini.py
+```
+
+The command prints only the provider, model, and connection result. It never
+prints the key or the provider response body; Gemini quota and authentication
+errors are reported with sanitized messages.
+
+### Gemini visual detection
+
+The visual analyzer can also use Gemini. Set `OMNISIGHT_VLM_ADAPTER=gemini` in
+`backend/.env`; it uses the same server-side Gemini key and model setting as
+patch generation. The adapter sends the stored screenshot and bounded page
+measurements to Gemini, then the existing AI gateway validates the returned
+JSON before it can become a finding. The default remains the offline `mock`
+adapter. Google documents `generateContent` multimodal input and the
+`x-goog-api-key` header in its [Gemini API docs](https://ai.google.dev/gemini-api/docs/generate-content).
+
+With the local browser fixture and backend running, use PowerShell from
+`backend/` to upload its mobile observation and request real visual analysis:
+
+```powershell
+$scan = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/scans `
+  -ContentType 'application/json' `
+  -Body '{"target_url":"http://127.0.0.1:4173/checkout","viewports":[{"width":390,"height":844}],"routes":["/checkout"]}'
+
+Invoke-RestMethod -Method Post `
+  -Uri "http://127.0.0.1:8000/api/v1/scans/$($scan.scan_id)/evidence" `
+  -ContentType 'application/json' `
+  -InFile 'artifacts/demo-checkout/mobile/observation.json'
+
+Invoke-RestMethod -Method Post `
+  -Uri "http://127.0.0.1:8000/api/v1/scans/$($scan.scan_id)/detect"
+
+Invoke-RestMethod -Method Get `
+  -Uri "http://127.0.0.1:8000/api/v1/scans/$($scan.scan_id)/findings"
+```
+
+The detection response records `GEMINI` provenance when the live adapter ran.
+If the key has no quota, the model is not enabled, or the provider is
+unavailable, the run records a failure reason instead of claiming a finding.
+Patch generation stays a separate explicit step, and proposals still require
+review; no model output is applied automatically.
+
+See the API docs at `http://127.0.0.1:8000/docs` after starting the backend. Returned edits are proposals; review them before applying anything. A 429 response indicates a provider quota/rate limit, while 502–504 responses indicate provider, configuration, or timeout failures.

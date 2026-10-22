@@ -74,6 +74,15 @@ class TestValidEvidence:
         assert len(obs["console_errors"]) == 1
         assert len(obs["network_errors"]) == 1
 
+    def test_page_exceptions_are_preserved_as_separate_evidence(self, client_with_artifacts):
+        payload = _fixture_dict("observation_fixture.json")
+        payload["page_errors"] = [{"message": "TypeError: checkout failed", "type": "pageerror"}]
+        scan_id = _create_scan(client_with_artifacts)
+        response = _submit_json(client_with_artifacts, scan_id, payload)
+
+        assert response.status_code == 201, response.text
+        assert response.json()["observation"]["page_errors"] == payload["page_errors"]
+
     def test_artifact_served_with_correct_type(self, client_with_artifacts):
         scan_id = _create_scan(client_with_artifacts)
         body = _submit_raw(

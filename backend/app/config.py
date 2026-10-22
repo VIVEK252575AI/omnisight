@@ -6,9 +6,9 @@ must never be logged or included in API responses.
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     # Parsed from a comma-separated env value, e.g.
     #   OMNISIGHT_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5174
     allowed_origins: Annotated[list[str], NoDecode] = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
@@ -68,12 +70,29 @@ class Settings(BaseSettings):
     enable_vlm_detection: bool = False
     enable_patch_engine: bool = False
     enable_github_delivery: bool = False
+    enable_github_app: bool = False
+    enable_github_publish_api: bool = False
+    auth_mode: Literal["disabled", "local_single_user"] = "disabled"
+    local_auth_token: SecretStr | None = None
+    local_project_id: str = "b13a29c2-4669-5ac7-9ba6-ff7c1d32ae11"
+    local_project_name: str = "OmniSight ShopLite Demo"
+    database_url: SecretStr | None = None
+
+    # GitHub App installation credentials (server-side only). These values
+    # configure the local integration worker; they are never returned by APIs.
+    github_app_id: str | None = None
+    github_app_installation_id: str | None = None
+    github_app_private_key: SecretStr | None = None
+    github_target_owner: str | None = None
+    github_target_repository: str | None = None
+    github_target_branch: str | None = None
 
     # VLM adapter boundary (Week 2) — provider-neutral, config-selected.
     # `vlm_adapter` selects the replaceable implementation: "mock" (default,
-    # deterministic offline) or "teammate" (wraps the teammate VLM module once
-    # its callable is injected). An unknown value fails fast at startup. No
-    # provider, model name, key, or endpoint is hardcoded anywhere.
+    # deterministic offline), "gemini" (server-side multimodal API), or
+    # "teammate" (wraps the teammate VLM module once its callable is injected).
+    # An unknown value fails fast at startup. Credentials and model selection
+    # stay configurable and server-side.
     vlm_adapter: str = "mock"
     vlm_mock_scenario: str = "clipped_button"
     vlm_timeout_seconds: float = 30.0
@@ -101,8 +120,9 @@ class Settings(BaseSettings):
     detection_max_raw_output_bytes: int = 8192
     detection_expose_raw_output: bool = False
 
-    # Safe action engine (W2.5). A model proposal is ONLY ever turned into a
-    # stored record here — nothing is written to disk in this slice.
+    # Safe action engine (W2.5). A model proposal is only accepted as a
+    # validated, reviewable record. Validated edits are stored in PostgreSQL;
+    # raw model output is never persisted.
     #
     # `patch_generator` selects the replaceable generator ("mock" default);
     # `patch_mock_scenario` picks the deterministic offline behaviour. No
@@ -131,6 +151,12 @@ class Settings(BaseSettings):
     # pathological regex; an oversized response is rejected ``too_large``.
     patch_max_response_bytes: int = 16384
 
+    # Opt-in, fixed-target ShopLite sandbox. The approval token is required
+    # before the API may start a Docker run; the sandbox itself has no network.
+    enable_shoplite_sandbox: bool = False
+    shoplite_sandbox_token: SecretStr | None = None
+    shoplite_sandbox_timeout_seconds: float = Field(default=45.0, gt=0, le=120)
+
     @field_validator("approved_patch_paths", mode="before")
     @classmethod
     def _split_approved_paths(cls, value: object) -> object:
@@ -158,6 +184,12 @@ class Settings(BaseSettings):
     # Max size of a referenced image / json artifact on disk (bytes).
     artifact_max_image_bytes: int = 5_242_880
     artifact_max_json_bytes: int = 1_048_576
+
+    # Gemini-backed, review-only patch suggestions. The key stays server-side.
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-3.6-flash"
+    gemini_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
+    gemini_max_output_tokens: int = Field(default=4096, ge=128, le=8192)
 
 
 @lru_cache

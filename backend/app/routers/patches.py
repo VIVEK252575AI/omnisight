@@ -22,7 +22,12 @@ Rules
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+import ipaddress
+import secrets
+from typing import Literal
+
+from fastapi import APIRouter, Depends, Header, Request, status
+from pydantic import BaseModel, ConfigDict
 
 from app.action_engine import ActionEngine, PatchExtractor
 from app.ai.adapters.patch import PatchGenerator, create_patch_generator
@@ -35,8 +40,21 @@ from app.patch_schemas import (
     PatchProposalResponse,
 )
 from app.patch_storage import PatchStore, get_patch_store
+from app.shoplite_sandbox import (
+    SandboxFailure,
+    ShopLiteSandboxReport,
+    run_shoplite_sandbox,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["patches"])
+
+
+class ShopLiteSandboxApproval(BaseModel):
+    """An explicit, fixed-scope approval; no target or command is accepted."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    approval: Literal["approve-demo-only"]
 
 
 def get_patch_generator(settings: Settings = Depends(get_settings)) -> PatchGenerator:
@@ -124,3 +142,85 @@ def list_patch_proposals(
             for item in patch_store.list_for_finding(finding_id)
         ],
     )
+
+
+@router.post(
+    "/demo/shoplite/patch-proposals/{proposal_id}/validate",
+    response_model=ShopLiteSandboxReport,
+    responses={
+        403: {"description": "Missing or invalid local sandbox approval token"},
+        404: {"description": "Unknown proposal"},
+        409: {"description": "Proposal is not eligible or sandbox could not run"},
+    },
+)
+def validate_shoplite_patch_in_sandbox(
+    proposal_id: str,
+    approval: ShopLiteSandboxApproval,
+    request: Request,
+    x_omnisight_demo_approval: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    patch_store: PatchStore = Depends(get_patch_store),
+) -> ShopLiteSandboxReport:
+    """Human-approved, loopback-development sandbox for the fixed ShopLite demo.
+
+    The API accepts no filesystem path, command, image, or target URL. Candidate
+    files are copied to a temporary directory and mounted read-only into a
+    bounded, network-disabled container.
+    """
+    client_host = request.client.host if request.client else ""
+    try:
+        is_loopback = ipaddress.ip_address(client_host).is_loopback
+    except ValueError:
+        is_loopback = False
+    if not is_loopback:
+        raise DomainError(
+            ErrorCode.FORBIDDEN,
+            "The ShopLite sandbox endpoint only accepts loopback requests",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    configured_token = (
+        settings.shoplite_sandbox_token.get_secret_value()
+        if settings.shoplite_sandbox_token
+        else ""
+    )
+    if not settings.enable_shoplite_sandbox or not configured_token:
+        raise DomainError(
+            ErrorCode.SHOPLITE_SANDBOX_UNAVAILABLE,
+            "The local ShopLite sandbox is not enabled or configured",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    if not x_omnisight_demo_approval or not secrets.compare_digest(
+        x_omnisight_demo_approval, configured_token
+    ):
+        raise DomainError(
+            ErrorCode.UNAUTHORIZED,
+            "A valid local ShopLite sandbox approval token is required",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    record = patch_store.get(proposal_id)
+    proposal = patch_store.get_proposal(proposal_id)
+    if record is None or proposal is None:
+        raise DomainError(
+            ErrorCode.PATCH_PROPOSAL_NOT_FOUND,
+            "Patch proposal not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    if record.status.value != "proposed":
+        raise DomainError(
+            ErrorCode.SHOPLITE_SANDBOX_REJECTED,
+            "Only a validated patch proposal can be checked in the ShopLite demo",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    try:
+        return run_shoplite_sandbox(
+            proposal,
+            proposal_id=proposal_id,
+            settings=settings,
+        )
+    except SandboxFailure as exc:
+        raise DomainError(
+            ErrorCode.SHOPLITE_SANDBOX_REJECTED,
+            str(exc),
+            status_code=status.HTTP_409_CONFLICT,
+            details=[{"field": "sandbox", "code": exc.code}],
+        ) from None

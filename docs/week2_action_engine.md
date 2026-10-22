@@ -96,7 +96,9 @@ extractor; see [`week2_code_extraction.md`](week2_code_extraction.md).
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `OMNISIGHT_PATCH_GENERATOR` | `mock` | replaceable generator; unknown values fail fast |
+| `OMNISIGHT_PATCH_GENERATOR` | `mock` | `mock` (offline) or `gemini` (server-side API); unknown values fail fast |
+| `OMNISIGHT_GEMINI_API_KEY` | *(unset)* | server-side Gemini credential; required when generator is `gemini` |
+| `OMNISIGHT_GEMINI_MODEL` | `gemini-3.6-flash` | configured Gemini text model |
 | `OMNISIGHT_PATCH_MOCK_SCENARIO` | `ok` | `ok` \| `timeout` \| `error` \| `invalid_json` \| `empty` \| `prose_with_fence` \| `two_plain_fences` \| `two_tagged_fences` \| `prose_only` \| `truncated` |
 | `OMNISIGHT_APPROVED_PATCH_PATHS` | *(empty)* | **allow-list**; empty means everything is rejected |
 | `OMNISIGHT_PATCH_ALLOWED_EXTENSIONS` | `.css,.scss,.jsx,.tsx` | patchable extensions |
@@ -106,14 +108,31 @@ extractor; see [`week2_code_extraction.md`](week2_code_extraction.md).
 | `OMNISIGHT_PATCH_CONTEXT_MAX_BYTES` | `4096` | cap on source text sent to the generator |
 | `OMNISIGHT_PATCH_MAX_RESPONSE_BYTES` | `16384` | cap on raw text handed to the extractor (before parsing) |
 
+Gemini retries HTTP `500`, `502`, `503` and `504` responses at most twice,
+with one- and two-second backoffs inside the configured request deadline.
+Authentication, quota, network and timeout failures are not retried. A timeout
+is treated as a single attempt because the provider may already have processed
+the request.
+
 ## Status of this slice
 
 - **Tested with mocks / against the local application.** The production default
   extractor is now the real `SourcePatchExtractor` (W2.6): it isolates the patch
   payload from prose and rejects anything unsafe, so a valid MOCK proposal
   reaches `proposed` and an unsafe one is recorded `rejected` with a reason code.
-- **Blocked on the ShopLite handoff.** No ShopLite source tree exists in this
-  repository, so `OMNISIGHT_APPROVED_PATCH_PATHS` defaults to empty and
-  everything is rejected on `path_not_approved`.
-- **No apply step.** Approving and applying a patch (isolated worktree, rerun
-  of detection, `patch_verified`) is a later slice.
+- **Gemini is integrated behind the same generator boundary.** When selected,
+  it receives only the backend-built approved source context; its output still
+  passes through extraction, exact-match applicability, path allow-list, size,
+  and code-safety checks. Unit tests mock provider responses; a live Gemini run
+  has also verified detection and patch generation against the local ShopLite
+  demo.
+- **Controlled ShopLite validation is implemented.** The demo runner captures
+  desktop/mobile behavior, requests a finding and proposal, then applies only
+  the stored validated proposal in a disposable Docker container with no
+  network and bounded resources. The verified run reduced mobile overflow from 167px to
+  0px; desktop overflow remained 0px, the order confirmation worked, and the
+  browser reported no errors or attempted external requests.
+- **No host apply step.** Sandbox verification does not write the proposal to
+  the host checkout. Validated edit payloads are stored in PostgreSQL so they
+  can be reviewed after an API restart; raw model output is not stored. GitHub publishing remains a separate explicitly
+  approved step.

@@ -870,3 +870,79 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .toast { animation: rise .35s cubic-bezier(.2,.7,.3,1); }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+/* Live VLM integration: screenshot evidence picker */
+#vlm-screenshot { max-width: 230px; font: inherit; font-size: 12px; color: var(--muted, #667085); }
+#vlm-screenshot::file-selector-button { border: 1px solid var(--border, #e4e7ec); background: var(--surface, #fff); border-radius: 8px; padding: 7px 10px; margin-right: 8px; cursor: pointer; }
+
+
+/* --- Frontend reliability update: evidence preview, progress and retry states --- */
+.evidence-picker {
+  display: grid;
+  gap: 8px;
+  padding: 0 14px 10px;
+}
+
+.evidence-picker input[type="file"] {
+  width: 100%;
+  font: inherit;
+  color: var(--text-2);
+}
+
+.evidence-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.evidence-preview img {
+  width: 64px;
+  height: 42px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.scan-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.scan-progress__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-strong);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: omnisight-spin .8s linear infinite;
+}
+
+.error-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+@keyframes omnisight-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-progress__spinner { animation: none; }
+}
+
+@media (max-width: 640px) {
+  .error-note { align-items: flex-start; flex-direction: column; }
+  .evidence-preview { align-items: flex-start; }
+}
