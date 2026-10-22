@@ -125,10 +125,29 @@ async function callStage(st, scan) {
 
 function apiBase() { return (Models.vlm.endpoint || 'http://127.0.0.1:8000').replace(/\/$/, ''); }
 async function apiJson(path, options = {}) {
-  const res = await fetch(apiBase() + path, options);
-  let body = null; try { body = await res.json(); } catch (_) {}
-  if (!res.ok) throw new Error(body?.error?.message || body?.detail || `Backend returned HTTP ${res.status}`);
-  return body;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(apiBase() + path, { ...options, signal: controller.signal });
+    let body = null;
+    try { body = await res.json(); } catch (_) {}
+    if (!res.ok) {
+      const message = body?.error?.message || body?.detail || `Backend returned HTTP ${res.status}`;
+      throw new Error(message);
+    }
+    return body;
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('Backend request timed out after 20 seconds');
+    if (error instanceof TypeError) throw new Error('Cannot reach the OmniSight backend. Check the API URL and confirm the server is running.');
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function setScanProgress(scan, message) {
+  scan.progressMessage = message;
+  refresh(scan);
 }
 function fileAsDataUrl(file) { return new Promise((resolve, reject) => { const r = new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(file); }); }
 function mapBackendFinding(record, i) {
@@ -146,20 +165,48 @@ function mapBackendFinding(record, i) {
 }
 async function runBackendVlm(scan) {
   if (!scan.screenshotFile) throw new Error('Live VLM mode needs a PNG/JPEG screenshot. Choose one next to the URL field.');
+  if (!['image/png', 'image/jpeg'].includes(scan.screenshotFile.type)) throw new Error('Screenshot must be a PNG or JPEG image.');
+  if (scan.screenshotFile.size > 8 * 1024 * 1024) throw new Error('Screenshot is too large. Please upload an image smaller than 8 MB.');
+
   const viewports = Store.deep ? [{width:390,height:844},{width:768,height:1024},{width:1440,height:900}] : [{width:390,height:844}];
-  const created = await apiJson('/api/scans', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({target_url:scan.url, viewports})});
+
+  setScanProgress(scan, 'Creating backend scan…');
+  const created = await apiJson('/api/scans', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({target_url:scan.url, viewports})
+  });
   scan.backendScanId = created.scan_id;
+
+  setScanProgress(scan, 'Uploading screenshot evidence…');
   const dataUrl = await fileAsDataUrl(scan.screenshotFile);
-  await apiJson(`/api/v1/scans/${created.scan_id}/browser-evidence`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({image_base64:dataUrl, media_type:scan.screenshotFile.type || 'image/png', viewport:viewports[0]})});
+  await apiJson(`/api/v1/scans/${created.scan_id}/browser-evidence`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      image_base64:dataUrl,
+      media_type:scan.screenshotFile.type || 'image/png',
+      viewport:viewports[0]
+    })
+  });
+
+  setScanProgress(scan, 'Starting VLM detection…');
   await apiJson(`/api/v1/scans/${created.scan_id}/detect`, {method:'POST'});
+
   let result;
-  for (let i=0;i<40;i++) {
-    await new Promise(r=>setTimeout(r,250));
+  for (let i = 0; i < 60; i++) {
+    setScanProgress(scan, `Analysing screenshot with VLM… ${Math.min(99, Math.round((i + 1) / 60 * 100))}%`);
+    await new Promise(r => setTimeout(r, 500));
     result = await apiJson(`/api/v1/scans/${created.scan_id}/findings`);
     if (['detected','detection_failed','needs_inspection'].includes(result.status)) break;
   }
-  if (!result) throw new Error('No response from VLM detection service');
+
+  if (!result || !['detected','detection_failed','needs_inspection'].includes(result.status)) {
+    throw new Error('VLM analysis is taking longer than expected. Please retry the scan.');
+  }
   if (result.status === 'detection_failed') throw new Error(result.detection?.reason_message || 'VLM detection failed');
+
+  setScanProgress(scan, 'VLM findings received.');
   return {findings:(result.findings || []).map(mapBackendFinding), raw:result};
 }
 
@@ -218,13 +265,63 @@ function toggleDeep(btn) {
   btn.setAttribute('aria-pressed', Store.deep);
 }
 
+function normalizeUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  try {
+    const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const parsed = new URL(candidate);
+    return parsed.hostname.includes('.') || parsed.hostname === 'localhost' ? parsed.href : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function previewScreenshot(input) {
+  const file = input.files?.[0];
+  const preview = document.getElementById('screenshot-preview');
+  const meta = document.getElementById('screenshot-meta');
+  if (!preview || !meta) return;
+  if (!file) {
+    preview.hidden = true;
+    preview.removeAttribute('src');
+    meta.textContent = 'No screenshot selected';
+    return;
+  }
+  if (!['image/png', 'image/jpeg'].includes(file.type)) {
+    input.value = '';
+    preview.hidden = true;
+    meta.textContent = 'Choose a PNG or JPEG image';
+    toast('Only PNG and JPEG screenshots are supported');
+    return;
+  }
+  const url = URL.createObjectURL(file);
+  preview.src = url;
+  preview.hidden = false;
+  preview.onload = () => URL.revokeObjectURL(url);
+  meta.textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function retryScan() {
+  const previous = Store.scan;
+  if (!previous) return;
+  Store.route = 'landing';
+  render();
+  const input = document.getElementById('target-url-input');
+  if (input) input.value = previous.url;
+  toast('Ready to retry. Re-select the screenshot if you are using Live mode.');
+}
+
 function startScan(url) {
-  if (!url || !url.includes('.')) { toast('Enter a valid URL (e.g. https://shoplite.local)'); return; }
+  const normalizedUrl = normalizeUrl(url);
+  if (!normalizedUrl) { toast('Enter a valid URL (e.g. https://shoplite.local)'); return; }
+  url = normalizedUrl;
   const v = document.getElementById('sel-vlm'), l = document.getElementById('sel-llm');
   if (v) Models.vlm.name = v.value;
   if (l) Models.llm.name = l.value;
   const scan = {
     id: String(1042 + Store.history.length), url, status: 'running', stage: 0, trace: {}, error: null,
+    progressMessage: 'Preparing scan…',
     findings: Models.mode === 'live' ? [] : SAMPLE_FINDINGS.map(f => ({ ...f })),
     screenshotFile: document.getElementById('vlm-screenshot')?.files?.[0] || null
   };
@@ -318,7 +415,13 @@ function renderLanding() {
 
     <div class="scan-composer">
       <input type="text" id="target-url-input" onkeydown="if(event.key==='Enter')startScan(this.value)" class="scan-composer__input" aria-label="Website URL" placeholder="Enter website URL to inspect... (e.g. https://shoplite.local)" value="https://shoplite.local" />
-      <input type="file" id="vlm-screenshot" accept="image/png,image/jpeg" aria-label="Screenshot for live VLM scan" title="Required in Live mode: upload the screenshot the VLM should inspect" />
+      <div class="evidence-picker">
+        <input type="file" id="vlm-screenshot" accept="image/png,image/jpeg" aria-label="Screenshot for live VLM scan" title="Required in Live mode: upload the screenshot the VLM should inspect" onchange="previewScreenshot(this)" />
+        <div class="evidence-preview">
+          <img id="screenshot-preview" hidden alt="Preview of screenshot selected for VLM analysis" />
+          <span id="screenshot-meta">No screenshot selected</span>
+        </div>
+      </div>
       <div class="scan-composer__bottom">
         <div class="scan-composer__pills">
           <button class="deep-scan-btn" aria-pressed="${Store.deep}" onclick="toggleDeep(this)">
@@ -398,13 +501,17 @@ function renderScore(s) {
 function renderDashboard() {
   const s = Store.scan;
   const shown = s.findings.filter(f => Store.sev === 'all' || f.severity === Store.sev);
-  const active = shown.find(f => f.id === Store.activeFindingId) || shown[0] || s.findings[0];
+  const active = shown.find(f => f.id === Store.activeFindingId) || shown[0] || s.findings[0] || {
+    id: 'none', title: 'No finding selected', severity: 'low', confidence: '—',
+    selector: '(none)', box: [0, 0, 0, 0], cause: 'No visual issue was returned by the VLM.'
+  };
   const statusLabel = s.status === 'completed' ? 'completed' : s.status === 'failed' ? 'failed' : STAGES[s.stage].label.toLowerCase() + '…';
   const done = s.trace.detect;
   return `
   <div class="dashboard-view">
     ${renderPipeline(s)}
-    ${s.error ? `<div class="error-note">${esc(s.error)}. Check the endpoints under Models, or switch to simulated mode.</div>` : ''}
+    ${s.status === 'running' ? `<div class="scan-progress" role="status" aria-live="polite"><span class="scan-progress__spinner"></span><span>${esc(s.progressMessage || 'Running scan…')}</span></div>` : ''}
+    ${s.error ? `<div class="error-note"><div><strong>Scan failed.</strong> ${esc(s.error)}</div><button class="btn" onclick="retryScan()">Retry scan</button></div>` : ''}
     <div class="dash-split">
       <div class="dash-col">
         ${renderScore(s)}
