@@ -250,6 +250,82 @@ boundary.
 
 ---
 
+## 🆕 Recent Frontend + VLM Integration Update
+
+The frontend has been connected to the FastAPI scan workflow so a user can submit a target URL, attach screenshot evidence, start analysis, and follow the VLM scan state from the dashboard.
+
+### Recent Changes
+
+- Added frontend-to-backend scan integration using the FastAPI REST endpoints.
+- Added screenshot evidence upload support for PNG and JPEG images.
+- Added client-side screenshot validation, including supported file types and an 8 MB size limit.
+- Added scan progress/status feedback so users can see when evidence is uploading, VLM analysis is running, and findings are being fetched.
+- Added clearer API timeout and error messages to make backend connection failures easier to diagnose.
+- Added screenshot evidence preview support in the dashboard.
+- Added retry support for failed scans without requiring the user to rebuild the scan input manually.
+- Added URL normalization before a scan request is submitted.
+- Improved empty/pending finding handling so the dashboard can safely render while the VLM is still processing and before findings are available.
+- Added responsive styling for the new progress, evidence-preview, and scan-feedback components.
+- Added accessibility-oriented status markup for scan feedback.
+- Connected the frontend workflow to the backend VLM bridge/router used to pass browser evidence into the detection pipeline.
+
+### Current Integrated Scan Flow
+
+```text
+Frontend
+   │
+   ▼
+POST /api/scans
+   │
+   ▼
+Upload browser/screenshot evidence
+   │
+   ▼
+POST /api/v1/scans/{scan_id}/detect
+   │
+   ▼
+VLM Adapter
+   │
+   ▼
+GET /api/v1/scans/{scan_id}/findings
+   │
+   ▼
+Dashboard findings + evidence preview
+```
+
+The backend can still run with the deterministic **MOCK VLM adapter** during local development. This allows the frontend/API integration to be tested without depending on a live external model. A real provider can be enabled separately through the backend configuration.
+
+### Local Integration Test
+
+Start the backend from the `backend/` directory:
+
+```bash
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+For the current static frontend integration build, serve the `frontend/` directory in a second terminal:
+
+```bash
+cd frontend
+python -m http.server 5173
+```
+
+Then open:
+
+```text
+http://127.0.0.1:5173
+```
+
+Keep the backend running on `http://127.0.0.1:8000` while testing scan requests.
+
+### Integration Notes
+
+The frontend should not assume that a finding exists immediately after a scan starts. During the running state, the findings collection may be empty while the VLM is processing the uploaded evidence. Dashboard components therefore need safe pending/empty states before reading fields such as selector, severity, confidence, bounding box, or cause.
+
+The browser may also request `/favicon.ico`; a missing favicon can produce a harmless `404` in DevTools and does not indicate that the scan API failed.
+
+---
+
 ## 🏗️ System Architecture
 
 OmniSight follows a modular architecture with stable JSON/API contracts between components.
