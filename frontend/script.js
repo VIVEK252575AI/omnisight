@@ -302,21 +302,6 @@ function previewScreenshot(input) {
   meta.textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`;
 }
 
-function removeScreenshot() {
-  const input = document.getElementById('vlm-screenshot');
-  const preview = document.getElementById('screenshot-preview');
-  const meta = document.getElementById('screenshot-meta');
-
-  if (input) input.value = '';
-  if (preview) {
-    preview.hidden = true;
-    preview.removeAttribute('src');
-  }
-  if (meta) meta.textContent = 'No screenshot selected';
-
-  toast('Screenshot removed');
-}
-
 function retryScan() {
   const previous = Store.scan;
   if (!previous) return;
@@ -435,7 +420,6 @@ function renderLanding() {
         <div class="evidence-preview">
           <img id="screenshot-preview" hidden alt="Preview of screenshot selected for VLM analysis" />
           <span id="screenshot-meta">No screenshot selected</span>
-          <button type="button" id="remove-screenshot-btn" class="btn-remove-screenshot" onclick="removeScreenshot()" aria-label="Remove selected screenshot">Remove</button>
         </div>
       </div>
       <div class="scan-composer__bottom">
