@@ -302,6 +302,21 @@ function previewScreenshot(input) {
   meta.textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`;
 }
 
+function removeScreenshot() {
+  const input = document.getElementById('vlm-screenshot');
+  const preview = document.getElementById('screenshot-preview');
+  const meta = document.getElementById('screenshot-meta');
+
+  if (input) input.value = '';
+  if (preview) {
+    preview.hidden = true;
+    preview.removeAttribute('src');
+  }
+  if (meta) meta.textContent = 'No screenshot selected';
+
+  toast('Screenshot removed');
+}
+
 function retryScan() {
   const previous = Store.scan;
   if (!previous) return;
@@ -420,6 +435,7 @@ function renderLanding() {
         <div class="evidence-preview">
           <img id="screenshot-preview" hidden alt="Preview of screenshot selected for VLM analysis" />
           <span id="screenshot-meta">No screenshot selected</span>
+          <button type="button" id="remove-screenshot-btn" class="btn-remove-screenshot" onclick="removeScreenshot()" aria-label="Remove selected screenshot">Remove</button>
         </div>
       </div>
       <div class="scan-composer__bottom">
@@ -490,8 +506,7 @@ function renderTrace(s) {
 function renderScore(s) {
   const W = { high: 20, medium: 10, low: 5 };
   const known = !!s.trace.detect, fixed = !!s.trace.verify;
-  const findings = Array.isArray(s.findings) ? s.findings : [];
-  const before = Math.max(0, 100 - findings.reduce((a, f) => a + (W[f.severity] || 5), 0));
+  const before = Math.max(0, 100 - s.findings.reduce((a, f) => a + (W[f.severity] || 5), 0));
   const val = fixed ? 100 : before, R = 34, C = +(2 * Math.PI * R).toFixed(1);
   return `<div class="panel score-card">
     <div class="score-ring"><svg viewBox="0 0 80 80" aria-hidden="true"><circle class="ring-bg" cx="40" cy="40" r="${R}"/>${known ? `<circle class="ring-fg" cx="40" cy="40" r="${R}" style="--c:${C};--v:${(C * (1 - val / 100)).toFixed(1)}"/>` : ''}</svg><b>${known ? val : '–'}</b></div>
@@ -501,14 +516,12 @@ function renderScore(s) {
 
 function renderDashboard() {
   const s = Store.scan;
-  const findings = Array.isArray(s.findings) ? s.findings : [];
-  const shown = findings.filter(f => Store.sev === 'all' || f.severity === Store.sev);
-  const active = shown.find(f => f.id === Store.activeFindingId) || shown[0] || findings[0] || {
+  const shown = s.findings.filter(f => Store.sev === 'all' || f.severity === Store.sev);
+  const active = shown.find(f => f.id === Store.activeFindingId) || shown[0] || s.findings[0] || {
     id: 'none', title: 'No finding selected', severity: 'low', confidence: '—',
     selector: '(none)', box: [0, 0, 0, 0], cause: 'No visual issue was returned by the VLM.'
   };
-  const currentStage = STAGES[s.stage];
-  const statusLabel = s.status === 'completed' ? 'completed' : s.status === 'failed' ? 'failed' : currentStage ? currentStage.label.toLowerCase() + '…' : 'processing…';
+  const statusLabel = s.status === 'completed' ? 'completed' : s.status === 'failed' ? 'failed' : STAGES[s.stage].label.toLowerCase() + '…';
   const done = s.trace.detect;
   return `
   <div class="dashboard-view">
