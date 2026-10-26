@@ -116,6 +116,12 @@ async function callStage(st, scan) {
     const data = await runBackendVlm(scan);
     scan.findings = data.findings;
     output = JSON.stringify(data.raw, null, 2);
+  } else if (Models.mode === 'live' && st.key === 'reason') {
+    const data = await runBackendLlmReason(scan);
+    output = JSON.stringify(data, null, 2);
+  } else if (Models.mode === 'live' && st.key === 'fix') {
+    const data = await runBackendLlmFix(scan);
+    output = JSON.stringify(data.raw, null, 2);
   } else {
     await new Promise(r => setTimeout(r, 1000 + Math.random() * 500));
   }
@@ -148,6 +154,59 @@ async function apiJson(path, options = {}) {
 function setScanProgress(scan, message) {
   scan.progressMessage = message;
   refresh(scan);
+}
+
+/* Live LLM integration uses the backend's safe finding/patch-proposal workflow.
+   The Gemini/API key stays on the backend; the browser never receives it. */
+function primaryBackendFinding(scan) {
+  const rank = { high: 3, medium: 2, low: 1 };
+  return [...(scan.findings || [])]
+    .filter(f => f.id && !String(f.id).startsWith('vlm-'))
+    .sort((a, b) => (rank[b.severity] || 0) - (rank[a.severity] || 0))[0] || null;
+}
+
+function findPatchText(value) {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    return (value.includes('@@') || value.includes('diff --git') || /^[-+]{3}/m.test(value)) ? value : '';
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) { const found = findPatchText(item); if (found) return found; }
+    return '';
+  }
+  if (typeof value === 'object') {
+    for (const key of ['diff', 'patch', 'unified_diff', 'patch_text', 'content', 'proposal']) {
+      if (key in value) { const found = findPatchText(value[key]); if (found) return found; }
+    }
+    for (const item of Object.values(value)) { const found = findPatchText(item); if (found) return found; }
+  }
+  return '';
+}
+
+async function runBackendLlmReason(scan) {
+  const finding = primaryBackendFinding(scan);
+  if (!finding) return { message: 'No backend finding is available for LLM reasoning.' };
+  setScanProgress(scan, 'Loading validated finding context for the LLM…');
+  const detail = await apiJson(`/api/v1/findings/${encodeURIComponent(finding.id)}`);
+  scan.findingDetail = detail;
+  return detail;
+}
+
+async function runBackendLlmFix(scan) {
+  const finding = primaryBackendFinding(scan);
+  if (!finding) throw new Error('The LLM needs a validated backend finding before it can propose a patch.');
+  setScanProgress(scan, 'Requesting a safe LLM patch proposal…');
+  const created = await apiJson(`/api/v1/findings/${encodeURIComponent(finding.id)}/patch-proposals`, { method: 'POST' });
+  const proposals = await apiJson(`/api/v1/findings/${encodeURIComponent(finding.id)}/patch-proposals`);
+  const raw = created || proposals;
+  scan.patchProposal = raw;
+  scan.generatedPatch = findPatchText(raw) || findPatchText(proposals) || '';
+  setScanProgress(scan, scan.generatedPatch ? 'LLM patch proposal received.' : 'LLM proposal received; review its structured response in the trace.');
+  return { raw, patch: scan.generatedPatch };
+}
+
+function displayedPatch(scan) {
+  return scan?.generatedPatch || PATCH;
 }
 function fileAsDataUrl(file) { return new Promise((resolve, reject) => { const r = new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(file); }); }
 function mapBackendFinding(record, i) {
@@ -240,14 +299,14 @@ function filterScans(q) {
 }
 function downloadReport() {
   const s = Store.scan;
-  const report = { url: s.url, status: s.status, mode: Models.mode, models: { vlm: Models.vlm.name, llm: Models.llm.name }, findings: s.findings, patch: PATCH, trace: s.trace, generatedAt: new Date().toISOString() };
+  const report = { url: s.url, status: s.status, mode: Models.mode, models: { vlm: Models.vlm.name, llm: Models.llm.name }, findings: s.findings, patch: displayedPatch(s), patchProposal: s.patchProposal || null, trace: s.trace, generatedAt: new Date().toISOString() };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }));
   a.download = 'omnisight-report-' + s.id + '.json'; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 function copyPatch() {
-  (navigator.clipboard ? navigator.clipboard.writeText(PATCH) : Promise.reject()).then(() => toast('Patch copied'), () => toast('Copy failed. Select the diff and copy it manually.'));
+  (navigator.clipboard ? navigator.clipboard.writeText(displayedPatch(Store.scan)) : Promise.reject()).then(() => toast('Patch copied'), () => toast('Copy failed. Select the diff and copy it manually.'));
 }
 
 function burst() {
@@ -521,7 +580,8 @@ function renderDashboard() {
     id: 'none', title: 'No finding selected', severity: 'low', confidence: '—',
     selector: '(none)', box: [0, 0, 0, 0], cause: 'No visual issue was returned by the VLM.'
   };
-  const statusLabel = s.status === 'completed' ? 'completed' : s.status === 'failed' ? 'failed' : STAGES[s.stage].label.toLowerCase() + '…';
+  const currentStage = STAGES[s.stage];
+  const statusLabel = s.status === 'completed' ? 'completed' : s.status === 'failed' ? 'failed' : currentStage ? currentStage.label.toLowerCase() + '…' : 'processing…';
   const done = s.trace.detect;
   return `
   <div class="dashboard-view">
@@ -579,7 +639,7 @@ function renderDashboard() {
         <div class="panel">
           <div class="panel__head"><div class="panel__title">${kindTag('llm')} Generated patch</div><span style="display:flex;gap:10px;align-items:center;"><span class="mono muted" style="font-size:11.5px;">CheckoutButton.css</span><button class="btn" onclick="copyPatch()">Copy</button></span></div>
           <div class="panel__body" style="padding:0;">
-            ${s.trace.fix ? `<div class="diff-container">${PATCH.split('\n').map(l => `<div class="diff-line ${l[0] === '+' ? 'diff-line--add' : l[0] === '-' ? 'diff-line--del' : ''}">${esc(l)}</div>`).join('')}</div>` : `<div class="panel__body"><div class="empty">The patch appears once reasoning finishes.</div></div>`}
+            ${s.trace.fix ? `<div class="diff-container">${displayedPatch(s).split('\n').map(l => `<div class="diff-line ${l[0] === '+' ? 'diff-line--add' : l[0] === '-' ? 'diff-line--del' : ''}">${esc(l)}</div>`).join('')}</div>` : `<div class="panel__body"><div class="empty">The patch appears once reasoning finishes.</div></div>`}
           </div>
         </div>
 
