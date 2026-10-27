@@ -748,3 +748,54 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'd') toggleTheme();
 });
 
+// === Oct 27: LLM patch proposal review enhancement ===
+function getPatchProposalReview(scan) {
+  if (!scan?.patchProposal) {
+    return {
+      state: 'waiting',
+      title: 'Waiting for LLM patch proposal',
+      message: 'Complete the Fix stage to request a backend-generated proposal.'
+    };
+  }
+
+  const patch = scan.generatedPatch || '';
+  if (patch.trim()) {
+    return {
+      state: 'ready',
+      title: 'LLM patch ready for review',
+      message: 'Review the generated diff before copying or applying it.'
+    };
+  }
+
+  return {
+    state: 'received',
+    title: 'LLM proposal received',
+    message: 'A structured proposal was returned, but no diff text was detected.'
+  };
+}
+
+async function copyLlmPatchSafely() {
+  const scan = Store.scan;
+
+  if (!scan) {
+    toast('No active scan is available.');
+    return false;
+  }
+
+  const patch = scan.generatedPatch || '';
+  if (!patch.trim()) {
+    toast('No LLM-generated patch is available yet.');
+    return false;
+  }
+
+  try {
+    await navigator.clipboard.writeText(patch);
+    toast('LLM patch copied to clipboard.');
+    return true;
+  } catch (error) {
+    console.error('Failed to copy LLM patch:', error);
+    toast('Unable to copy the patch automatically.');
+    return false;
+  }
+}
+
