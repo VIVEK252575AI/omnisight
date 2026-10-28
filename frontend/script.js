@@ -799,3 +799,50 @@ async function copyLlmPatchSafely() {
   }
 }
 
+// === Oct 28: Downloadable LLM patch review report ===
+function buildLlmPatchReport(scan) {
+  const review = typeof getPatchProposalReview === 'function'
+    ? getPatchProposalReview(scan)
+    : { state: 'unknown', title: 'Patch review', message: '' };
+
+  return {
+    generatedAt: new Date().toISOString(),
+    scanId: scan?.id || null,
+    targetUrl: scan?.url || scan?.targetUrl || null,
+    reviewState: review.state,
+    reviewTitle: review.title,
+    reviewMessage: review.message,
+    findings: scan?.findings || [],
+    generatedPatch: scan?.generatedPatch || '',
+    patchProposal: scan?.patchProposal || null
+  };
+}
+
+function downloadLlmPatchReport() {
+  const scan = Store.scan;
+
+  if (!scan) {
+    toast('No active scan is available to export.');
+    return;
+  }
+
+  const report = buildLlmPatchReport(scan);
+  const blob = new Blob(
+    [JSON.stringify(report, null, 2)],
+    { type: 'application/json;charset=utf-8' }
+  );
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const safeId = String(scan.id || 'scan').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  link.href = url;
+  link.download = `omnisight-llm-patch-report-${safeId}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+  toast('LLM patch review report downloaded.');
+}
+
