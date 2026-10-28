@@ -1,0 +1,278 @@
+{
+  "corpus_id": "vision-audit-fixtures-v1",
+  "schema_version": 1,
+  "provenance": {
+    "kind": "FIXTURE",
+    "label": "Locally generated controlled defects",
+    "generator": "backend/scripts/generate_vision_audit_fixtures.py",
+    "note": "No ShopLite collector output, defect screenshots or defect manifest exists in this repository. These images were drawn locally with known geometry; they are not ShopLite captures."
+  },
+  "adapter_note": "No real VLM provider is configured. Audit results produced from this corpus are MOCK results and verify the harness only.",
+  "cases": [
+    {
+      "case_id": "hidden_submit",
+      "image": "images/hidden-submit.png",
+      "image_sha256": "0fefa3079a8a006fe9f6b8fa82483ad087d9b85a5e42edcec240bbb269073f56",
+      "image_bytes": 3015,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "route": "/checkout",
+      "expectation": "defect",
+      "injected_defect": {
+        "category": "hidden_or_unreachable_element",
+        "target": "#submit",
+        "region": {
+          "x": 20,
+          "y": 700,
+          "width": 350,
+          "height": 48
+        }
+      },
+      "dom_elements": [
+        {
+          "selector": "#submit",
+          "tag": "button",
+          "text": "Place order",
+          "visible": false,
+          "in_viewport": true,
+          "box": {
+            "x": 20,
+            "y": 700,
+            "w": 350,
+            "h": 48
+          }
+        }
+      ],
+      "notes": "Submit button not rendered; an empty slot remains where it belongs."
+    },
+    {
+      "case_id": "clipped_checkout",
+      "image": "images/clipped-checkout.png",
+      "image_sha256": "59857837d925ace7cc9261299043dfa6e23081f5c31c25879787b73ea4cf767d",
+      "image_bytes": 2828,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "route": "/checkout",
+      "expectation": "defect",
+      "injected_defect": {
+        "category": "clipped_element",
+        "target": "#checkout",
+        "region": {
+          "x": 300,
+          "y": 640,
+          "width": 200,
+          "height": 48
+        }
+      },
+      "dom_elements": [
+        {
+          "selector": "#checkout",
+          "tag": "button",
+          "text": "Checkout",
+          "visible": true,
+          "in_viewport": false,
+          "box": {
+            "x": 300,
+            "y": 640,
+            "w": 200,
+            "h": 48
+          }
+        }
+      ],
+      "notes": "Button extends 110px past the right edge of a 390px viewport."
+    },
+    {
+      "case_id": "overlapping_elements",
+      "image": "images/overlapping-elements.png",
+      "image_sha256": "0381c40c461c1599eb73a612501724de1d659c26437530d90ebcaca7ee1b5d03",
+      "image_bytes": 2842,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "route": "/products",
+      "expectation": "defect",
+      "injected_defect": {
+        "category": "overlapping_elements",
+        "target": ".promo",
+        "region": {
+          "x": 120,
+          "y": 360,
+          "width": 250,
+          "height": 170
+        }
+      },
+      "dom_elements": [
+        {
+          "selector": ".product-card",
+          "tag": "div",
+          "text": null,
+          "visible": true,
+          "in_viewport": true,
+          "box": {
+            "x": 20,
+            "y": 280,
+            "w": 300,
+            "h": 180
+          }
+        },
+        {
+          "selector": ".promo",
+          "tag": "div",
+          "text": "Summer sale",
+          "visible": true,
+          "in_viewport": true,
+          "box": {
+            "x": 120,
+            "y": 360,
+            "w": 250,
+            "h": 170
+          }
+        }
+      ],
+      "notes": "Promo card is painted over the product card and its copy."
+    },
+    {
+      "case_id": "low_contrast_text",
+      "image": "images/low-contrast-text.png",
+      "image_sha256": "ee89952811506e347e23f83d440d147b56652be857b490a9bec759648251c1ed",
+      "image_bytes": 2885,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "route": "/products",
+      "expectation": "defect",
+      "injected_defect": {
+        "category": "low_contrast_text",
+        "target": ".price",
+        "region": {
+          "x": 40,
+          "y": 414,
+          "width": 160,
+          "height": 24
+        }
+      },
+      "dom_elements": [
+        {
+          "selector": ".price",
+          "tag": "span",
+          "text": "$49.00",
+          "visible": true,
+          "in_viewport": true,
+          "box": {
+            "x": 40,
+            "y": 414,
+            "w": 160,
+            "h": 24
+          },
+          "computed_style": {
+            "color": "rgb(238, 238, 238)",
+            "background-color": "rgb(248, 250, 252)"
+          }
+        }
+      ],
+      "notes": "Price text is near-white on a near-white card."
+    },
+    {
+      "case_id": "responsive_failure",
+      "image": "images/responsive-failure.png",
+      "image_sha256": "a461e3ccd92781ee579978fb45c7285c9d13044fe3310f97414221cbcfdf329b",
+      "image_bytes": 2900,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "route": "/products",
+      "expectation": "defect",
+      "injected_defect": {
+        "category": "responsive_layout_failure",
+        "target": ".product-grid",
+        "region": {
+          "x": 0,
+          "y": 200,
+          "width": 720,
+          "height": 300
+        }
+      },
+      "dom_elements": [
+        {
+          "selector": ".product-grid",
+          "tag": "div",
+          "text": null,
+          "visible": true,
+          "in_viewport": false,
+          "box": {
+            "x": 0,
+            "y": 200,
+            "w": 720,
+            "h": 300
+          }
+        }
+      ],
+      "notes": "A 720px three-column grid is rendered in a 390px viewport."
+    },
+    {
+      "case_id": "healthy_control",
+      "image": "images/healthy-control.png",
+      "image_sha256": "89fa97c62e691dcbbd2e45e81f838a9af654d2248d9eeb5de0937492a531b032",
+      "image_bytes": 3033,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "route": "/checkout",
+      "expectation": "clean",
+      "injected_defect": null,
+      "dom_elements": [
+        {
+          "selector": "#submit",
+          "tag": "button",
+          "text": "Place order",
+          "visible": true,
+          "in_viewport": true,
+          "box": {
+            "x": 20,
+            "y": 700,
+            "w": 350,
+            "h": 48
+          }
+        }
+      ],
+      "notes": "No defect injected: readable, non-overlapping, fully in viewport."
+    },
+    {
+      "case_id": "ambiguous_case",
+      "image": "images/ambiguous-case.png",
+      "image_sha256": "aebd0a4ff6635dfa818ff1f30adc4b43da2e28b2a701df780720b05efafc64f6",
+      "image_bytes": 3036,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "route": "/checkout",
+      "expectation": "needs_inspection_or_hedged",
+      "injected_defect": null,
+      "dom_elements": [
+        {
+          "selector": "#summary",
+          "tag": "section",
+          "text": "Order summary",
+          "visible": true,
+          "in_viewport": true,
+          "box": {
+            "x": 20,
+            "y": 296,
+            "w": 350,
+            "h": 140
+          }
+        }
+      ],
+      "notes": "Slight misalignment and lighter supporting copy; no unambiguous defect."
+    }
+  ]
+}

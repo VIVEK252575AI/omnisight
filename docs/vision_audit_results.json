@@ -1,0 +1,3279 @@
+{
+  "task": "MR.1 Vision Audit",
+  "generated_at": "2026-10-20T23:28:03.704783+00:00",
+  "corpus_id": "vision-audit-fixtures-v1",
+  "corpus_provenance": {
+    "kind": "FIXTURE",
+    "label": "Locally generated controlled defects",
+    "generator": "backend/scripts/generate_vision_audit_fixtures.py",
+    "note": "No ShopLite collector output, defect screenshots or defect manifest exists in this repository. These images were drawn locally with known geometry; they are not ShopLite captures."
+  },
+  "adapter_note": "No real VLM provider is configured. Audit results produced from this corpus are MOCK results and verify the harness only.",
+  "real_model_audit_performed": false,
+  "adapter_requested": "mock",
+  "mock_scenario": "clipped_button",
+  "manifest": "E:\\Infotact project\\omnisight\\backend\\tests\\fixtures\\vision_audit\\ground_truth.json",
+  "artifacts_dir": "E:\\Infotact project\\omnisight\\backend\\tests\\fixtures\\vision_audit",
+  "harness_failures": [],
+  "summary": {
+    "total_records": 42,
+    "modes": [
+      "screenshot_only",
+      "with_dom"
+    ],
+    "repetitions": [
+      1,
+      2,
+      3
+    ],
+    "adapter_labels": [
+      "MOCK"
+    ],
+    "is_mock": [
+      true
+    ],
+    "model_inference_performed": false,
+    "defect_runs": 30,
+    "category_correct_runs": 6,
+    "target_plausible_runs": 0,
+    "region_plausible_runs": 0,
+    "healthy_runs": 6,
+    "false_positive_runs": 6,
+    "ambiguous_runs": 6,
+    "hedged_runs": 0,
+    "detection_failures": 0,
+    "hidden_submit": [
+      {
+        "mode": "screenshot_only",
+        "repetition": 1,
+        "verdict": "wrong_category",
+        "plain_result": "missed"
+      },
+      {
+        "mode": "screenshot_only",
+        "repetition": 2,
+        "verdict": "wrong_category",
+        "plain_result": "missed"
+      },
+      {
+        "mode": "screenshot_only",
+        "repetition": 3,
+        "verdict": "wrong_category",
+        "plain_result": "missed"
+      },
+      {
+        "mode": "with_dom",
+        "repetition": 1,
+        "verdict": "wrong_category",
+        "plain_result": "missed"
+      },
+      {
+        "mode": "with_dom",
+        "repetition": 2,
+        "verdict": "wrong_category",
+        "plain_result": "missed"
+      },
+      {
+        "mode": "with_dom",
+        "repetition": 3,
+        "verdict": "wrong_category",
+        "plain_result": "missed"
+      }
+    ],
+    "cases": [
+      {
+        "case_id": "hidden_submit",
+        "expectation": "defect",
+        "injected_category": "hidden_or_unreachable_element",
+        "modes": {
+          "screenshot_only": {
+            "runs": 3,
+            "verdicts": {
+              "wrong_category": 3
+            },
+            "category_correct": 0,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 18.84
+          },
+          "with_dom": {
+            "runs": 3,
+            "verdicts": {
+              "wrong_category": 3
+            },
+            "category_correct": 0,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 19.608
+          }
+        }
+      },
+      {
+        "case_id": "clipped_checkout",
+        "expectation": "defect",
+        "injected_category": "clipped_element",
+        "modes": {
+          "screenshot_only": {
+            "runs": 3,
+            "verdicts": {
+              "detected": 3
+            },
+            "category_correct": 3,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 24.172
+          },
+          "with_dom": {
+            "runs": 3,
+            "verdicts": {
+              "detected": 3
+            },
+            "category_correct": 3,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 26.932
+          }
+        }
+      },
+      {
+        "case_id": "overlapping_elements",
+        "expectation": "defect",
+        "injected_category": "overlapping_elements",
+        "modes": {
+          "screenshot_only": {
+            "runs": 3,
+            "verdicts": {
+              "wrong_category": 3
+            },
+            "category_correct": 0,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 18.959
+          },
+          "with_dom": {
+            "runs": 3,
+            "verdicts": {
+              "wrong_category": 3
+            },
+            "category_correct": 0,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 10.476
+          }
+        }
+      },
+      {
+        "case_id": "low_contrast_text",
+        "expectation": "defect",
+        "injected_category": "low_contrast_text",
+        "modes": {
+          "screenshot_only": {
+            "runs": 3,
+            "verdicts": {
+              "wrong_category": 3
+            },
+            "category_correct": 0,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 31.945
+          },
+          "with_dom": {
+            "runs": 3,
+            "verdicts": {
+              "wrong_category": 3
+            },
+            "category_correct": 0,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 10.896
+          }
+        }
+      },
+      {
+        "case_id": "responsive_failure",
+        "expectation": "defect",
+        "injected_category": "responsive_layout_failure",
+        "modes": {
+          "screenshot_only": {
+            "runs": 3,
+            "verdicts": {
+              "wrong_category": 3
+            },
+            "category_correct": 0,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 20.468
+          },
+          "with_dom": {
+            "runs": 3,
+            "verdicts": {
+              "wrong_category": 3
+            },
+            "category_correct": 0,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 19.31
+          }
+        }
+      },
+      {
+        "case_id": "healthy_control",
+        "expectation": "clean",
+        "injected_category": null,
+        "modes": {
+          "screenshot_only": {
+            "runs": 3,
+            "verdicts": {
+              "false_positive": 3
+            },
+            "category_correct": 0,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 19.548
+          },
+          "with_dom": {
+            "runs": 3,
+            "verdicts": {
+              "false_positive": 3
+            },
+            "category_correct": 0,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 10.947
+          }
+        }
+      },
+      {
+        "case_id": "ambiguous_case",
+        "expectation": "needs_inspection_or_hedged",
+        "injected_category": null,
+        "modes": {
+          "screenshot_only": {
+            "runs": 3,
+            "verdicts": {
+              "not_hedged": 3
+            },
+            "category_correct": 0,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 23.338
+          },
+          "with_dom": {
+            "runs": 3,
+            "verdicts": {
+              "not_hedged": 3
+            },
+            "category_correct": 0,
+            "target_plausible": 0,
+            "region_plausible": 0,
+            "stable": true,
+            "median_wall_ms": 11.675
+          }
+        }
+      }
+    ]
+  },
+  "records": [
+    {
+      "case_id": "hidden_submit",
+      "mode": "screenshot_only",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "884b0ebc-a56b-47e4-880e-e5ec73a5089b",
+      "evidence_id": "c195b550-53a4-4d00-adfd-b02593289c6c",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 74.695,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "a5536bf7-9a21-4d39-aa94-7c71474d4699",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "884b0ebc-a56b-47e4-880e-e5ec73a5089b",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "c195b550-53a4-4d00-adfd-b02593289c6c"
+          ],
+          "screenshot_artifact_ids": [
+            "404ffadd-25e0-45c6-9beb-f85e1ff62e81"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:02.824389Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false,
+        "plain_result": "missed"
+      }
+    },
+    {
+      "case_id": "hidden_submit",
+      "mode": "screenshot_only",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "2e46ef53-7ca3-46ad-8f5c-d1acb7dd84c6",
+      "evidence_id": "f779fe22-e467-4cf8-8b36-b9c45f9472d6",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 11.188,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "3e99dc93-c89b-4d74-a0f8-40dab60f1824",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "2e46ef53-7ca3-46ad-8f5c-d1acb7dd84c6",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "f779fe22-e467-4cf8-8b36-b9c45f9472d6"
+          ],
+          "screenshot_artifact_ids": [
+            "cc73a96c-7d0e-44eb-8f11-c9836700352c"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:02.836713Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false,
+        "plain_result": "missed"
+      }
+    },
+    {
+      "case_id": "hidden_submit",
+      "mode": "screenshot_only",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "33a40bea-e960-4ef4-a83f-5e090dceb4fc",
+      "evidence_id": "baab9ad6-ca28-41b4-a952-f5b9547f444f",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 18.84,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "4e080e61-4518-400b-9966-258e9db38d73",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "33a40bea-e960-4ef4-a83f-5e090dceb4fc",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "baab9ad6-ca28-41b4-a952-f5b9547f444f"
+          ],
+          "screenshot_artifact_ids": [
+            "0bbfa486-fce8-476e-be46-82ab5a9686ae"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:02.856427Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false,
+        "plain_result": "missed"
+      }
+    },
+    {
+      "case_id": "hidden_submit",
+      "mode": "with_dom",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "cecb6e59-3dab-4146-9ab9-4dda16f4c3ec",
+      "evidence_id": "f9c73141-053c-4d16-85a9-31482578dc34",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 10.41,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "7b3cb72a-fef7-4e45-9643-4b553ef04a0e",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": false,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "cecb6e59-3dab-4146-9ab9-4dda16f4c3ec",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "f9c73141-053c-4d16-85a9-31482578dc34"
+          ],
+          "screenshot_artifact_ids": [
+            "84b8d8d6-8916-4075-9566-89e3091b9a84"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:02.866625Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false,
+        "plain_result": "missed"
+      }
+    },
+    {
+      "case_id": "hidden_submit",
+      "mode": "with_dom",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "e8b098bf-0c47-46bf-bf4f-6f187080e646",
+      "evidence_id": "f15b47fe-a94e-41a5-a282-27d2b5df400a",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 39.01,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "5dcabcc8-1cf2-44c4-bbdb-24655476f0b7",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": false,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "e8b098bf-0c47-46bf-bf4f-6f187080e646",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "f15b47fe-a94e-41a5-a282-27d2b5df400a"
+          ],
+          "screenshot_artifact_ids": [
+            "47c9ce3d-bb28-40e4-846a-24bd3278f023"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:02.906190Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false,
+        "plain_result": "missed"
+      }
+    },
+    {
+      "case_id": "hidden_submit",
+      "mode": "with_dom",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "4af6ad57-3a45-4ae6-882f-13dfdca0dc85",
+      "evidence_id": "9cfe7e03-e908-4096-bf04-c7397f2c620c",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 19.608,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "48413211-78c2-44bc-b669-ec340838e422",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": false,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "4af6ad57-3a45-4ae6-882f-13dfdca0dc85",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "9cfe7e03-e908-4096-bf04-c7397f2c620c"
+          ],
+          "screenshot_artifact_ids": [
+            "71e8c9c0-2cb4-4fb5-9d78-e946a47b6fe0"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:02.922651Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false,
+        "plain_result": "missed"
+      }
+    },
+    {
+      "case_id": "clipped_checkout",
+      "mode": "screenshot_only",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "163a1865-37cf-4760-b3af-df0ff4964a81",
+      "evidence_id": "303695aa-0e1e-491a-8495-6992e7e650ee",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 21.143,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "83a5430d-414f-4aca-bc87-8ceef8171df0",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "163a1865-37cf-4760-b3af-df0ff4964a81",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "303695aa-0e1e-491a-8495-6992e7e650ee"
+          ],
+          "screenshot_artifact_ids": [
+            "92deb17f-bcfd-4f56-80ad-a12f8183c96f"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:02.945270Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "detected",
+        "category_correct": true,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "clipped_checkout",
+      "mode": "screenshot_only",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "1bce1dd1-55ca-4494-aa2e-f917e575a60b",
+      "evidence_id": "a9ad14a8-d887-4e11-8846-77fa08c6eaf2",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 35.8,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "99965034-df7f-4c8f-9d9b-49ec6303d675",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "1bce1dd1-55ca-4494-aa2e-f917e575a60b",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "a9ad14a8-d887-4e11-8846-77fa08c6eaf2"
+          ],
+          "screenshot_artifact_ids": [
+            "5725224b-e81c-4198-b014-066728b31850"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:02.966493Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "detected",
+        "category_correct": true,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "clipped_checkout",
+      "mode": "screenshot_only",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "277eb746-d3f9-4093-870a-0e3c975af560",
+      "evidence_id": "e2056b8a-5335-4d98-9345-d84dd464214d",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 24.172,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "44403ef8-4f97-4ce4-aa99-153fa8532986",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "277eb746-d3f9-4093-870a-0e3c975af560",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "e2056b8a-5335-4d98-9345-d84dd464214d"
+          ],
+          "screenshot_artifact_ids": [
+            "d5c5ef71-5338-41a4-a742-114602703044"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.003489Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "detected",
+        "category_correct": true,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "clipped_checkout",
+      "mode": "with_dom",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "86b36de2-0059-48c6-bd25-b590826080b0",
+      "evidence_id": "cbb07bb2-9223-401c-8895-7fe74dccdb67",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 26.932,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "5492b067-6c56-4bec-8712-ca59b33ebff6",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "86b36de2-0059-48c6-bd25-b590826080b0",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "cbb07bb2-9223-401c-8895-7fe74dccdb67"
+          ],
+          "screenshot_artifact_ids": [
+            "c813f20b-d187-48e2-b71d-ac34d4a99fab"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.033586Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "detected",
+        "category_correct": true,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "clipped_checkout",
+      "mode": "with_dom",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "a0fe8614-03c8-4cb9-9cc4-12371d5e2800",
+      "evidence_id": "d955276a-47fd-421a-910a-3036ca19a393",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 25.047,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "b44c736a-850c-4ff8-a2c5-0d66ac0e7a21",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "a0fe8614-03c8-4cb9-9cc4-12371d5e2800",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "d955276a-47fd-421a-910a-3036ca19a393"
+          ],
+          "screenshot_artifact_ids": [
+            "93a900cd-ac92-4b8e-b0b2-90c403a4de3a"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.043061Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "detected",
+        "category_correct": true,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "clipped_checkout",
+      "mode": "with_dom",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "9d1c9509-6711-471d-b81e-2d06075b2f4a",
+      "evidence_id": "4bd0eb02-6216-4afe-86c4-4ffdf491dde9",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 44.749,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "dd046b15-1f0d-4d73-889d-fd0faa27826a",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "9d1c9509-6711-471d-b81e-2d06075b2f4a",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "4bd0eb02-6216-4afe-86c4-4ffdf491dde9"
+          ],
+          "screenshot_artifact_ids": [
+            "a5650f58-a25f-42b7-af0d-b2ae80806cfe"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.104327Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "detected",
+        "category_correct": true,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "overlapping_elements",
+      "mode": "screenshot_only",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "717bee49-fc5c-474d-b8c9-8019b1e08871",
+      "evidence_id": "d7228e3f-4ba9-421f-9952-150d3a705daf",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 45.856,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "d7891b21-9f83-4733-b429-c1675d271d92",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "717bee49-fc5c-474d-b8c9-8019b1e08871",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "d7228e3f-4ba9-421f-9952-150d3a705daf"
+          ],
+          "screenshot_artifact_ids": [
+            "354394fc-271c-4153-86fd-f6ef0bf3f9d0"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.136833Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "overlapping_elements",
+      "mode": "screenshot_only",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "296c103c-2839-43ef-bf10-78c6d0f4e6a7",
+      "evidence_id": "3d1bb010-65a9-4a20-a12d-37aa984e4e4a",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 12.098,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "8c7d132b-6789-41ea-a74c-2aeefb1ca36f",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "296c103c-2839-43ef-bf10-78c6d0f4e6a7",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "3d1bb010-65a9-4a20-a12d-37aa984e4e4a"
+          ],
+          "screenshot_artifact_ids": [
+            "53dc709a-40ca-4d02-ad03-ef7099f7795f"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.161056Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "overlapping_elements",
+      "mode": "screenshot_only",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "6463d260-b401-4740-95c2-ef52f48e12c8",
+      "evidence_id": "7244371f-a4c8-4f97-8705-d832e9d447ba",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 18.959,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "c69c32d9-8994-4157-857f-5f268b77bfbb",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "6463d260-b401-4740-95c2-ef52f48e12c8",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "7244371f-a4c8-4f97-8705-d832e9d447ba"
+          ],
+          "screenshot_artifact_ids": [
+            "a7a04dcb-72fd-4897-9fd9-c9d41e4a873d"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.180565Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "overlapping_elements",
+      "mode": "with_dom",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "3d8d2279-cc38-4e1e-b2c0-faf7a7aa5b8f",
+      "evidence_id": "917c38f5-f971-44e6-8f44-20652df585fa",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 23.834,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "2c1c4437-ea98-43be-b5ac-5d0e606ace91",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "3d8d2279-cc38-4e1e-b2c0-faf7a7aa5b8f",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "917c38f5-f971-44e6-8f44-20652df585fa"
+          ],
+          "screenshot_artifact_ids": [
+            "a591addb-45a9-449b-bbde-eeb75d78cc5c"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.200859Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "overlapping_elements",
+      "mode": "with_dom",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "7d611d5f-3be1-4ca4-9d31-690864d445dd",
+      "evidence_id": "d9032124-e2bd-4707-ba3f-9aafb2431110",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 10.14,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "ff34fd9b-2656-460d-b2d2-25b2511555e0",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "7d611d5f-3be1-4ca4-9d31-690864d445dd",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "d9032124-e2bd-4707-ba3f-9aafb2431110"
+          ],
+          "screenshot_artifact_ids": [
+            "7d8f0a7d-b17c-4ee5-bd34-5c7ffe23c66e"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.211783Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "overlapping_elements",
+      "mode": "with_dom",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "957502bb-8070-4e33-91a5-704e7a4d3db7",
+      "evidence_id": "86389b0b-3deb-447d-8eeb-15fabf3fe19c",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 10.476,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "2cf10e1c-a14d-4554-9d49-806298a0e667",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "957502bb-8070-4e33-91a5-704e7a4d3db7",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "86389b0b-3deb-447d-8eeb-15fabf3fe19c"
+          ],
+          "screenshot_artifact_ids": [
+            "1bf4d806-078d-4d0b-b99e-d3af1fddd793"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.225633Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "low_contrast_text",
+      "mode": "screenshot_only",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "a6c9095f-e72b-4dd6-b77e-2d399231860e",
+      "evidence_id": "c21f9350-d240-49da-8fc8-81e5cc1bd602",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 31.945,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "8ddcfcd0-eff4-4f9a-925c-d33d85678aa5",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "a6c9095f-e72b-4dd6-b77e-2d399231860e",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "c21f9350-d240-49da-8fc8-81e5cc1bd602"
+          ],
+          "screenshot_artifact_ids": [
+            "c0f6efee-457e-471c-8add-0de592ce2f5f"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.256070Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "low_contrast_text",
+      "mode": "screenshot_only",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "3452882c-6cb7-4178-a5e5-5a2036cbb098",
+      "evidence_id": "762aad9a-cea4-47f7-88a7-15ea2a31d9a6",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 11.4,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "2fb1387a-bcb8-4aa9-8d3d-2a52added71b",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "3452882c-6cb7-4178-a5e5-5a2036cbb098",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "762aad9a-cea4-47f7-88a7-15ea2a31d9a6"
+          ],
+          "screenshot_artifact_ids": [
+            "885c0773-586e-405f-a7b8-495322f60350"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.267289Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "low_contrast_text",
+      "mode": "screenshot_only",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "f9a908e2-4935-434e-86ee-727c85db2c12",
+      "evidence_id": "bec48042-c3c6-4e9a-9fac-a6d95f696a82",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 42.847,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "b0b2572f-5872-46d5-8e95-8a8d07b6a049",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "f9a908e2-4935-434e-86ee-727c85db2c12",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "bec48042-c3c6-4e9a-9fac-a6d95f696a82"
+          ],
+          "screenshot_artifact_ids": [
+            "84566005-f45c-4e7e-8150-9a2c9048de57"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.310913Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "low_contrast_text",
+      "mode": "with_dom",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "284befc4-50f7-47c8-8612-fed8ac3de820",
+      "evidence_id": "6494ab0f-bd75-4664-a658-aa7f120f5d7f",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 10.896,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "ce7f1e2c-9f9c-4c3c-8a23-4269e69ffbfd",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "284befc4-50f7-47c8-8612-fed8ac3de820",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "6494ab0f-bd75-4664-a658-aa7f120f5d7f"
+          ],
+          "screenshot_artifact_ids": [
+            "f3d93fad-0362-41c9-878c-2bea39076010"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.322373Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "low_contrast_text",
+      "mode": "with_dom",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "7415be0f-c5eb-4cd0-ba5c-80532f269876",
+      "evidence_id": "d8f13030-a9f5-4d70-9bf8-829f2ccf7493",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 10.371,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "bd3ff056-6b4b-4053-87d9-72624d933b44",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "7415be0f-c5eb-4cd0-ba5c-80532f269876",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "d8f13030-a9f5-4d70-9bf8-829f2ccf7493"
+          ],
+          "screenshot_artifact_ids": [
+            "2079d25d-909e-4b5d-915c-ab428ac7c495"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.329803Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "low_contrast_text",
+      "mode": "with_dom",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "fa1c5b25-e511-4b54-af62-998c384b9ca7",
+      "evidence_id": "53528763-d8f4-48bc-b40d-8c194ebf9d81",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 20.421,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "a63fc864-d622-4a27-906f-0abaf4b703a7",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "fa1c5b25-e511-4b54-af62-998c384b9ca7",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "53528763-d8f4-48bc-b40d-8c194ebf9d81"
+          ],
+          "screenshot_artifact_ids": [
+            "056ce258-65ba-4b7c-8f73-762f00f3c6a0"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.354368Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "responsive_failure",
+      "mode": "screenshot_only",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "b90650f9-da76-4b93-af20-0415d4682b1a",
+      "evidence_id": "f7b9c652-e457-415b-a51e-822bc7e80fac",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 24.54,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "56474d31-4558-4bb2-ba2d-22f17c0f4e86",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "b90650f9-da76-4b93-af20-0415d4682b1a",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "f7b9c652-e457-415b-a51e-822bc7e80fac"
+          ],
+          "screenshot_artifact_ids": [
+            "27bdd871-81e4-469a-8eb7-4c07cc74f280"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.363327Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "responsive_failure",
+      "mode": "screenshot_only",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "72563e09-8db3-4e87-8897-0803719c225c",
+      "evidence_id": "71e8660a-5144-4f01-acdb-ff36dfc96d53",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 9.938,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "cb005a4a-71b3-4905-baf8-3ea9d6ad0ea5",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "72563e09-8db3-4e87-8897-0803719c225c",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "71e8660a-5144-4f01-acdb-ff36dfc96d53"
+          ],
+          "screenshot_artifact_ids": [
+            "8bad18f4-8f2d-42c0-a89a-85b42aa86260"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.385348Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "responsive_failure",
+      "mode": "screenshot_only",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "1d9ba9c2-15b5-4d8f-abba-0cc5a552e539",
+      "evidence_id": "2ac42556-d1c6-4c6e-8b31-dfd8c62b13b8",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 20.468,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "3960d659-3c14-4c3b-aa0e-e86a98be983b",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "1d9ba9c2-15b5-4d8f-abba-0cc5a552e539",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "2ac42556-d1c6-4c6e-8b31-dfd8c62b13b8"
+          ],
+          "screenshot_artifact_ids": [
+            "b210f94d-f00a-4a5a-9769-d7f5b495f876"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.406144Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "responsive_failure",
+      "mode": "with_dom",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "b00df498-07a9-4c11-b19b-ef644f20df55",
+      "evidence_id": "e5d208ce-73c5-411f-b7d1-4ede5a6de194",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 36.079,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "5c2bbe9b-3536-46c5-8854-e13fafb04d44",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "b00df498-07a9-4c11-b19b-ef644f20df55",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "e5d208ce-73c5-411f-b7d1-4ede5a6de194"
+          ],
+          "screenshot_artifact_ids": [
+            "09d5c889-0f7d-4609-a6a5-0ef059dfa611"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.429053Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "responsive_failure",
+      "mode": "with_dom",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "a2398424-51dc-4480-a193-c555d97d3356",
+      "evidence_id": "cb74b31c-38e5-4b10-9b83-2c710740ee78",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 10.859,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "09e20dac-4a4b-4ed8-9c45-4ae535acb479",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "a2398424-51dc-4480-a193-c555d97d3356",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "cb74b31c-38e5-4b10-9b83-2c710740ee78"
+          ],
+          "screenshot_artifact_ids": [
+            "769b850f-34b0-4daf-ae0a-69021780fe3d"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.454822Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "responsive_failure",
+      "mode": "with_dom",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "e02a4252-557d-4bea-a266-59a75765cbde",
+      "evidence_id": "6b0b3046-e660-4f16-9783-c31622f8d32b",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 19.31,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "72044560-58b3-42c7-a052-141db0c81080",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "e02a4252-557d-4bea-a266-59a75765cbde",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/products",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "6b0b3046-e660-4f16-9783-c31622f8d32b"
+          ],
+          "screenshot_artifact_ids": [
+            "e0cacd6c-aade-464a-b2f5-e3eb62aec805"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.468436Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "wrong_category",
+        "category_correct": false,
+        "target_plausible": false,
+        "region_plausible": false
+      }
+    },
+    {
+      "case_id": "healthy_control",
+      "mode": "screenshot_only",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "e8c28b8b-9979-40c1-be3e-3b868a1f240a",
+      "evidence_id": "1f9dba53-bd40-47f2-9195-eba3c78241e8",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 27.179,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "18336d3c-43e8-4c68-a5d7-48d1f4662ad2",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "e8c28b8b-9979-40c1-be3e-3b868a1f240a",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "1f9dba53-bd40-47f2-9195-eba3c78241e8"
+          ],
+          "screenshot_artifact_ids": [
+            "2b400f0c-ed21-4de3-aac4-ef41e1260813"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.499945Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "false_positive",
+        "category_correct": null,
+        "target_plausible": null,
+        "region_plausible": null
+      }
+    },
+    {
+      "case_id": "healthy_control",
+      "mode": "screenshot_only",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "7f0bc374-a6b0-4e93-935b-eb6cb340aa00",
+      "evidence_id": "bfff705d-7125-4334-9f77-a102047fe15e",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 10.096,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "aaf6c296-fbb3-4ade-8e28-a8c16b38507c",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "7f0bc374-a6b0-4e93-935b-eb6cb340aa00",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "bfff705d-7125-4334-9f77-a102047fe15e"
+          ],
+          "screenshot_artifact_ids": [
+            "058040fc-0b7d-436d-aba2-a835f2c68867"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.510358Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "false_positive",
+        "category_correct": null,
+        "target_plausible": null,
+        "region_plausible": null
+      }
+    },
+    {
+      "case_id": "healthy_control",
+      "mode": "screenshot_only",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "4e5cf064-2612-4256-9094-81d1350bd60d",
+      "evidence_id": "2519489f-3cfb-47a2-b8f2-ed917dcf3d92",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 19.548,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "df09ac66-472a-4896-9492-17d1fb6dc59a",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "4e5cf064-2612-4256-9094-81d1350bd60d",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "2519489f-3cfb-47a2-b8f2-ed917dcf3d92"
+          ],
+          "screenshot_artifact_ids": [
+            "0029eb12-4c87-4eb8-838b-3ca4fdd05152"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.531187Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "false_positive",
+        "category_correct": null,
+        "target_plausible": null,
+        "region_plausible": null
+      }
+    },
+    {
+      "case_id": "healthy_control",
+      "mode": "with_dom",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "5eff6504-dc57-4b60-9e64-36bea60ec30f",
+      "evidence_id": "f57de1a6-7b36-49c8-876e-5e09d59256df",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 10.14,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "b36476b1-deef-45c6-b4b1-dfa217061d5f",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": false,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "5eff6504-dc57-4b60-9e64-36bea60ec30f",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "f57de1a6-7b36-49c8-876e-5e09d59256df"
+          ],
+          "screenshot_artifact_ids": [
+            "19dad499-9e37-46d9-bd8e-30c04d2280e4"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.541386Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "false_positive",
+        "category_correct": null,
+        "target_plausible": null,
+        "region_plausible": null
+      }
+    },
+    {
+      "case_id": "healthy_control",
+      "mode": "with_dom",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "1cb2cdb0-76fe-48a4-b1d0-96a6cfd2f5b0",
+      "evidence_id": "f0f9c047-b31a-4e0a-9b84-7968307f6ec2",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 10.947,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "eaa90524-807e-4e7a-829c-63ddeecafba5",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": false,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "1cb2cdb0-76fe-48a4-b1d0-96a6cfd2f5b0",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "f0f9c047-b31a-4e0a-9b84-7968307f6ec2"
+          ],
+          "screenshot_artifact_ids": [
+            "df258ec1-f3fd-4dbf-931f-68e4db4db6ff"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.551997Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "false_positive",
+        "category_correct": null,
+        "target_plausible": null,
+        "region_plausible": null
+      }
+    },
+    {
+      "case_id": "healthy_control",
+      "mode": "with_dom",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "73124ddf-3f09-4a98-b632-43def86b48b0",
+      "evidence_id": "3f9f1112-eb5b-4c9e-a312-c752a0648956",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 25.058,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "b294838c-ad11-4e97-b29c-1485fe71f2fb",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": false,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "73124ddf-3f09-4a98-b632-43def86b48b0",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "3f9f1112-eb5b-4c9e-a312-c752a0648956"
+          ],
+          "screenshot_artifact_ids": [
+            "8713f365-cd14-4978-8c28-641ec946db2c"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.576492Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "false_positive",
+        "category_correct": null,
+        "target_plausible": null,
+        "region_plausible": null
+      }
+    },
+    {
+      "case_id": "ambiguous_case",
+      "mode": "screenshot_only",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "423ac72a-09f7-425b-ba9d-498747a1c65a",
+      "evidence_id": "6b183eff-89b9-4b73-b720-bbeede26878d",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 21.994,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "66a8cda9-9c57-4ebd-a976-b78d9bccf6e7",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "423ac72a-09f7-425b-ba9d-498747a1c65a",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "6b183eff-89b9-4b73-b720-bbeede26878d"
+          ],
+          "screenshot_artifact_ids": [
+            "9be9ebf7-8920-477c-b82d-9a9d741038bb"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.586755Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "not_hedged",
+        "category_correct": null,
+        "target_plausible": null,
+        "region_plausible": null
+      }
+    },
+    {
+      "case_id": "ambiguous_case",
+      "mode": "screenshot_only",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "2556ad8c-83de-4a28-999e-7e5ab44a380a",
+      "evidence_id": "d3e05031-2fc8-4e9a-84f7-541fc5dbf10e",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 47.972,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "f3332522-13ba-4020-be6c-dde43ca85d1d",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "2556ad8c-83de-4a28-999e-7e5ab44a380a",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "d3e05031-2fc8-4e9a-84f7-541fc5dbf10e"
+          ],
+          "screenshot_artifact_ids": [
+            "a5a00a9f-5513-4bba-bade-85a4948066fe"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.647025Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "not_hedged",
+        "category_correct": null,
+        "target_plausible": null,
+        "region_plausible": null
+      }
+    },
+    {
+      "case_id": "ambiguous_case",
+      "mode": "screenshot_only",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "6c2f124b-7681-4e33-aec7-152b3d51c1a5",
+      "evidence_id": "034df73a-c3c6-4eba-8afd-22150fa91eff",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 23.338,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "3e487cdd-ffb5-4227-9073-37faf200821e",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "6c2f124b-7681-4e33-aec7-152b3d51c1a5",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "034df73a-c3c6-4eba-8afd-22150fa91eff"
+          ],
+          "screenshot_artifact_ids": [
+            "7df5335a-7514-450e-b017-e04a002336ab"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.672154Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "not_hedged",
+        "category_correct": null,
+        "target_plausible": null,
+        "region_plausible": null
+      }
+    },
+    {
+      "case_id": "ambiguous_case",
+      "mode": "with_dom",
+      "repetition": 1,
+      "mock_scenario": "clipped_button",
+      "scan_id": "902afca8-a059-4079-ac5c-db6f70bedf24",
+      "evidence_id": "c5abff2d-ad61-4291-a19b-08f82894ca69",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 9.77,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "da6782c5-b0df-4de0-862a-96aa5b52215a",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "902afca8-a059-4079-ac5c-db6f70bedf24",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "c5abff2d-ad61-4291-a19b-08f82894ca69"
+          ],
+          "screenshot_artifact_ids": [
+            "d26abe40-3611-4324-8041-684e882d7c1c"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.681497Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "not_hedged",
+        "category_correct": null,
+        "target_plausible": null,
+        "region_plausible": null
+      }
+    },
+    {
+      "case_id": "ambiguous_case",
+      "mode": "with_dom",
+      "repetition": 2,
+      "mock_scenario": "clipped_button",
+      "scan_id": "679d2142-a81e-443c-bbd5-75dd4cad0866",
+      "evidence_id": "edfa033f-b379-48d0-a721-d52e2f7f03e3",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 12.008,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "bd1744f3-2bd4-4417-aac7-bf434c2b1879",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "679d2142-a81e-443c-bbd5-75dd4cad0866",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "edfa033f-b379-48d0-a721-d52e2f7f03e3"
+          ],
+          "screenshot_artifact_ids": [
+            "52890bd0-5411-4372-be62-262b8ce94d89"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.690896Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "not_hedged",
+        "category_correct": null,
+        "target_plausible": null,
+        "region_plausible": null
+      }
+    },
+    {
+      "case_id": "ambiguous_case",
+      "mode": "with_dom",
+      "repetition": 3,
+      "mock_scenario": "clipped_button",
+      "scan_id": "0a7c49a8-0215-406f-a0e4-592bd64f497d",
+      "evidence_id": "000b27c8-d193-4749-9ad0-09cc900139f0",
+      "scan_status": "detected",
+      "adapter_label": "MOCK",
+      "is_mock": true,
+      "model_inference_performed": false,
+      "detection_status": "detected",
+      "outcome": "defects_found",
+      "reason_code": null,
+      "reason_message": null,
+      "attempts": 1,
+      "duration_ms": 0.0,
+      "wall_ms": 11.675,
+      "raw_output": "{\"schema_version\": 1, \"outcome\": \"defects_found\", \"summary\": \"MOCK: primary button is clipped at this viewport.\", \"findings\": [{\"category\": \"clipped_element\", \"target_candidate\": \"#submit\", \"observation\": \"The primary button extends past the viewport.\", \"evidence\": \"button box exceeds viewport width (MOCK geometry).\", \"potential_causes\": [\"fixed pixel width\"], \"severity\": \"high\", \"confidence\": 0.9, \"region\": {\"x\": 10.0, \"y\": 20.0, \"width\": 220.0, \"height\": 48.0}}]}",
+      "raw_output_present": true,
+      "findings": [
+        {
+          "finding": {
+            "finding_id": "683ef677-c3c7-456a-81ee-6b5ea8c3424e",
+            "category": "clipped_element",
+            "target_candidate": "#submit",
+            "target_unverified": true,
+            "observation": "The primary button extends past the viewport.",
+            "evidence": "button box exceeds viewport width (MOCK geometry).",
+            "potential_causes": [
+              "fixed pixel width"
+            ],
+            "severity": "high",
+            "confidence": 0.9,
+            "region": {
+              "x": 10.0,
+              "y": 20.0,
+              "width": 220.0,
+              "height": 48.0
+            },
+            "status": "detected"
+          },
+          "scan_id": "0a7c49a8-0215-406f-a0e4-592bd64f497d",
+          "adapter_label": "MOCK",
+          "is_mock": true,
+          "route": "/checkout",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "evidence_ids": [
+            "000b27c8-d193-4749-9ad0-09cc900139f0"
+          ],
+          "screenshot_artifact_ids": [
+            "38aa1d8a-5af5-4a48-8a86-3b9f16063184"
+          ],
+          "raw_output": null,
+          "created_at": "2026-10-20T23:28:03.704783Z"
+        }
+      ],
+      "triggers": {
+        "accepted": true
+      },
+      "parse_status": "ok",
+      "score": {
+        "verdict": "not_hedged",
+        "category_correct": null,
+        "target_plausible": null,
+        "region_plausible": null
+      }
+    }
+  ]
+}
