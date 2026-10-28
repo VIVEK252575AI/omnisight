@@ -34,7 +34,8 @@ from app.ai.adapters.factory import create_vision_analyzer
 from app.config import Settings, get_settings
 from app.errors import register_exception_handlers
 from app.evidence_storage import get_evidence_store
-from app.routers import ci_webhooks, detection, evidence, patches, scans, frontend_bridge
+from app.gemini import router as ai_router
+from app.routers import ci_webhooks, demo_runs, detection, evidence, frontend_bridge, github_publish, patches, projects, scans
 
 logger = logging.getLogger("omnisight")
 
@@ -54,7 +55,7 @@ def create_app() -> FastAPI:
     # misconfigured deployment never starts. The adapter is stored on app.state
     # for later orchestration to consume; nothing calls it on a request yet.
     vision_analyzer = create_vision_analyzer(
-        settings, resolver=get_evidence_store().get_artifact
+        settings, resolver=get_evidence_store(settings).get_artifact
     )
     app.state.vision_analyzer = vision_analyzer
     logger.info(
@@ -76,7 +77,11 @@ def create_app() -> FastAPI:
     app.include_router(ci_webhooks.router)
     app.include_router(evidence.router)
     app.include_router(detection.router)
+    app.include_router(demo_runs.router)
     app.include_router(patches.router)
+    app.include_router(github_publish.router)
+    app.include_router(projects.router)
+    app.include_router(ai_router)
     app.include_router(frontend_bridge.router)
 
     if settings.ci_webhook_secret:
