@@ -846,3 +846,69 @@ function downloadLlmPatchReport() {
   toast('LLM patch review report downloaded.');
 }
 
+// === Oct 29: Persistent local LLM patch review history ===
+const LLM_PATCH_HISTORY_KEY = 'omnisight_llm_patch_history_v1';
+const LLM_PATCH_HISTORY_LIMIT = 10;
+
+function getLlmPatchHistory() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LLM_PATCH_HISTORY_KEY) || '[]');
+    return Array.isArray(saved) ? saved : [];
+  } catch (error) {
+    console.warn('Unable to read LLM patch history:', error);
+    return [];
+  }
+}
+
+function saveLlmPatchReviewToHistory(scan) {
+  if (!scan) {
+    toast('No active scan is available to save.');
+    return false;
+  }
+
+  const report = typeof buildLlmPatchReport === 'function'
+    ? buildLlmPatchReport(scan)
+    : {
+        generatedAt: new Date().toISOString(),
+        scanId: scan.id || null,
+        targetUrl: scan.url || scan.targetUrl || null,
+        findings: scan.findings || [],
+        generatedPatch: scan.generatedPatch || '',
+        patchProposal: scan.patchProposal || null
+      };
+
+  try {
+    const history = getLlmPatchHistory();
+    const entry = { ...report, savedAt: new Date().toISOString() };
+
+    const deduplicated = history.filter(item =>
+      !(item.scanId === entry.scanId &&
+        item.generatedPatch === entry.generatedPatch)
+    );
+
+    localStorage.setItem(
+      LLM_PATCH_HISTORY_KEY,
+      JSON.stringify([entry, ...deduplicated].slice(0, LLM_PATCH_HISTORY_LIMIT))
+    );
+
+    toast('LLM patch review saved to local history.');
+    return true;
+  } catch (error) {
+    console.error('Unable to save LLM patch history:', error);
+    toast('Could not save the LLM patch review history.');
+    return false;
+  }
+}
+
+function clearLlmPatchHistory() {
+  try {
+    localStorage.removeItem(LLM_PATCH_HISTORY_KEY);
+    toast('LLM patch review history cleared.');
+    return true;
+  } catch (error) {
+    console.error('Unable to clear LLM patch history:', error);
+    toast('Could not clear the LLM patch review history.');
+    return false;
+  }
+}
+
