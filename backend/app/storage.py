@@ -29,6 +29,7 @@ _RUNNING_SCAN_STATES = {
     ScanStatus.sandbox_validation,
     ScanStatus.visual_verification,
     ScanStatus.review_preparation,
+    ScanStatus.repairing,
 }
 _FAILED_SCAN_STATES = {ScanStatus.failed, ScanStatus.detection_failed}
 _COMPLETED_SCAN_STATES = {
@@ -40,6 +41,7 @@ _COMPLETED_SCAN_STATES = {
     ScanStatus.patch_verified,
     ScanStatus.verification_failed,
     ScanStatus.ready_for_review,
+    ScanStatus.escalated,
 }
 _SCAN_STAGE = {
     ScanStatus.created: "preflight",
@@ -58,6 +60,8 @@ _SCAN_STAGE = {
     ScanStatus.verification_failed: "finished",
     ScanStatus.review_preparation: "finalization",
     ScanStatus.ready_for_review: "finished",
+    ScanStatus.repairing: "repair",
+    ScanStatus.escalated: "finished",
     ScanStatus.failed: "finished",
     ScanStatus.cancelled: "finished",
 }
