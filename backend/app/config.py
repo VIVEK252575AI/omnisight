@@ -157,6 +157,20 @@ class Settings(BaseSettings):
     shoplite_sandbox_token: SecretStr | None = None
     shoplite_sandbox_timeout_seconds: float = Field(default=45.0, gt=0, le=120)
 
+    # Self-healing orchestration (W3.1). Off by default: the patch applier,
+    # validator and verifier components it drives do not exist yet, and
+    # ``POST /scans/{id}/repair`` must refuse rather than fake progress.
+    enable_repair_orchestrator: bool = False
+    # Bounded attempts per finding (hard ceiling; the W3.4 loop honours it).
+    max_repair_attempts: int = Field(default=3, ge=1, le=10)
+    # Cooperative watchdog for ONE background repair run: checked between
+    # steps, so a runaway run is escalated instead of holding the scan in
+    # ``repairing`` forever.
+    repair_run_timeout_seconds: float = Field(default=600.0, gt=0, le=3600)
+    # A scan still in ``repairing`` after this long is assumed orphaned by a
+    # process restart and is settled by the startup recovery sweep.
+    repair_stuck_after_seconds: float = Field(default=900.0, gt=0, le=86_400)
+
     @field_validator("approved_patch_paths", mode="before")
     @classmethod
     def _split_approved_paths(cls, value: object) -> object:

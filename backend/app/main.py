@@ -26,6 +26,7 @@ the evidence store in use for that request (see
 """
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,9 +36,38 @@ from app.config import Settings, get_settings
 from app.errors import register_exception_handlers
 from app.evidence_storage import get_evidence_store
 from app.gemini import router as ai_router
-from app.routers import ci_webhooks, demo_runs, detection, evidence, frontend_bridge, github_publish, patches, projects, scans
+from app.orchestrator import get_attempt_store, recover_orphaned_scans
+from app.routers import ci_webhooks, demo_runs, detection, evidence, frontend_bridge, github_publish, patches, projects, repair, scans
+from app.storage import get_store
 
 logger = logging.getLogger("omnisight")
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Startup/shutdown hooks.
+
+    A self-healing run lives in a background task of ONE API process, so after
+    a restart any scan still marked ``repairing`` is orphaned by definition.
+    The sweep settles those scans (retryable ``detected``, or ``escalated``)
+    instead of leaving them running forever. Skipped when no durable database
+    is configured — there is nothing persisted to recover.
+    """
+    settings = get_settings()
+    if settings.database_url is not None:
+        try:
+            recovered = recover_orphaned_scans(
+                scan_store=get_store(settings),
+                attempt_store=get_attempt_store(),
+                settings=settings,
+            )
+            if recovered:
+                logger.warning(
+                    "settled %d orphaned repair scan(s) at startup", len(recovered)
+                )
+        except Exception:  # noqa: BLE001 - startup must not be blocked
+            logger.exception("repair crash-recovery sweep failed")
+    yield
 
 
 def create_app() -> FastAPI:
@@ -49,6 +79,7 @@ def create_app() -> FastAPI:
         title="OmniSight Backend",
         version=settings.app_version,
         description="Central coordinator for the Detect -> Fix -> Verify -> Deliver workflow.",
+        lifespan=_lifespan,
     )
 
     # VLM adapter boundary. Selecting an unknown adapter fails fast here so a
@@ -83,6 +114,13 @@ def create_app() -> FastAPI:
     app.include_router(projects.router)
     app.include_router(ai_router)
     app.include_router(frontend_bridge.router)
+    app.include_router(repair.router)
+
+    if not settings.enable_repair_orchestrator:
+        logger.info(
+            "repair orchestration: DISABLED "
+            "(OMNISIGHT_ENABLE_REPAIR_ORCHESTRATOR off) — POST /repair answers 409"
+        )
 
     if settings.ci_webhook_secret:
         logger.info("CI webhook receiver: signature verification ENABLED")

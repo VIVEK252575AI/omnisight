@@ -65,9 +65,11 @@ class ScanStatus(str, Enum):
     `validation_passed` AND a successful visual re-check — never from a failed
     build or test.
 
-    Detection sub-lifecycle (Week 2): `detecting` -> `detected` (findings, or a
-    clean page), `detection_failed` (adapter or parse failure, with a recorded
-    reason), or `needs_inspection` (the model could not decide).
+    Review-preparation sub-lifecycle (Week 3): `detected` -> `repairing`
+    while the self-healing orchestrator runs one bounded attempt; a failure
+    returns the scan to `detected` (retryable), verification success moves it
+    on to `review_preparation`, and `escalated` hands exhausted attempts to
+    human review. Failure can never translate into `patch_verified`.
     """
 
     created = "created"
@@ -86,6 +88,8 @@ class ScanStatus(str, Enum):
     verification_failed = "verification_failed"
     review_preparation = "review_preparation"
     ready_for_review = "ready_for_review"
+    repairing = "repairing"
+    escalated = "escalated"
     failed = "failed"
     cancelled = "cancelled"
 
@@ -108,7 +112,28 @@ LEGAL_TRANSITIONS: dict[ScanStatus, frozenset[ScanStatus]] = {
             ScanStatus.needs_inspection,
         }
     ),
-    ScanStatus.detected: frozenset({ScanStatus.analysis, ScanStatus.failed}),
+    ScanStatus.detected: frozenset(
+        # `repairing` is the self-healing orchestrator entry; `analysis`
+        # stays legal for the manual/legacy action-engine path.
+        {ScanStatus.repairing, ScanStatus.analysis, ScanStatus.failed}
+    ),
+    ScanStatus.repairing: frozenset(
+        # One bounded attempt is running. Failure returns the scan to
+        # `detected` (re-triggerable); verification success continues to
+        # `review_preparation`; exhaustion/crash recovery may escalate.
+        {
+            ScanStatus.detected,
+            ScanStatus.review_preparation,
+            ScanStatus.escalated,
+            ScanStatus.failed,
+            ScanStatus.cancelled,
+        }
+    ),
+    ScanStatus.escalated: frozenset(
+        # Escalation hands repair retries to a human; documenting the
+        # escalation in review preparation is still legal.
+        {ScanStatus.review_preparation, ScanStatus.failed}
+    ),
     ScanStatus.detection_failed: frozenset(
         # Bounded retry of the same detection, or escalate for human review.
         {ScanStatus.detecting, ScanStatus.analysis, ScanStatus.failed}
