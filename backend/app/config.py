@@ -297,6 +297,11 @@ class Settings(BaseSettings):
     artifacts_dir: Path = Path("artifacts")
     data_dir: Path = Path("data")
 
+    # Supabase Storage (optional; server-side service role key only).
+    supabase_url: str | None = None
+    supabase_service_role_key: str | None = None
+    supabase_storage_bucket: str = "scan-artifacts"
+
     # Optional shared secret for CI/CD webhook verification. Never logged.
     ci_webhook_secret: str | None = None
 
