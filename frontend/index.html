@@ -1,19 +1,41 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>OmniSight — Autonomous UI Engineer</title>
-<meta name="description" content="OmniSight uses a vision-language model to detect visual UI defects, a language model to reason about and fix them, then verifies the result and delivers a reviewable pull request." />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-<div id="app" aria-label="OmniSight application"></div>
-<div id="toast-root" class="toast-root" role="status" aria-live="polite" aria-atomic="true"></div>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
 
-<script src="script.js" defer></script>
-</body>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+
+    <meta
+      name="description"
+      content="OmniSight - Multimodal UI Self-Healing and RPA Agent"
+    />
+
+    <meta
+      name="theme-color"
+      content="#090d18"
+    />
+
+    <title>OmniSight | AI UI Testing</title>
+  </head>
+
+  <body>
+
+    <!-- Message shown if JavaScript is disabled -->
+    <noscript>
+      You need to enable JavaScript to run OmniSight.
+    </noscript>
+
+    <!-- React application will be rendered here -->
+    <div id="root"></div>
+
+    <!-- React entry point -->
+    <script
+      type="module"
+      src="/src/main.jsx"
+    ></script>
+
+  </body>
 </html>
