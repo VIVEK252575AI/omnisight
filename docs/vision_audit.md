@@ -260,3 +260,6 @@ Using the project's vocabulary verbatim:
   target selector and region.
 - **ShopLite owner**: deliver the application and the defect-injection switch.
 - Then rerun `scripts/vision_audit.py` unchanged and replace the MOCK results.
+
+
+> Note: The seven fixture results in this document are MOCK-only (offline adapter). They are not real Gemini inference.

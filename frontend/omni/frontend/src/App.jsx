@@ -62,7 +62,7 @@ export default function App() {
       const scan = await apiRequest("/api/scans", {
         method: "POST",
         body: JSON.stringify({
-          url: targetUrl.trim(),
+          target_url: targetUrl.trim(),
         }),
       });
 

@@ -243,6 +243,13 @@ class DetectionStore:
             return updated
 
 
+_DETECTION_STORE: DetectionStore | None = None
+
 def get_detection_store(settings: Settings = Depends(get_settings)) -> DetectionStore:
-    """Create a PostgreSQL-backed detection store for the configured project."""
+    global _DETECTION_STORE
+    from app.storage import _db_reachable
+    if settings.database_url is None or not settings.database_url.get_secret_value().strip() or not _db_reachable(settings):
+        if _DETECTION_STORE is None:
+            _DETECTION_STORE = DetectionStore(database=None, settings=settings)
+        return _DETECTION_STORE
     return DetectionStore(lambda: get_session_factory(settings)(), settings=settings)

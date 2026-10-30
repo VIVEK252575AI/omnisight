@@ -1,0 +1,1 @@
+Phase 1-3 complete: implementation map, real Gemini inference demonstrated (gemini-3-flash-preview, clipped-checkout.png, is_mock=False). Phases 4-8 partial: ground truth + metrics tests + opt-in live test + docs created. Full N-run evaluation PENDING (quota/time).
