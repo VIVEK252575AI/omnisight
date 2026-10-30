@@ -7,7 +7,11 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1440, "height": 900})
-        response = page.goto(url, wait_until="networkidle", timeout=30000)
+        response = page.goto(url, wait_until="domcontentloaded", timeout=45000)
+        try:
+            page.wait_for_load_state("networkidle", timeout=10000)
+        except Exception:
+            pass
         page.screenshot(path=out, full_page=True)
         title = page.title()
         final_url = page.url

@@ -37,7 +37,7 @@ async def playwright_capture(scan_id: str, payload: CaptureRequest, scan_store: 
             sys.executable, str(script), str(payload.url), str(screenshot_path),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=90)
     except Exception as error:
         raise HTTPException(status_code=502, detail=f"Playwright capture failed: {type(error).__name__}: {error}") from error
     if proc.returncode != 0:
