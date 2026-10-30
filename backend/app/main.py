@@ -37,10 +37,31 @@ from app.errors import register_exception_handlers
 from app.evidence_storage import get_evidence_store
 from app.gemini import router as ai_router
 from app.orchestrator import get_attempt_store, recover_orphaned_scans
+from app.patch_apply import build_patch_applier
 from app.routers import ci_webhooks, demo_runs, detection, evidence, frontend_bridge, github_publish, patches, projects, repair, scans
 from app.storage import get_store
+from app.workspace import WorkspaceError
 
 logger = logging.getLogger("omnisight")
+
+
+def _recovery_applier(settings: Settings):
+    """Patch applier for the startup rollback sweep, when it can be built.
+
+    A process killed mid-attempt can leave a workspace half-applied, so the
+    sweep restores it with the same applier the repair loop uses. Configuring
+    that applier needs a patch source root; when it is missing the sweep still
+    runs, it just records that no rollback could be attempted.
+    """
+    if not settings.enable_repair_orchestrator:
+        return None
+    if not str(settings.patch_source_root or "").strip():
+        return None
+    try:
+        return build_patch_applier(settings)
+    except (WorkspaceError, OSError, ValueError) as exc:
+        logger.warning("repair recovery cannot roll back workspaces: %s", exc)
+        return None
 
 
 @asynccontextmanager
@@ -60,6 +81,7 @@ async def _lifespan(app: FastAPI):
                 scan_store=get_store(settings),
                 attempt_store=get_attempt_store(),
                 settings=settings,
+                applier=_recovery_applier(settings),
             )
             if recovered:
                 logger.warning(

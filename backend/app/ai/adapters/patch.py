@@ -89,8 +89,19 @@ class PatchGenerator(Protocol):
     generator_label: str
     is_mock: bool
 
-    def propose(self, finding: Finding, source_context: SourceContext) -> str:
+    def propose(
+        self,
+        finding: Finding,
+        source_context: SourceContext,
+        *,
+        prior_failure: str | None = None,
+    ) -> str:
         """Return raw, untrusted text describing a proposed edit.
+
+        ``prior_failure`` is a bounded, already-sanitised summary of the
+        previous failed attempt for the same finding (empty on the first
+        attempt), so a retry does not repeat an edit that already failed. It is
+        context for the model, never an instruction to execute.
 
         Transport failures raise :class:`PatchGeneratorError` (or
         :class:`PatchGeneratorTimeoutError`). The returned text is never
@@ -145,11 +156,18 @@ class MockPatchGenerator:
         self.timeout_seconds = timeout_seconds
         self.calls: list[dict] = []
 
-    def propose(self, finding: Finding, source_context: SourceContext) -> str:
+    def propose(
+        self,
+        finding: Finding,
+        source_context: SourceContext,
+        *,
+        prior_failure: str | None = None,
+    ) -> str:
         self.calls.append(
             {
                 "finding_id": finding.finding_id,
                 "context_files": len(source_context.files),
+                "prior_failure": prior_failure,
             }
         )
         if self.scenario == "timeout":

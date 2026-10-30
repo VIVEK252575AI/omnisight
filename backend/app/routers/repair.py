@@ -28,7 +28,6 @@ Rules
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
@@ -36,21 +35,18 @@ from pydantic import BaseModel, Field
 
 from app.action_engine import ActionEngine
 from app.ai.contracts import FindingStatus
-from app.config import Settings, get_settings
+from app.config import MAX_REPAIR_ATTEMPTS_CEILING, Settings, get_settings
 from app.detection_storage import DetectionStore, get_detection_store
 from app.errors import DomainError, ErrorCode
+from app.evidence_storage import EvidenceStore, get_evidence_store
 from app.orchestrator import (
     AttemptListResponse,
     AttemptStore,
-    DeliveryService,
-    EvidenceCollector,
     Orchestrator,
-    PatchApplier,
-    Validator,
-    Verifier,
     get_attempt_store,
 )
 from app.patch_storage import PatchStore, get_patch_store
+from app.repair_wiring import RepairComponents, build_repair_components
 from app.routers.patches import get_action_engine
 from app.schemas import LEGAL_TRANSITIONS, ScanStatus
 from app.storage import ScanStore, get_store
@@ -59,25 +55,8 @@ logger = logging.getLogger("omnisight")
 
 router = APIRouter(prefix="/api/v1", tags=["repair"])
 
-
-@dataclass(frozen=True)
-class RepairComponents:
-    """The component implementations the repair loop drives.
-
-    ``delivery`` and ``evidence_collector`` are optional because W3.1 stops at
-    ``review_preparation``: PyGithub delivery is human-gated and disabled, and
-    the Playwright re-screenshot boundary is declared but not yet invoked.
-    """
-
-    applier: PatchApplier
-    validator: Validator
-    verifier: Verifier
-    delivery: DeliveryService | None = None
-    evidence_collector: EvidenceCollector | None = None
-
-
-#: Registration seam for the real components. ``None`` until W3.2–W3.4 land;
-#: tests override :func:`get_orchestrator` instead of mutating this.
+#: Explicit registration seam. When set (by an operator or a test) these
+#: components are used as-is; otherwise they are built from configuration.
 _REPAIR_COMPONENTS: RepairComponents | None = None
 
 
@@ -93,15 +72,23 @@ def get_orchestrator(
     detection_store: DetectionStore = Depends(get_detection_store),
     patch_store: PatchStore = Depends(get_patch_store),
     attempt_store: AttemptStore = Depends(get_attempt_store),
+    evidence_store: EvidenceStore = Depends(get_evidence_store),
     action_engine: ActionEngine = Depends(get_action_engine),
 ) -> Orchestrator | None:
     """Build the repair orchestrator, or ``None`` when it cannot be wired.
 
-    The single place the real components are attached when they exist.
-    Returning ``None`` keeps the endpoint honest: no applier/validator/verifier
-    means no repair, never a simulated one.
+    The single place the real components are attached. Returning ``None`` keeps
+    the endpoint honest: no applier/validator/verifier means no repair, never a
+    simulated one. Components are built per request from the stores this request
+    already resolved, so the verifier sees the same evidence the rest of the API
+    does.
     """
-    if not settings.enable_repair_orchestrator or _REPAIR_COMPONENTS is None:
+    components = _REPAIR_COMPONENTS or build_repair_components(
+        settings=settings,
+        detection_store=detection_store,
+        evidence_store=evidence_store,
+    )
+    if components is None:
         return None
     return Orchestrator(
         settings=settings,
@@ -110,11 +97,11 @@ def get_orchestrator(
         patch_store=patch_store,
         attempt_store=attempt_store,
         action_engine=action_engine,
-        applier=_REPAIR_COMPONENTS.applier,
-        validator=_REPAIR_COMPONENTS.validator,
-        verifier=_REPAIR_COMPONENTS.verifier,
-        delivery=_REPAIR_COMPONENTS.delivery,
-        evidence_collector=_REPAIR_COMPONENTS.evidence_collector,
+        applier=components.applier,
+        validator=components.validator,
+        verifier=components.verifier,
+        delivery=components.delivery,
+        evidence_collector=components.evidence_collector,
     )
 
 
@@ -303,14 +290,36 @@ def list_attempts(
     scan_id: UUID,
     scan_store: ScanStore = Depends(get_store),
     attempt_store: AttemptStore = Depends(get_attempt_store),
+    settings: Settings = Depends(get_settings),
 ) -> AttemptListResponse:
-    """Every repair attempt recorded for the scan, oldest first."""
-    if scan_store.get(scan_id) is None:
+    """Every repair attempt recorded for the scan, oldest first.
+
+    Each attempt carries its failure code, the rollback confirmation and the
+    bounded build/verification excerpts, so a rejected fix is explainable
+    without reading server logs. ``escalation_reason`` is the scan's recorded
+    reason, present only once the scan has actually been escalated.
+    """
+    scan = scan_store.get(scan_id)
+    if scan is None:
         raise DomainError(
             ErrorCode.SCAN_NOT_FOUND,
             f"scan {scan_id} not found",
             status_code=status.HTTP_404_NOT_FOUND,
         )
+    attempts = attempt_store.list_for_scan(scan_id)
+    budget = max(1, min(settings.max_repair_attempts, MAX_REPAIR_ATTEMPTS_CEILING))
+    used: dict[str, int] = {}
+    for attempt in attempts:
+        used[attempt.finding_id] = max(used.get(attempt.finding_id, 0), attempt.n)
+    attempts_remaining = (
+        max(0, min(budget - spent for spent in used.values())) if used else budget
+    )
     return AttemptListResponse(
-        scan_id=scan_id, attempts=attempt_store.list_for_scan(scan_id)
+        scan_id=scan_id,
+        attempts=attempts,
+        scan_status=scan.status,
+        escalation_reason=(
+            scan.error if scan.status is ScanStatus.escalated else None
+        ),
+        attempts_remaining=attempts_remaining,
     )

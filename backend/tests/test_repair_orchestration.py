@@ -38,7 +38,9 @@ from app.orchestrator import (
     AttemptStatus,
     AttemptStore,
     Orchestrator,
+    RollbackResult,
     StageOutcome,
+    ensure_deliverable,
     get_attempt_store,
     is_legal_attempt_transition,
     recover_orphaned_scans,
@@ -156,30 +158,63 @@ class FakeActionEngine:
         self.generator = MockPatchGenerator()
         self.outcome = outcome
         self.calls: list[str] = []
+        self.prior_failures: list[str | None] = []
 
-    def propose(self, finding_id: str) -> PatchProposalRecord:
+    def propose(
+        self, finding_id: str, *, prior_failure: str | None = None
+    ) -> PatchProposalRecord:
         self.calls.append(finding_id)
+        self.prior_failures.append(prior_failure)
         if isinstance(self.outcome, Exception):
             raise self.outcome
         return self.outcome
 
 
 class FakeApplier:
-    """TEST DOUBLE for the PENDING ``PatchApplier``."""
+    """TEST DOUBLE for the REAL ``PatchApplier`` (apply + rollback)."""
 
-    def __init__(self, *, error: Exception | None = None, on_apply=None) -> None:
+    def __init__(
+        self,
+        *,
+        error: Exception | None = None,
+        on_apply=None,
+        rollback_error: Exception | None = None,
+        rollback_confirmed: bool = True,
+    ) -> None:
         self.error = error
         self.on_apply = on_apply
+        self.rollback_error = rollback_error
+        self.rollback_confirmed = rollback_confirmed
         self.calls: list[str] = []
+        self.attempt_ids: list[str | None] = []
+        self.rollback_calls: list[str] = []
 
-    def apply(self, record, proposal) -> ApplyResult:
+    def apply(self, record, proposal, *, attempt_id: str | None = None) -> ApplyResult:
         self.calls.append(record.proposal_id)
+        self.attempt_ids.append(attempt_id)
         if self.on_apply is not None:
             self.on_apply(record, proposal)
         if self.error is not None:
             raise self.error
         return ApplyResult(
-            workspace_id="ws-fake-1", summary="MOCK workspace prepared (no real apply)"
+            workspace_id="ws-fake-1",
+            summary="MOCK workspace prepared (no real apply)",
+            diff="--- baseline/x\n+++ workspace/x\n@@ -1 +1 @@\n-MOCK\n+patched\n",
+        )
+
+    def rollback(self, workspace_id: str) -> RollbackResult:
+        self.rollback_calls.append(workspace_id)
+        if self.rollback_error is not None:
+            raise self.rollback_error
+        if not self.rollback_confirmed:
+            return RollbackResult(
+                confirmed=False,
+                summary="MOCK baseline could not be verified",
+            )
+        return RollbackResult(
+            confirmed=True,
+            summary="MOCK baseline restored; every recorded hash matches",
+            detail={"checked_paths": 1},
         )
 
 
@@ -197,7 +232,9 @@ class FakeValidator:
         self.calls.append(workspace_id)
         if self.error is not None:
             raise self.error
-        return self.outcome
+        return self.outcome.model_copy(
+            update={"detail": {"status": self.outcome.summary, "commands": []}}
+        )
 
 
 class FakeVerifier:
@@ -216,7 +253,14 @@ class FakeVerifier:
         self.calls.append((finding_id, workspace_id))
         if self.error is not None:
             raise self.error
-        return self.outcome
+        return self.outcome.model_copy(
+            update={
+                "detail": {
+                    "status": "verified" if self.outcome.passed else "failed",
+                    "is_fixture": True,
+                }
+            }
+        )
 
 
 def _orchestrator(
@@ -316,12 +360,14 @@ def test_successful_run_verifies_and_moves_scan_to_review(
     patch_store.add(record, proposal)
     attempt_store = AttemptStore()
 
+    applier = FakeApplier()
     orchestrator = _orchestrator(
         scan_store=scan_store,
         detection_store=detection_store,
         patch_store=patch_store,
         attempt_store=attempt_store,
         action_engine=FakeActionEngine(record),
+        applier=applier,
     )
     # Claim the scan exactly as the endpoint does.
     scan_store.compare_and_transition(
@@ -333,10 +379,15 @@ def test_successful_run_verifies_and_moves_scan_to_review(
 
     assert len(attempts) == 1
     attempt = attempts[0]
+    # The applier is told which attempt it is staging a workspace for.
+    assert applier.attempt_ids == [attempt.attempt_id]
     assert attempt.status is AttemptStatus.verified
     assert attempt.n == 1
     assert attempt.patch_proposal_id == record.proposal_id
     assert attempt.workspace_id == "ws-fake-1"
+    # The workspace is created per attempt, and its diff is recorded.
+    assert attempt.attempt_id.startswith("attempt_")
+    assert attempt.diff is not None and "+++ workspace/x" in attempt.diff
     assert attempt.build_result == "MOCK build_passed (fake validator)"
     assert attempt.verification_result == "MOCK defect_absent"
     assert attempt.error is None
@@ -390,6 +441,9 @@ def _run_failing(scan_store, detection_store, patch_store, **kwargs):
     patch_store.add(record, proposal)
     attempt_store = AttemptStore()
     action_engine = kwargs.pop("action_engine", None) or FakeActionEngine(record)
+    # One attempt per test: the per-stage assertions are about a single failure,
+    # and the retry ladder has its own tests below.
+    kwargs.setdefault("settings", _settings(max_repair_attempts=1))
     orchestrator = _orchestrator(
         scan_store=scan_store,
         detection_store=detection_store,
@@ -421,7 +475,8 @@ def _run_failing(scan_store, detection_store, patch_store, **kwargs):
                     StageOutcome(passed=False, summary="build failed: 2 errors")
                 )
             },
-            AttemptStatus.validation_failed,
+            # A failed step is rolled back, so the END status is ``rolled_back``.
+            AttemptStatus.rolled_back,
             "build failed",
         ),
         (
@@ -434,17 +489,17 @@ def _run_failing(scan_store, detection_store, patch_store, **kwargs):
                     )
                 )
             },
-            AttemptStatus.verification_failed,
+            AttemptStatus.rolled_back,
             "still visible",
         ),
         (
             {"verifier": FakeVerifier(error=RuntimeError("verifier crashed"))},
-            AttemptStatus.verification_failed,
+            AttemptStatus.rolled_back,
             "verifier crashed",
         ),
         (
             {"validator": FakeValidator(error=RuntimeError("container died"))},
-            AttemptStatus.validation_failed,
+            AttemptStatus.rolled_back,
             "container died",
         ),
     ],
@@ -463,11 +518,15 @@ def test_stage_failure_settles_attempt_and_never_verifies(
     assert attempt.error is not None
     assert fragment in attempt.error
     assert attempt.ended_at is not None
-    # The scan is retryable, never verified and never awaiting review.
-    assert scan.status is ScanStatus.detected
+    # The one-attempt budget is now spent, so the scan goes to a human: never
+    # verified, never awaiting review, and never deliverable.
+    assert scan.status is ScanStatus.escalated
     assert scan.status not in _SUCCESS_ONLY_SCAN_STATES
     assert scan.status is not ScanStatus.review_preparation
     assert attempt_store.has_in_flight(scan.scan_id) is False
+    with pytest.raises(DomainError) as refused:
+        ensure_deliverable(scan.status)
+    assert refused.value.code is ErrorCode.REPAIR_NOT_DELIVERABLE
 
 
 def test_verification_without_deterministic_evidence_is_not_a_fix(
@@ -484,8 +543,9 @@ def test_verification_without_deterministic_evidence_is_not_a_fix(
     )
 
     attempt = attempts[0]
-    assert attempt.status is AttemptStatus.verification_failed
+    assert attempt.status is AttemptStatus.rolled_back
     assert "without deterministic evidence" in attempt.error
+    assert attempt.failure_code == "no_deterministic_evidence"
     assert scan.status not in _SUCCESS_ONLY_SCAN_STATES
 
 
@@ -508,7 +568,9 @@ def test_rejected_proposal_is_a_generate_failure(scan_store, detection_store, pa
     attempt = attempts[0]
     assert attempt.status is AttemptStatus.failed_generate
     assert "path_not_allowed" in attempt.error
-    assert scan.status is ScanStatus.detected
+    # The helper runs with a one-attempt budget, so the scan escalates for a
+    # human rather than retrying the same rejected proposal.
+    assert scan.status is ScanStatus.escalated
 
 
 def test_proposal_domain_error_is_a_generate_failure(
@@ -528,7 +590,7 @@ def test_proposal_domain_error_is_a_generate_failure(
 
     assert attempts[0].status is AttemptStatus.failed_generate
     assert "already 'patch_proposed'" in attempts[0].error
-    assert scan.status is ScanStatus.detected
+    assert scan.status is ScanStatus.escalated
 
 
 def test_missing_proposal_payload_fails_apply(scan_store, detection_store, patch_store):
@@ -554,7 +616,9 @@ def test_missing_proposal_payload_fails_apply(scan_store, detection_store, patch
 
     assert attempts[0].status is AttemptStatus.failed_apply
     assert "no stored patch payload" in attempts[0].error
-    assert scan_store.get(scan_id).status is ScanStatus.detected
+    # Retries cannot help a missing payload, so the budget drains and the scan
+    # is escalated instead of being left retryable forever.
+    assert scan_store.get(scan_id).status is ScanStatus.escalated
 
 
 # ---------------------------------------------------------------------------
@@ -709,7 +773,8 @@ def test_restart_settles_a_scan_left_in_repairing(
 
     assert recovered == [scan_id]
     assert scan_store.get(scan_id).status is ScanStatus.detected
-    assert attempt_store.get(orphan.attempt_id).status is AttemptStatus.escalated
+    assert attempt_store.get(orphan.attempt_id).status is AttemptStatus.interrupted
+    assert attempt_store.get(orphan.attempt_id).failure_code == "interrupted"
     # Nothing is left running anywhere.
     assert all(scan.status is not ScanStatus.repairing for scan in scan_store.list())
 
@@ -770,7 +835,7 @@ def test_recovery_escalates_when_attempts_are_exhausted(
 
     scan = scan_store.get(scan_id)
     assert scan.status is ScanStatus.escalated
-    assert "orphaned" in scan.error
+    assert "exhausted" in scan.error
 
 
 # ---------------------------------------------------------------------------
@@ -897,6 +962,9 @@ def test_repair_run_end_to_end_through_the_api(
     assert len(payload["attempts"]) == 1
     assert payload["attempts"][0]["status"] == "verified"
     assert payload["attempts"][0]["generator_label"] == "MOCK"
+    # The structured validation/verification reports are exposed on the API.
+    assert payload["attempts"][0]["validation"] is not None
+    assert payload["attempts"][0]["verification"]["status"] == "verified"
 
 
 def test_attempts_for_unknown_scan_is_404(repair_client):
