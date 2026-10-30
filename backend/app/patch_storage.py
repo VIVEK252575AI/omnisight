@@ -196,7 +196,8 @@ _PATCH_STORE: PatchStore | None = None
 
 def get_patch_store(settings: Settings = Depends(get_settings)) -> PatchStore:
     global _PATCH_STORE
-    if settings.database_url is None or not settings.database_url.get_secret_value().strip():
+    from app.storage import _db_reachable
+    if settings.database_url is None or not settings.database_url.get_secret_value().strip() or not _db_reachable(settings):
         if _PATCH_STORE is None:
             _PATCH_STORE = PatchStore(database=None, settings=settings)
         return _PATCH_STORE

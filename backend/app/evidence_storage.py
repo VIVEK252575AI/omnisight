@@ -205,7 +205,8 @@ _EVIDENCE_STORE: EvidenceStore | None = None
 
 def get_evidence_store(settings: Settings = Depends(get_settings)) -> EvidenceStore:
     global _EVIDENCE_STORE
-    if settings.database_url is None or not settings.database_url.get_secret_value().strip():
+    from app.storage import _db_reachable
+    if settings.database_url is None or not settings.database_url.get_secret_value().strip() or not _db_reachable(settings):
         if _EVIDENCE_STORE is None:
             _EVIDENCE_STORE = EvidenceStore(database=None, settings=settings)
         return _EVIDENCE_STORE

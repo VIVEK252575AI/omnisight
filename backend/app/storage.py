@@ -387,14 +387,40 @@ class ScanStore:
 _IN_MEMORY_SCAN_STORE: ScanStore | None = None
 
 
+_DB_AVAILABLE: bool | None = None
+
+
+def _db_reachable(settings: Settings) -> bool:
+    global _DB_AVAILABLE
+    if _DB_AVAILABLE is not None:
+        return _DB_AVAILABLE
+    if settings.database_url is None or not settings.database_url.get_secret_value().strip():
+        _DB_AVAILABLE = False
+        return False
+    try:
+        from app.db import get_session_factory
+
+        f = get_session_factory(settings)
+        with f() as sess:
+            sess.execute(__import__("sqlalchemy").text("SELECT 1"))
+        _DB_AVAILABLE = True
+    except Exception:
+        _DB_AVAILABLE = False
+    return _DB_AVAILABLE
+
+
 def get_store(settings: Settings = Depends(get_settings)) -> ScanStore:
     """Create a scan repository for the configured project.
 
     Falls back to a process-wide in-memory store when no PostgreSQL database
-    is configured, so the API can run for local demos without a database.
+    is configured OR unreachable, so the API stays usable for local demos.
     """
     global _IN_MEMORY_SCAN_STORE
     if settings.database_url is None or not settings.database_url.get_secret_value().strip():
+        if _IN_MEMORY_SCAN_STORE is None:
+            _IN_MEMORY_SCAN_STORE = ScanStore(database=None, settings=settings)
+        return _IN_MEMORY_SCAN_STORE
+    if not _db_reachable(settings):
         if _IN_MEMORY_SCAN_STORE is None:
             _IN_MEMORY_SCAN_STORE = ScanStore(database=None, settings=settings)
         return _IN_MEMORY_SCAN_STORE

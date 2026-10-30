@@ -50,7 +50,7 @@ async def playwright_capture(scan_id: str, payload: CaptureRequest, scan_store: 
     try:
         from uuid import UUID
         sid = UUID(scan_id)
-        obs = Observation(viewport=Viewport(width=1440, height=900), elements=[], browser="chromium")
+        obs = Observation(url=payload.url, viewport=Viewport(width=1440, height=900), screenshot=f"playwright/{safe_scan_id}.png", elements=[], captured_at=utcnow())
         ev = EvidenceRecord(evidence_id=new_uuid(), scan_id=sid, observation=obs, screenshot_artifact_id=new_uuid(), created_at=utcnow())
         evidence_store.add(ev, artifact_id=ev.screenshot_artifact_id, artifact_path=screenshot_path)
     except Exception:
