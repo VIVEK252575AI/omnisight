@@ -87,6 +87,9 @@ def get_orchestrator(
         settings=settings,
         detection_store=detection_store,
         evidence_store=evidence_store,
+        scan_store=scan_store,
+        patch_store=patch_store,
+        attempt_store=attempt_store,
     )
     if components is None:
         return None

@@ -67,6 +67,17 @@ class ErrorCode(str, Enum):
     #: A scan may only reach delivery from ``review_preparation``; an escalated,
     #: failed or still-running scan is refused (delivery is human-gated).
     REPAIR_NOT_DELIVERABLE = "REPAIR_NOT_DELIVERABLE"
+    # W3.6/W3.7 delivery + GitHub error codes (lowercase per prompt spec).
+    GITHUB_NOT_CONFIGURED = "github_not_configured"
+    GITHUB_AUTH_FAILED = "github_auth_failed"
+    GITHUB_PERMISSION_DENIED = "github_permission_denied"
+    GITHUB_RATE_LIMITED = "github_rate_limited"
+    GITHUB_NOT_FOUND = "github_not_found"
+    GITHUB_CONFLICT = "github_conflict"
+    GITHUB_UNAVAILABLE = "github_unavailable"
+    GITHUB_UNKNOWN = "github_unknown"
+    DELIVERY_PARTIAL = "delivery_partial"
+    DELIVERY_GATE_FAILED = "delivery_gate_failed"
 
 
 class DomainError(Exception):

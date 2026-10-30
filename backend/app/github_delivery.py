@@ -32,7 +32,7 @@ logger = logging.getLogger("omnisight")
 
 GITHUB_REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$")
 GITHUB_BRANCH_PATTERN = re.compile(
-    r"^(?!.*/\.\.)(?!\.)(?!\./)(?!.*\.\.)(?!.*//)(?![A-Za-z0-9_./-]*//)[A-Za-z0-9_./-]{1,250}$"
+    r"^(?![/])(?!.*/\.\.)(?!\.)(?!\./)(?!.*\.\.)(?!.*//)(?![A-Za-z0-9_./-]*//)[A-Za-z0-9_./-]{1,250}$"
 )
 
 
@@ -195,9 +195,12 @@ def redact_github_token(value: str) -> str:
         if prefix not in text:
             continue
         pos = text.index(prefix)
-        end = min(len(text), pos + 128)
+        # Bound the token to the next whitespace (or end), capped at 128 chars.
+        end = pos
+        while end < len(text) and end - pos < 128 and text[end] not in (" ", "\n", "\t"):
+            end += 1
         segment = text[pos:end]
-        if not segment or any(ch in segment[1:] for ch in (" ", "\n", "\t")):
+        if not segment:
             continue
         rest = text[end:]
         if rest.startswith(prefix):
@@ -211,7 +214,7 @@ def _token_like_bytes_literal_in_text(value: str) -> bool:
 
 
 def _token_present_in_settings(token_value: str) -> bool:
-    return bool(token_value) and len(token_value) >= 10 and redact_github_token(token_value) != token_value
+    return bool(token_value) and len(token_value) >= 20 and redact_github_token(token_value) != token_value
 
 
 def _safe_dict(value: Any) -> Any:

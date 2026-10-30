@@ -76,6 +76,9 @@ def build_repair_components(
     settings: Settings,
     detection_store: DetectionStore,
     evidence_store: EvidenceStore,
+    scan_store=None,
+    patch_store=None,
+    attempt_store=None,
     analyzer: VisionAnalyzer | None = None,
 ) -> RepairComponents | None:
     """Build the real components, or ``None`` when the loop cannot run."""
@@ -92,8 +95,26 @@ def build_repair_components(
         logger.warning("repair loop unavailable: %s", exc)
         return None
 
+    from app.delivery import DeliveryService
+    from app.github_delivery import build_github_service
+    from app.storage import get_store as _get_store
+    from app.patch_storage import get_patch_store as _get_patch_store
+    from app.orchestrator import get_attempt_store as _get_attempt_store
+
+    _scan_store = scan_store
+    _patch_store = patch_store
+    _attempt_store = attempt_store
+
     collector = ShopLiteCheckoutCollector(
         settings=settings, evidence_store=evidence_store
+    )
+    delivery = DeliveryService(
+        settings=settings,
+        github_service=build_github_service(settings),
+        scan_store=_scan_store,
+        detection_store=detection_store,
+        patch_store=_patch_store,
+        attempt_store=_attempt_store,
     )
     return RepairComponents(
         applier=SourcePatchApplier(settings=settings, workspace_manager=workspaces),
@@ -106,4 +127,6 @@ def build_repair_components(
             vlm=vlm,
             collector=collector,
         ),
+        delivery=delivery,
+        evidence_collector=collector,
     )
