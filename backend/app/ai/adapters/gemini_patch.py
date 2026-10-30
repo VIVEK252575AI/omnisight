@@ -29,8 +29,18 @@ class GeminiPatchGenerator:
         self._settings = settings
         self._adapter = GeminiTextAdapter(settings)
 
-    def propose(self, finding: Finding, source_context: SourceContext) -> str:
-        """Ask Gemini using only the finding and already-approved source files."""
+    def propose(
+        self,
+        finding: Finding,
+        source_context: SourceContext,
+        *,
+        prior_failure: str | None = None,
+    ) -> str:
+        """Ask Gemini using only the finding and already-approved source files.
+
+        ``prior_failure`` (bounded, sanitised by the caller) is supplied as data
+        so a retry does not repeat an edit that already failed.
+        """
         if not source_context.files:
             raise PatchGeneratorError(
                 "Gemini cannot propose a patch without approved source files"
@@ -43,6 +53,10 @@ class GeminiPatchGenerator:
                 for source_file in source_context.files
             ],
         }
+        if prior_failure:
+            # Data only: the system instruction already forbids following
+            # instructions found inside untrusted content.
+            context["prior_attempt_failures"] = prior_failure
         user_content = json.dumps(context, ensure_ascii=False, separators=(",", ":"))
         if len(user_content.encode("utf-8")) > MAX_PATCH_REQUEST_BYTES:
             raise PatchGeneratorError(

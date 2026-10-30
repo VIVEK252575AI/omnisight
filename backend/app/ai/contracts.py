@@ -68,10 +68,14 @@ class FindingStatus(str, Enum):
                           re-proposable until that proposal is reviewed. A
                           ``rejected`` proposal leaves the finding ``detected``
                           so a corrected attempt is allowed.
+    ``escalated``       — the repair budget was spent without verifying a fix
+                          (W3.4). Terminal for the loop: a human has to decide,
+                          and no automatic retry may pick it up again.
     """
 
     detected = "detected"
     patch_proposed = "patch_proposed"
+    escalated = "escalated"
 
 
 # ---------------------------------------------------------------------------

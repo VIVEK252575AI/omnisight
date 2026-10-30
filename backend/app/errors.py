@@ -64,6 +64,9 @@ class ErrorCode(str, Enum):
     REPAIR_UNAVAILABLE = "REPAIR_UNAVAILABLE"
     REPAIR_STATE_CONFLICT = "REPAIR_STATE_CONFLICT"
     REPAIR_NO_PATCHABLE_FINDINGS = "REPAIR_NO_PATCHABLE_FINDINGS"
+    #: A scan may only reach delivery from ``review_preparation``; an escalated,
+    #: failed or still-running scan is refused (delivery is human-gated).
+    REPAIR_NOT_DELIVERABLE = "REPAIR_NOT_DELIVERABLE"
 
 
 class DomainError(Exception):

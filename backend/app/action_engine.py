@@ -24,6 +24,7 @@ Raw text is parsed, never executed, imported, evaluated or shelled out.
 
 from __future__ import annotations
 
+import inspect
 import logging
 
 from fastapi import status
@@ -62,6 +63,25 @@ from app.source_context import SourceContext, build_source_context
 logger = logging.getLogger("omnisight")
 
 
+def _accepts_prior_failure(generator: object) -> bool:
+    """True when a generator can take the ``prior_failure`` keyword.
+
+    Retry feedback is optional by design: a teammate generator written against
+    the original two-argument contract keeps working, it simply cannot make use
+    of the previous attempt's failure context.
+    """
+    try:
+        parameters = inspect.signature(generator.propose).parameters  # type: ignore[attr-defined]
+    except (AttributeError, TypeError, ValueError):
+        return False
+    if "prior_failure" in parameters:
+        return True
+    return any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    )
+
+
 class ActionEngine:
     """Turns a validated finding into a persisted (but not applied) proposal."""
 
@@ -82,8 +102,15 @@ class ActionEngine:
 
     # -- public API ---------------------------------------------------------
 
-    def propose(self, finding_id: str) -> PatchProposalRecord:
-        """Run the generation/validation pipeline and persist its outcome."""
+    def propose(
+        self, finding_id: str, *, prior_failure: str | None = None
+    ) -> PatchProposalRecord:
+        """Run the generation/validation pipeline and persist its outcome.
+
+        ``prior_failure`` is the bounded failure context of the previous attempt
+        for this finding (W3.4 retry loop); it is forwarded to the generator as
+        data so a retry can avoid repeating a rejected edit.
+        """
         record = self.detection_store.get_finding(finding_id)
         if record is None:
             raise DomainError(
@@ -106,7 +133,9 @@ class ActionEngine:
         source_context = build_source_context(finding, self.settings)
 
         try:
-            raw_text = self._generate(finding, source_context)
+            raw_text = self._generate(
+                finding, source_context, prior_failure=prior_failure
+            )
         except PatchGeneratorTimeoutError as exc:
             return self._store_rejected(
                 record, [RejectionReason.generator_timeout.value], message=str(exc)
@@ -165,11 +194,23 @@ class ActionEngine:
 
     # -- internals ----------------------------------------------------------
 
-    def _generate(self, finding: Finding, source_context: SourceContext) -> str:
+    def _generate(
+        self,
+        finding: Finding,
+        source_context: SourceContext,
+        *,
+        prior_failure: str | None = None,
+    ) -> str:
         """Call the generator under the configured timeout; return raw text."""
         timeout = self.settings.patch_timeout_seconds
+        supports_feedback = _accepts_prior_failure(self.generator)
+        feedback = prior_failure if supports_feedback else None
 
         def call() -> object:
+            if feedback:
+                return self.generator.propose(
+                    finding, source_context, prior_failure=feedback
+                )
             return self.generator.propose(finding, source_context)
 
         try:
