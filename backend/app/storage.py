@@ -383,12 +383,19 @@ class ScanStore:
             return self._scan_from_run(run)
 
 
+# Process-wide in-memory store used when PostgreSQL is not configured.
+_IN_MEMORY_SCAN_STORE: ScanStore | None = None
+
+
 def get_store(settings: Settings = Depends(get_settings)) -> ScanStore:
     """Create a scan repository for the configured project.
 
-    Falls back to an in-memory store when no PostgreSQL database is configured,
-    so the API can run for local demos without a database.
+    Falls back to a process-wide in-memory store when no PostgreSQL database
+    is configured, so the API can run for local demos without a database.
     """
+    global _IN_MEMORY_SCAN_STORE
     if settings.database_url is None or not settings.database_url.get_secret_value().strip():
-        return ScanStore(database=None, settings=settings)
+        if _IN_MEMORY_SCAN_STORE is None:
+            _IN_MEMORY_SCAN_STORE = ScanStore(database=None, settings=settings)
+        return _IN_MEMORY_SCAN_STORE
     return ScanStore(lambda: get_session_factory(settings)(), settings=settings)

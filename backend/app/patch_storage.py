@@ -192,8 +192,12 @@ class PatchStore:
         return proposal
 
 
+_PATCH_STORE: PatchStore | None = None
+
 def get_patch_store(settings: Settings = Depends(get_settings)) -> PatchStore:
-    """Build the PostgreSQL-backed proposal store for the configured project."""
-    # Resolve the database only when a handler actually uses the store. This
-    # lets authentication/origin guards reject requests before database access.
+    global _PATCH_STORE
+    if settings.database_url is None or not settings.database_url.get_secret_value().strip():
+        if _PATCH_STORE is None:
+            _PATCH_STORE = PatchStore(database=None, settings=settings)
+        return _PATCH_STORE
     return PatchStore(lambda: get_session_factory(settings)(), settings=settings)

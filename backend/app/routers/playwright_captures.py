@@ -1,124 +1,62 @@
+"""Playwright screenshot capture endpoint (async subprocess for Windows)."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import sys
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Depends
-from app.storage import ScanStore, get_store
-from app.schemas import ScanStatus
 from pydantic import BaseModel, HttpUrl
-from playwright.async_api import async_playwright
 
+from app.storage import ScanStore, get_store
+from app.evidence_storage import EvidenceStore, get_evidence_store
+from app.schemas import Observation, Viewport, EvidenceRecord, ScanStatus
+from app.ids import new_uuid, utcnow
 
-# ---------------------------------------------------------
-# Router configuration
-# ---------------------------------------------------------
-
-router = APIRouter(
-    prefix="/api/v1/scans",
-    tags=["playwright"]
-)
-
-
-# ---------------------------------------------------------
-# Screenshot storage
-# ---------------------------------------------------------
+router = APIRouter(prefix="/api/v1/scans", tags=["playwright"])
 
 SCREENSHOT_DIR = Path("artifacts/playwright")
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# ---------------------------------------------------------
-# Request model
-# ---------------------------------------------------------
-
 class CaptureRequest(BaseModel):
     url: HttpUrl
 
 
-# ---------------------------------------------------------
-# Playwright screenshot endpoint
-# ---------------------------------------------------------
-
 @router.post("/{scan_id}/playwright-capture")
-async def playwright_capture(
-    scan_id: str,
-    payload: CaptureRequest,
-    scan_store: ScanStore = Depends(get_store),
-):
-    """
-    Opens the target website using Playwright and captures
-    a full-page screenshot before VLM detection.
-
-    Workflow:
-    React Frontend
-        -> FastAPI
-        -> Playwright
-        -> Screenshot
-        -> VLM
-    """
-
-    # Sanitize scan ID before using it as a filename
-    safe_scan_id = "".join(
-        char for char in scan_id
-        if char.isalnum() or char in "-_"
-    )
-
+async def playwright_capture(scan_id: str, payload: CaptureRequest, scan_store: ScanStore = Depends(get_store), evidence_store: EvidenceStore = Depends(get_evidence_store)):
+    safe_scan_id = "".join(c for c in scan_id if c.isalnum() or c in "-_")
     if not safe_scan_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid scan ID."
+        raise HTTPException(status_code=400, detail="Invalid scan ID.")
+    screenshot_path = SCREENSHOT_DIR / f"{safe_scan_id}.png"
+    script = Path(__file__).resolve().parents[2] / "scripts" / "capture_screenshot.py"
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, str(script), str(payload.url), str(screenshot_path),
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
-
-    screenshot_path = (
-        SCREENSHOT_DIR / f"{safe_scan_id}.png"
-    )
-
-    try:
-
-        # Start Playwright
-        async with async_playwright() as playwright:
-
-            # Launch Chromium browser
-            browser = await playwright.chromium.launch(
-                headless=True
-            )
-
-            # Create browser page
-            page = await browser.new_page(
-                viewport={
-                    "width": 1440,
-                    "height": 900
-                }
-            )
-
-            # Open target website
-            response = await page.goto(
-                str(payload.url),
-                wait_until="networkidle",
-                timeout=30000
-            )
-
-            # Get page information
-            page_title = await page.title()
-            final_url = page.url
-
-            # Capture full-page screenshot
-            await page.screenshot(
-                path=str(screenshot_path),
-                full_page=True
-            )
-
-            # Close browser
-            await browser.close()
-
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
     except Exception as error:
-
-        raise HTTPException(
-            status_code=502,
-            detail=f"Playwright capture failed: {error}"
-        ) from error
-
-
-    from uuid import UUID
+        raise HTTPException(status_code=502, detail=f"Playwright capture failed: {type(error).__name__}: {error}") from error
+    if proc.returncode != 0:
+        raise HTTPException(status_code=502, detail=f"Playwright capture failed: {stderr.decode().strip() or stdout.decode().strip()}")
     try:
+        info = json.loads(stdout.decode().strip().splitlines()[-1])
+    except Exception:
+        info = {}
+    # store an in-memory evidence record so detection can run
+    try:
+        from uuid import UUID
+        sid = UUID(scan_id)
+        obs = Observation(viewport=Viewport(width=1440, height=900), elements=[], browser="chromium")
+        ev = EvidenceRecord(evidence_id=new_uuid(), scan_id=sid, observation=obs, screenshot_artifact_id=new_uuid(), created_at=utcnow())
+        evidence_store.add(ev, artifact_id=ev.screenshot_artifact_id, artifact_path=screenshot_path)
+    except Exception:
+        pass
+    try:
+        from uuid import UUID
         sid = UUID(scan_id)
         scan = scan_store.get(sid)
         if scan is not None and scan.status.value == "created":
@@ -130,30 +68,13 @@ async def playwright_capture(
             )
     except Exception:
         pass
-
-    # -----------------------------------------------------
-    # -----------------------------------------------------
-
     return {
-
         "scan_id": scan_id,
-
         "stage": "playwright_complete",
-
         "target_url": str(payload.url),
-
-        "final_url": final_url,
-
-        "page_title": page_title,
-
-        "http_status": (
-            response.status
-            if response
-            else None
-        ),
-
+        "final_url": info.get("final_url", str(payload.url)),
+        "page_title": info.get("title"),
+        "http_status": info.get("http_status"),
         "screenshot_path": str(screenshot_path),
-
-        "next_stage":
-            f"/api/v1/scans/{scan_id}/detect"
+        "next_stage": f"/api/v1/scans/{scan_id}/detect",
     }
