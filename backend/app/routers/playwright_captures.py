@@ -1,6 +1,8 @@
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.storage import ScanStore, get_store
+from app.schemas import ScanStatus
 from pydantic import BaseModel, HttpUrl
 from playwright.async_api import async_playwright
 
@@ -38,7 +40,8 @@ class CaptureRequest(BaseModel):
 @router.post("/{scan_id}/playwright-capture")
 async def playwright_capture(
     scan_id: str,
-    payload: CaptureRequest
+    payload: CaptureRequest,
+    scan_store: ScanStore = Depends(get_store),
 ):
     """
     Opens the target website using Playwright and captures
@@ -114,8 +117,21 @@ async def playwright_capture(
         ) from error
 
 
+    from uuid import UUID
+    try:
+        sid = UUID(scan_id)
+        scan = scan_store.get(sid)
+        if scan is not None and scan.status.value == "created":
+            scan_store.compare_and_transition(
+                sid,
+                expected=frozenset({ScanStatus.created}),
+                to_status=ScanStatus.evidence_collection,
+                error=None,
+            )
+    except Exception:
+        pass
+
     # -----------------------------------------------------
-    # Return screenshot information
     # -----------------------------------------------------
 
     return {
