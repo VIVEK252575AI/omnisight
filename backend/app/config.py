@@ -90,6 +90,7 @@ class Settings(BaseSettings):
 
     # GitHub App installation credentials (server-side only). These values
     # configure the local integration worker; they are never returned by APIs.
+    github_token: SecretStr | None = None
     github_app_id: str | None = None
     github_app_installation_id: str | None = None
     github_app_private_key: SecretStr | None = None
@@ -108,6 +109,13 @@ class Settings(BaseSettings):
     vlm_timeout_seconds: float = 30.0
     vlm_max_image_bytes: int = 5_242_880
     vlm_max_images_per_analysis: int = 6
+
+    # Gemini provider credentials/model are read only by the backend adapter.
+    # Never expose these through the frontend or an API response.
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-3.6-flash"
+    gemini_timeout_seconds: float = Field(default=30.0, gt=0, le=180)
+    gemini_max_output_tokens: int = Field(default=4096, ge=256, le=16384)
 
     # AI Gateway (validation layer over the adapter).
     ai_max_repair_attempts: int = 1
@@ -308,6 +316,9 @@ class Settings(BaseSettings):
     # Local directories (configurable; created on demand by later modules).
     artifacts_dir: Path = Path("artifacts")
     data_dir: Path = Path("data")
+    artifact_max_image_bytes: int = Field(default=5_242_880, ge=1024)
+    artifact_max_json_bytes: int = Field(default=1_048_576, ge=1024)
+    observation_max_bytes: int = Field(default=1_048_576, ge=1024)
 
     # Optional shared secret for CI/CD webhook verification. Never logged.
     ci_webhook_secret: str | None = None
