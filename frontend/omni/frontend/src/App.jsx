@@ -6,13 +6,7 @@ const SAMPLE_HISTORY=[
  {id:"1040",url:"https://staging.acme.io/dashboard",status:"failed",findings:2,fixed:0},
  {id:"1039",url:"https://acme.io/marketing",status:"completed",findings:4,fixed:4}
 ];
-const STAGES=["Detect","Reason","Fix","Validate","Verify & Ship"];
-const PATCH=`.checkout .cta-button {
--   min-width: 320px;
-+   width: 100%;
-+   max-width: 100%;
-    padding: 14px 24px;
-}`;
+const STAGES=["Capture","Detect","Reason","Fix","Verify & Ship"];
 const escText=v=>String(v??"");
 function normalizeFinding(record,i){
  const f=record.finding||record, r=f.region;
@@ -59,7 +53,7 @@ function Landing({startScan,deep,setDeep}){
   </div>
  </div>
 }
-function Pipeline({scan}){return <div className="pipeline-card" style={{"--p":`${Math.min(100,(scan.stage+1)/STAGES.length*100)}%`}}>{STAGES.map((s,i)=><span key={s} style={{display:"contents"}}>{i>0&&<div className="pipe-divider"/>}<div className={`pipe-step ${i<scan.stage?"pipe-step--completed":i===scan.stage?"pipe-step--running":""}`}><div className="pipe-step__row"><div className="pipe-step__badge">{i<scan.stage?"✓":i+1}</div><span>{s}</span></div><Tag kind={i===0||i===4?"vlm":i===1||i===2?"llm":null}/></div></span>)}</div>}
+function Pipeline({scan}){return <div className="pipeline-card" style={{"--p":`${Math.min(100,(scan.stage+1)/STAGES.length*100)}%`}}>{STAGES.map((s,i)=>{const done=i<scan.stage||(scan.status==="completed"&&i<=scan.stage);const running=scan.status==="running"&&i===scan.stage;return <span key={s} style={{display:"contents"}}>{i>0&&<div className="pipe-divider"/>}<div className={`pipe-step ${done?"pipe-step--completed":running?"pipe-step--running":""}`}><div className="pipe-step__row"><div className="pipe-step__badge">{done?"✓":i+1}</div><span>{s}</span></div><Tag kind={i<=1?"vlm":i===2||i===3?"llm":null}/></div></span>})}</div>}
 function Dashboard({scan}){
  const [sev,setSev]=useState("all"), [activeId,setActiveId]=useState(null);
  const shown=scan.findings.filter(f=>sev==="all"||f.severity===sev); const active=scan.findings.find(f=>f.id===activeId)||shown[0]||scan.findings[0];
@@ -68,15 +62,15 @@ function Dashboard({scan}){
   {scan.status==="running"&&<div className="scan-progress"><span className="scan-progress__spinner"/><span>{scan.progress}</span></div>}
   {scan.error&&<div className="error-note"><strong>Scan failed.</strong> {scan.error}</div>}
   <div className="dash-split"><div className="dash-col">
-   <div className="panel score-card"><div className="score-ring"><b>{scan.status==="completed"?100:"–"}</b></div><div><div className="model-row__name">UI health score</div><div className="panel__sub">VLM-powered visual inspection</div></div></div>
+   <div className="panel score-card"><div className="score-ring"><b>–</b></div><div><div className="model-row__name">Visual inspection</div><div className="panel__sub">A numeric health score is not calculated by this scan yet</div></div></div>
    <div className="panel"><div className="panel__head"><div className="panel__title">Findings ({scan.findings.length})</div><span className={`badge badge--${scan.status==="completed"?"success":scan.status==="failed"?"error":"info"}`}>{scan.status}</span></div>
     <div className="panel__body"><div className="chips">{["all","high","medium","low"].map(v=><button key={v} className={`chip ${sev===v?"chip--on":""}`} onClick={()=>setSev(v)}>{v}</button>)}</div>
-    {shown.length?shown.map(f=><div key={f.id} className={`finding-item sev-${f.severity} ${active?.id===f.id?"finding-item--selected":""}`} onClick={()=>setActiveId(f.id)}><div><span className={`badge badge--${f.severity}`}>{f.severity}</span> <span className="muted mono">{f.confidence}</span></div><div className="finding-item__title">{f.title}</div><div className="finding-item__meta mono">{f.selector}</div></div>):<div className="empty">No findings yet. The VLM is still inspecting.</div>}</div>
+    {shown.length?shown.map(f=><div key={f.id} className={`finding-item sev-${f.severity} ${active?.id===f.id?"finding-item--selected":""}`} onClick={()=>setActiveId(f.id)}><div><span className={`badge badge--${f.severity}`}>{f.severity}</span> <span className="muted mono">{f.confidence}</span></div><div className="finding-item__title">{f.title}</div><div className="finding-item__meta mono">{f.selector}</div></div>):<div className="empty">No validated visual findings for this scan.</div>}</div>
    </div>
   </div><div className="dash-col">
-   <div className="panel"><div className="panel__head"><div className="panel__title"><Tag kind="vlm"/> Visual perception</div><span className="panel__sub">Playwright evidence</span></div><div className="panel__body"><div className="vis-frame">{scan.status==="running"&&<div className="scan-line"/>}<div style={{minHeight:220,display:"grid",placeItems:"center",padding:20,textAlign:"center"}}><div><b>{scan.capture?.page_title||"Captured webpage"}</b><div className="muted" style={{marginTop:8}}>{scan.capture?.final_url||scan.url}</div><div className="panel__sub" style={{marginTop:8}}>{scan.capture?.screenshot_path||"Waiting for Playwright screenshot…"}</div></div></div></div></div></div>
-   <div className="panel"><div className="panel__head"><div className="panel__title"><Tag kind="llm"/> Reasoning</div><span className="panel__sub">{active?.selector||"(waiting)"}</span></div><div className="panel__body">{active?<div className="cause"><strong>Root cause.</strong> {active.cause}</div>:<div className="empty">The LLM reasoning stage starts after VLM findings are available.</div>}</div></div>
-   <div className="panel"><div className="panel__head"><div className="panel__title"><Tag kind="llm"/> Generated patch</div><button className="btn" onClick={()=>navigator.clipboard?.writeText(PATCH).then(()=>toast("Patch copied"))}>Copy</button></div><div className="panel__body" style={{padding:0}}><div className="diff-container">{PATCH.split("\n").map((l,i)=><div key={i} className={`diff-line ${l[0]==="+"?"diff-line--add":l[0]==="-"?"diff-line--del":""}`}>{l}</div>)}</div></div></div>
+   <div className="panel"><div className="panel__head"><div className="panel__title"><Tag kind="vlm"/> Visual perception</div><span className="panel__sub">{scan.result?.adapter_label||scan.result?.detection?.adapter_label||"Playwright evidence"}{scan.result?.detection?.is_mock?" · MOCK":""}</span></div><div className="panel__body"><div className="vis-frame">{scan.status==="running"&&<div className="scan-line"/>}{scan.capture?.screenshot_url?<img src={scan.capture.screenshot_url} alt="Playwright captured webpage" style={{display:"block",width:"100%",height:"auto",maxHeight:520,objectFit:"contain",background:"#fff"}}/>:<div style={{minHeight:220,display:"grid",placeItems:"center",padding:20,textAlign:"center"}}><div><b>{scan.capture?.page_title||"Captured webpage"}</b><div className="muted" style={{marginTop:8}}>{scan.capture?.final_url||scan.url}</div><div className="panel__sub" style={{marginTop:8}}>{scan.capture?.screenshot_path||"Waiting for Playwright screenshot…"}</div></div></div>}</div></div></div>
+   <div className="panel"><div className="panel__head"><div className="panel__title"><Tag kind="vlm"/> VLM explanation</div><span className="panel__sub">{active?.selector||"(waiting)"}</span></div><div className="panel__body">{active?<div className="cause"><strong>Finding details.</strong> {active.cause}</div>:<div className="empty">VLM finding details will appear here after detection.</div>}</div></div>
+   <div className="panel"><div className="panel__head"><div className="panel__title"><Tag kind="llm"/> Patch generation</div><span className="panel__sub">Not run in this scan</span></div><div className="panel__body"><div className="empty">This integration currently completes Playwright capture and VLM detection. The LLM patch proposal, validation, and visual verification stages are separate and have not been triggered.</div></div></div>
   </div></div>
  </div>
 }
@@ -94,9 +88,9 @@ export default function App(){
   const s={id:String(Date.now()),url,status:"running",stage:0,progress:"Preparing scan…",findings:[],capture:null,error:null};
   setScan(s);setRoute("scan");
   try{
-   const out=await runOmniSightScan(url,deep,msg=>setScan(v=>({...v,progress:msg})));
+   const out=await runOmniSightScan(url,deep,(msg,stage)=>setScan(v=>({...v,progress:msg,stage:stage??v.stage})));
    const findings=(out.result.findings||[]).map(normalizeFinding);
-   setScan(v=>({...v,stage:4,status:"completed",progress:"Scan complete",findings,capture:out.capture,backendScanId:out.scanId}));
+   setScan(v=>({...v,stage:1,status:"completed",progress:"Playwright capture and VLM detection complete",findings,capture:out.capture,result:out.result,backendScanId:out.scanId}));
    setHistory(h=>[{id:s.id,url,status:"completed",findings:findings.length,fixed:0},...h].slice(0,50));toast(`Scan complete: ${findings.length} findings`);
   }catch(e){setScan(v=>({...v,status:"failed",error:e.message}));setHistory(h=>[{id:s.id,url,status:"failed",findings:0,fixed:0},...h].slice(0,50));toast("Scan failed: "+e.message)}
  }
