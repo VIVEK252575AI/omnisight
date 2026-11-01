@@ -300,7 +300,12 @@ class Settings(BaseSettings):
     # Supabase Storage (optional; server-side service role key only).
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
-    supabase_storage_bucket: str = "scan-artifacts"
+    # Image input mode for VLM detection (Week 4 optimization).
+    image_input_mode: str = "full"  # full | crops | tiles
+    image_crop_padding_px: int = 32
+    image_crop_max_count: int = 6
+    image_tile_overlap_px: int = 64
+    image_max_dimension: int = 1536
 
     # Optional shared secret for CI/CD webhook verification. Never logged.
     ci_webhook_secret: str | None = None

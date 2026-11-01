@@ -9,3 +9,4 @@ PyJWT[crypto]==2.15.1
 SQLAlchemy==2.0.55
 alembic==1.20.0
 psycopg[binary]==3.3.6
+Pillow==11.0.0
