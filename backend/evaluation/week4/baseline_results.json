@@ -1,0 +1,88 @@
+{
+  "environment": {
+    "adapter": "mock",
+    "N": 5
+  },
+  "runs": [
+    {
+      "case_id": "clipped-checkout",
+      "run": 1,
+      "image_count": 1,
+      "image_bytes": 2828,
+      "image_dimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "latency_ms": 0.63,
+      "usage": null,
+      "adapter_label": "MOCK",
+      "mode": "full_screenshot",
+      "parse_status": "ok",
+      "findings_count": 1
+    },
+    {
+      "case_id": "clipped-checkout",
+      "run": 2,
+      "image_count": 1,
+      "image_bytes": 2828,
+      "image_dimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "latency_ms": 0.26,
+      "usage": null,
+      "adapter_label": "MOCK",
+      "mode": "full_screenshot",
+      "parse_status": "ok",
+      "findings_count": 1
+    },
+    {
+      "case_id": "clipped-checkout",
+      "run": 3,
+      "image_count": 1,
+      "image_bytes": 2828,
+      "image_dimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "latency_ms": 0.22,
+      "usage": null,
+      "adapter_label": "MOCK",
+      "mode": "full_screenshot",
+      "parse_status": "ok",
+      "findings_count": 1
+    },
+    {
+      "case_id": "clipped-checkout",
+      "run": 4,
+      "image_count": 1,
+      "image_bytes": 2828,
+      "image_dimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "latency_ms": 0.19,
+      "usage": null,
+      "adapter_label": "MOCK",
+      "mode": "full_screenshot",
+      "parse_status": "ok",
+      "findings_count": 1
+    },
+    {
+      "case_id": "clipped-checkout",
+      "run": 5,
+      "image_count": 1,
+      "image_bytes": 2828,
+      "image_dimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "latency_ms": 0.18,
+      "usage": null,
+      "adapter_label": "MOCK",
+      "mode": "full_screenshot",
+      "parse_status": "ok",
+      "findings_count": 1
+    }
+  ]
+}

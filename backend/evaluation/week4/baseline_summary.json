@@ -1,0 +1,7 @@
+{
+  "count": 5,
+  "latency_ms_min": 0.18,
+  "latency_ms_median": 0.22,
+  "latency_ms_max": 0.63,
+  "image_bytes": 2828
+}
