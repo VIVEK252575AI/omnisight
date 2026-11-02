@@ -1,9 +1,21 @@
 import { createClient } from "@supabase/supabase-js";
 
-const url = import.meta.env.VITE_SUPABASE_URL || "";
+const rawUrl = import.meta.env.VITE_SUPABASE_URL || "";
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 
-export const supabase = url && key ? createClient(url, key) : null;
+let url = rawUrl.trim();
+if (url && !/^https?:\/\//i.test(url)) url = "https://" + url;
+url = url.replace(/\/+$/, "");
+
+let supabase = null;
+try {
+  if (url && key) supabase = createClient(url, key);
+} catch (e) {
+  console.warn("Supabase client init failed:", e.message);
+  supabase = null;
+}
+
+export { supabase };
 
 export function isAuthConfigured() {
   return Boolean(url && key);
