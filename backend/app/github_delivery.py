@@ -10,6 +10,11 @@ from __future__ import annotations
 import logging
 import re
 
+try:
+    import github
+except Exception:  # pragma: no cover - optional dependency
+    github = None  # type: ignore[assignment]
+
 __all__ = ["GITHUB_REPO_PATTERN", "GITHUB_BRANCH_PATTERN", "GITHUB_BASE_BRANCH_PATTERN"]
 from typing import Any, Protocol, runtime_checkable
 
@@ -374,14 +379,18 @@ class PyGithubGitHubService:
                 "GitHub token is not configured; the delivery service cannot be used",
             )
         try:
-            import github as _github  # type: ignore[import-untyped]
+            global github
+            if github is None:
+                import github as _github  # type: ignore[import-untyped]
+
+                github = _github
         except Exception as exc:  # pragma: no cover - environment mismatch
             raise GitHubDeliveryError(
                 "GITHUB_SDK_UNAVAILABLE",
                 f"PyGithub is not available: {type(exc).__name__}",
             ) from exc
         token = redact_github_token(self.settings.github_token)
-        self._client = _github.Github(login_or_token=token)
+        self._client = github.Github(login_or_token=token)
         return self._client
 
     # -- configuration -------------------------------------------------------
