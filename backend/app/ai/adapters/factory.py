@@ -14,7 +14,8 @@ from __future__ import annotations
 from app.ai.adapters.base import ImageResolver, VisionAnalyzer
 from app.ai.adapters.gemini_vision import GeminiVisionAnalyzer
 from app.ai.adapters.mock import MockVisionAnalyzer
-from app.ai.adapters.multi_provider import MultiProviderVisionAnalyzer, KNOWN_PROVIDERS as MP_PROVIDERS
+from app.ai.adapters.multi_provider import MultiProviderVisionAnalyzer
+from app.ai.adapters.teammate import TeammateCall, TeammateVisionAnalyzer
 from app.ai.errors import VisionConfigurationError
 from app.config import Settings
 
