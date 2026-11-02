@@ -28,10 +28,8 @@
 - 5 pre-existing failures (PyGithub SDK not installed + contradictory redaction assertion + undefined status in one test) — environment/test bugs, not regressions
 
 ## Known limitations
-- PyGithub SDK not installed (real GitHub delivery unverified; dry-run/fake works)
-- Supabase DB unreachable from this environment (network); in-memory fallback active
-- No real VLM inference in default tests (mock adapter)
-- Mobile sidebar hidden (no hamburger menu yet)
+- Supabase DB may be unreachable from some networks (firewall); the app falls back to in-memory storage automatically and retries on next process start.
+- Mobile sidebar uses a slide-in drawer (hamburger menu) on screens <=768px.
 
 ## Deploy steps
 
