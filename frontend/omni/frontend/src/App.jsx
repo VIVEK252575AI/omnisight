@@ -1,5 +1,7 @@
 import {useEffect, useMemo, useState} from "react";
 import {runOmniSightScan} from "./services/api.js";
+import Login from "./components/Login.jsx";
+import {supabase, isAuthConfigured} from "./lib/supabase.js";
 
 const SAMPLE_HISTORY=[
  {id:"1041",url:"https://shoplite.local",status:"completed",findings:3,fixed:3},
@@ -77,6 +79,16 @@ function Dashboard({scan}){
 function History({history,startScan}){return <div className="models-view"><div className="panel"><div className="panel__head"><div className="panel__title">Scan history</div><span className="panel__sub">{history.length} scans</span></div><div className="panel__body">{history.map(x=><div className="hist-row" key={x.id}><div><div className="model-row__name">{x.url}</div><div className="panel__sub">#{x.id} · {x.findings} findings</div></div><span className={`badge badge--${x.status==="completed"?"success":"error"}`}>{x.status}</span><button className="btn" onClick={()=>startScan(x.url)}>Re-run</button></div>)}</div></div></div>}
 function Models(){return <div className="models-view"><div className="panel"><div className="panel__head"><div className="panel__title">Model settings</div></div><div className="panel__body"><div className="field"><label>Backend API base URL</label><input value={import.meta.env.VITE_API_BASE_URL||"http://127.0.0.1:8000"} readOnly/></div><div className="field-grid"><div className="field"><label>VLM</label><input value="Backend VLM Adapter" readOnly/></div><div className="field"><label>LLM</label><input value="OmniCoder-LLM 70B" readOnly/></div></div></div></div></div>}
 export default function App(){
+ const [session,setSession]=useState(null);
+ const [authReady,setAuthReady]=useState(!isAuthConfigured());
+ useEffect(()=>{
+   if(!supabase){setAuthReady(true);return;}
+   supabase.auth.getSession().then(({data})=>{setSession(data.session);setAuthReady(true);});
+   const {data:sub}=supabase.auth.onAuthStateChange((_e,s)=>setSession(s));
+   return ()=>sub.subscription.unsubscribe();
+ },[]);
+ if(!authReady) return <div style={{display:"grid",placeItems:"center",height:"100vh"}}>Loading…</div>;
+ if(isAuthConfigured() && !session) return <Login onAuth={setSession}/>;
  const [route,setRoute]=useState("landing"),[deep,setDeep]=useState(true),[scan,setScan]=useState(null);
  const [history,setHistory]=useState(()=>{try{return JSON.parse(localStorage.getItem("omnisight.history.react"))||SAMPLE_HISTORY}catch{return SAMPLE_HISTORY}});
  const [theme,setTheme]=useState(()=>localStorage.getItem("omnisight.theme.react")||"light");
