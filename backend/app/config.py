@@ -311,7 +311,16 @@ class Settings(BaseSettings):
     # Supabase Storage (optional; server-side service role key only).
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
-    # Image input mode for VLM detection (Week 4 optimization).
+    supabase_storage_bucket: str = "scan-artifacts"
+
+    # Multi-provider VLM (OpenAI/Anthropic/Grok/Gemini). Selected by OMNISIGHT_VLM_PROVIDER.
+    vlm_provider: str = "gemini"
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4o-mini"
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-3-5-sonnet-latest"
+    grok_api_key: str | None = None
+    grok_model: str = "grok-2-vision-latest"
     image_input_mode: str = "full"  # full | crops | tiles
     image_crop_padding_px: int = 32
     image_crop_max_count: int = 6

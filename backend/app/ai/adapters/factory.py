@@ -14,15 +14,16 @@ from __future__ import annotations
 from app.ai.adapters.base import ImageResolver, VisionAnalyzer
 from app.ai.adapters.gemini_vision import GeminiVisionAnalyzer
 from app.ai.adapters.mock import MockVisionAnalyzer
-from app.ai.adapters.teammate import TeammateCall, TeammateVisionAnalyzer
+from app.ai.adapters.multi_provider import MultiProviderVisionAnalyzer, KNOWN_PROVIDERS as MP_PROVIDERS
 from app.ai.errors import VisionConfigurationError
 from app.config import Settings
 
 MOCK_ADAPTER = "mock"
 TEAMMATE_ADAPTER = "teammate"
 GEMINI_ADAPTER = "gemini"
+MULTI_ADAPTERS = ("openai", "anthropic", "grok")
 
-KNOWN_ADAPTERS = (MOCK_ADAPTER, GEMINI_ADAPTER, TEAMMATE_ADAPTER)
+KNOWN_ADAPTERS = (MOCK_ADAPTER, GEMINI_ADAPTER, TEAMMATE_ADAPTER) + MULTI_ADAPTERS
 
 
 def create_vision_analyzer(
@@ -44,6 +45,9 @@ def create_vision_analyzer(
 
     if name == GEMINI_ADAPTER:
         return GeminiVisionAnalyzer(settings, resolver=resolver)
+
+    if name in MULTI_ADAPTERS:
+        return MultiProviderVisionAnalyzer(settings, resolver=resolver, provider=name)
 
     if name == TEAMMATE_ADAPTER:
         if teammate_call is None:
