@@ -13,15 +13,14 @@ Test (from ``backend/``)::
 
 OpenAPI docs are served at ``/docs`` (and ``/openapi.json``).
 
-The patch-proposal endpoints ARE wired (W2.5), but they only ever produce a
-reviewable proposal record — approving and applying a patch to a source tree is
-a later slice. Background execution (Playwright worker, patch apply) is
-deliberately NOT wired here yet — those land in their own task slices and are
-gated by feature flags that stay off until the modules actually exist. The VLM adapter is
-selected and constructed at startup (fail-fast on unknown ``VLM_ADAPTER``) and
-stored on ``app.state.vision_analyzer``. It is an early sanity check only; the
-detection endpoints build their own adapter per run so image resolution targets
-the evidence store in use for that request (see
+Playwright capture is exposed as a request-driven endpoint and persists
+screenshots through the canonical evidence store before VLM detection. The
+separate background Playwright worker remains feature-gated. Patch proposals
+remain review-only until the repair/apply workflow is explicitly enabled. The
+VLM adapter is selected at startup (fail-fast on unknown ``VLM_ADAPTER``) and
+stored on ``app.state.vision_analyzer`` as a configuration sanity check; the
+detection endpoint builds its own adapter per run so image resolution targets
+the evidence store used for that request (see
 ``app.routers.detection.get_detection_analyzer``).
 """
 
@@ -38,7 +37,7 @@ from app.evidence_storage import get_evidence_store
 from app.gemini import router as ai_router
 from app.orchestrator import get_attempt_store, recover_orphaned_scans
 from app.patch_apply import build_patch_applier
-from app.routers import ci_webhooks, demo_runs, detection, evidence, frontend_bridge, github_publish, patches, projects, repair, scans, delivery, playwright_captures
+from app.routers import ci_webhooks, demo_runs, detection, evidence, frontend_bridge, github_publish, patches, playwright_captures, projects, repair, scans, delivery
 from app.storage import get_store
 from app.workspace import WorkspaceError
 
@@ -136,9 +135,9 @@ def create_app() -> FastAPI:
     app.include_router(projects.router)
     app.include_router(ai_router)
     app.include_router(frontend_bridge.router)
+    app.include_router(playwright_captures.router)
     app.include_router(repair.router)
     app.include_router(delivery.router)
-    app.include_router(playwright_captures.router)
 
     if not settings.enable_repair_orchestrator:
         logger.info(
