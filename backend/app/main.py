@@ -37,7 +37,7 @@ from app.evidence_storage import get_evidence_store
 from app.gemini import router as ai_router
 from app.orchestrator import get_attempt_store, recover_orphaned_scans
 from app.patch_apply import build_patch_applier
-from app.routers import ci_webhooks, demo_runs, detection, evidence, frontend_bridge, github_publish, patches, playwright_captures, projects, repair, scans, delivery, settings as settings_router
+from app.routers import ci_webhooks, demo_runs, detection, evidence, frontend_bridge, github_publish, patches, playwright_captures, projects, repair, scans, delivery, settings as settings_router, reasoning
 from app.storage import get_store
 from app.workspace import WorkspaceError
 
@@ -128,6 +128,7 @@ def create_app() -> FastAPI:
     app.include_router(scans.router)
     app.include_router(evidence.router)
     app.include_router(detection.router)
+    app.include_router(reasoning.router)
     app.include_router(demo_runs.router)
     app.include_router(patches.router)
     app.include_router(github_publish.router)
