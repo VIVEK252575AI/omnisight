@@ -56,5 +56,18 @@ export async function runOmniSightScan(url, deep = true, onProgress = () => {}) 
   if (result.status === "detection_failed") {
     throw new Error(result?.detection?.reason_message || "VLM detection failed.");
   }
-  return {scanId, capture, result};
+  let reasoning = null;
+  let reasoningError = null;
+  try {
+    onProgress("Gemini is reasoning over validated VLM findings…", 2);
+    reasoning = await request(
+      `/api/v1/scans/${encodeURIComponent(scanId)}/reason`,
+      {method:"POST"},
+      90000
+    );
+  } catch (error) {
+    // Keep the successful Playwright + VLM result visible even if Gemini is unavailable.
+    reasoningError = error.message || "LLM reasoning could not be completed.";
+  }
+  return {scanId, capture, result, reasoning, reasoningError};
 }
