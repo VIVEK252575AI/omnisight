@@ -20,9 +20,9 @@ function normalizeFinding(record,i){
 }
 function toast(msg){const root=document.getElementById("toast-root");if(!root)return;const e=document.createElement("div");e.className="toast";e.textContent="✨ "+msg;root.appendChild(e);setTimeout(()=>e.remove(),3500)}
 function Tag({kind}){return <span className={`tag tag--${kind||"box"}`}>{kind?kind.toUpperCase():"SANDBOX"}</span>}
-function Sidebar({route,setRoute,history,startScan}){
+function Sidebar({route,setRoute,history,startScan,open}){
  const [q,setQ]=useState(""); const recent=history.filter(x=>x.url.toLowerCase().includes(q.toLowerCase())).slice(0,5);
- return <aside className="sidebar">
+ return <aside className={`sidebar ${open?"sidebar--open":""}`}>
   <button className="sidebar__brand" onClick={()=>setRoute("landing")}><div className="sidebar__logo">◉</div><div className="sidebar__brand-name">OmniSight</div></button>
   <button className="btn-new-chat" onClick={()=>setRoute("landing")}>＋ New Scan</button>
   <div className="sidebar__search-wrap"><span className="sidebar__search-icon">⌕</span><input className="sidebar__search" placeholder="Search scans...  ( / )" value={q} onChange={e=>setQ(e.target.value)}/></div>
@@ -82,6 +82,7 @@ function Models(){return <div className="models-view"><div className="panel"><di
 export default function App(){
  const [session,setSession]=useState(null);
  const [authReady,setAuthReady]=useState(!isAuthConfigured());
+ const [sidebarOpen,setSidebarOpen]=useState(false);
  useEffect(()=>{
    if(!supabase){setAuthReady(true);return;}
    supabase.auth.getSession().then(({data})=>{setSession(data.session);setAuthReady(true);});
@@ -108,5 +109,5 @@ export default function App(){
   }catch(e){setScan(v=>({...v,status:"failed",error:e.message}));setHistory(h=>[{id:s.id,url,status:"failed",findings:0,fixed:0},...h].slice(0,50));toast("Scan failed: "+e.message)}
  }
  const crumb=route==="landing"?"Overview":route==="scan"?(scan?.url||"Active Scan"):route[0].toUpperCase()+route.slice(1);
- return <div className="app-shell"><Sidebar route={route} setRoute={setRoute} history={history} startScan={startScan}/><div className="workspace"><header className="topbar"><div className="topbar__title"><span>OmniSight</span><span className="muted">/</span><span style={{fontWeight:400}}>{crumb}</span></div><div className="topbar__actions"><button className="btn" onClick={()=>setTheme(theme==="dark"?"light":"dark")}>{theme==="dark"?"☀ Light":"☾ Dark"}</button></div></header><div className="main-content">{route==="landing"?<Landing startScan={startScan} deep={deep} setDeep={setDeep}/>:route==="history"?<History history={history} startScan={startScan}/>:route==="models"?<Models/>:route==="settings"?<Settings/>:scan?<Dashboard scan={scan}/>:<Landing startScan={startScan} deep={deep} setDeep={setDeep}/>}</div></div></div>
+ return <div className="app-shell"><button className="hamburger" onClick={()=>setSidebarOpen(true)} aria-label="Open menu">☰</button>{sidebarOpen&&<div className="sidebar-backdrop" onClick={()=>setSidebarOpen(false)}/>}<Sidebar route={route} setRoute={(r)=>{setRoute(r);setSidebarOpen(false);}} history={history} startScan={startScan} open={sidebarOpen}/><div className="workspace"><header className="topbar"><div className="topbar__title"><span>OmniSight</span><span className="muted">/</span><span style={{fontWeight:400}}>{crumb}</span></div><div className="topbar__actions"><button className="btn" onClick={()=>setTheme(theme==="dark"?"light":"dark")}>{theme==="dark"?"☀ Light":"☾ Dark"}</button></div></header><div className="main-content">{route==="landing"?<Landing startScan={startScan} deep={deep} setDeep={setDeep}/>:route==="history"?<History history={history} startScan={startScan}/>:route==="models"?<Models/>:route==="settings"?<Settings/>:scan?<Dashboard scan={scan}/>:<Landing startScan={startScan} deep={deep} setDeep={setDeep}/>}</div></div></div>
 }
