@@ -73,8 +73,28 @@ function Dashboard({scan}){
   </div><div className="dash-col">
    <div className="panel"><div className="panel__head"><div className="panel__title"><Tag kind="vlm"/> Visual perception</div><span className="panel__sub">{scan.result?.adapter_label||scan.result?.detection?.adapter_label||"Playwright evidence"}{scan.result?.detection?.is_mock?" · MOCK":""}</span></div><div className="panel__body"><div className="vis-frame">{scan.status==="running"&&<div className="scan-line"/>}{scan.capture?.screenshot_url?<img src={scan.capture.screenshot_url} alt="Playwright captured webpage" style={{display:"block",width:"100%",height:"auto",maxHeight:520,objectFit:"contain",background:"#fff"}}/>:<div style={{minHeight:220,display:"grid",placeItems:"center",padding:20,textAlign:"center"}}><div><b>{scan.capture?.page_title||"Captured webpage"}</b><div className="muted" style={{marginTop:8}}>{scan.capture?.final_url||scan.url}</div><div className="panel__sub" style={{marginTop:8}}>{scan.capture?.screenshot_path||"Waiting for Playwright screenshot…"}</div></div></div>}</div></div></div>
    <div className="panel"><div className="panel__head"><div className="panel__title"><Tag kind="vlm"/> VLM explanation</div><span className="panel__sub">{active?.selector||"(waiting)"}</span></div><div className="panel__body">{active?<div className="cause"><strong>Finding details.</strong> {active.cause}</div>:<div className="empty">VLM finding details will appear here after detection.</div>}</div></div>
-   <div className="panel"><div className="panel__head"><div className="panel__title"><Tag kind="llm"/> Patch generation</div><span className="panel__sub">Not run in this scan</span></div><div className="panel__body"><div className="empty">This integration currently completes Playwright capture and VLM detection. The LLM patch proposal, validation, and visual verification stages are separate and have not been triggered.</div></div></div>
+   <ReasoningPanel scan={scan}/>
+   <div className="panel"><div className="panel__head"><div className="panel__title"><Tag kind="llm"/> Patch generation</div><span className="panel__sub">Separate review-only stage</span></div><div className="panel__body"><div className="empty">Gemini reasoning is connected. Executable patch proposals, validation, and visual verification remain separate stages and are not triggered by this reasoning step.</div></div></div>
   </div></div>
+ </div>
+}
+function ReasoningPanel({scan}){
+ const r=scan.reasoning;
+ return <div className="panel">
+  <div className="panel__head"><div className="panel__title"><Tag kind="llm"/> Gemini reasoning</div><span className="panel__sub">{r?`${r.provider} · ${r.model}`:"Review-only analysis"}</span></div>
+  <div className="panel__body">
+   {scan.reasoningError?<div className="error-note">LLM reasoning unavailable: {scan.reasoningError}. Your VLM findings are still available above.</div>:!r?<div className="empty">Gemini reasoning will appear after VLM detection.</div>:<>
+    <div className="cause"><strong>Scan summary.</strong> {r.summary}</div>
+    {r.priorities?.length>0&&<><h4>Prioritised findings</h4>{r.priorities.map((x,i)=><div className="finding-item" key={i}><span className={`badge badge--${x.priority}`}>{x.priority}</span> <span className="muted mono">{x.score}/100</span><div className="finding-item__title">{x.finding_ids.join(", ")}</div><div className="panel__sub">{x.rationale}</div></div>)}</>}
+    {r.related_findings?.length>0&&<><h4>Related findings</h4>{r.related_findings.map((x,i)=><div className="finding-item" key={i}><div className="finding-item__title">{x.title}</div><div className="panel__sub">{x.finding_ids.join(", ")} · {x.reason}</div></div>)}</>}
+    {r.observed_facts?.length>0&&<><h4>Observed facts</h4><ul>{r.observed_facts.map((x,i)=><li key={i}>{x}</li>)}</ul></>}
+    {r.root_cause_hypotheses?.length>0&&<><h4>Root-cause hypotheses</h4>{r.root_cause_hypotheses.map((x,i)=><div className="finding-item" key={i}><div className="finding-item__title">{x.hypothesis}</div><div className="panel__sub">Finding(s): {x.finding_ids.join(", ")} · Confidence: {Math.round(x.confidence*100)}% · Source inspection {x.source_inspection_required?"required":"not indicated"}</div></div>)}</>}
+    {r.unknowns?.length>0&&<><h4>Unknowns</h4><ul>{r.unknowns.map((x,i)=><li key={i}>{x}</li>)}</ul></>}
+    {r.repair_plan?.length>0&&<><h4>Recommended investigation / repair plan</h4><ol>{r.repair_plan.map((x,i)=><li key={i}>{x}</li>)}</ol></>}
+    {r.verification_checks?.length>0&&<><h4>Verification checks</h4><ul>{r.verification_checks.map((x,i)=><li key={i}>{x}</li>)}</ul></>}
+    <div className="panel__sub">Recommendations only. Gemini does not modify files or execute repairs.</div>
+   </>}
+  </div>
  </div>
 }
 function History({history,startScan}){return <div className="models-view"><div className="panel"><div className="panel__head"><div className="panel__title">Scan history</div><span className="panel__sub">{history.length} scans</span></div><div className="panel__body">{history.map(x=><div className="hist-row" key={x.id}><div><div className="model-row__name">{x.url}</div><div className="panel__sub">#{x.id} · {x.findings} findings</div></div><span className={`badge badge--${x.status==="completed"?"success":"error"}`}>{x.status}</span><button className="btn" onClick={()=>startScan(x.url)}>Re-run</button></div>)}</div></div></div>}
@@ -104,8 +124,8 @@ export default function App(){
   try{
    const out=await runOmniSightScan(url,deep,(msg,stage)=>setScan(v=>({...v,progress:msg,stage:stage??v.stage})));
    const findings=(out.result.findings||[]).map(normalizeFinding);
-   setScan(v=>({...v,stage:1,status:"completed",progress:"Playwright capture and VLM detection complete",findings,capture:out.capture,result:out.result,backendScanId:out.scanId}));
-   setHistory(h=>[{id:s.id,url,status:"completed",findings:findings.length,fixed:0},...h].slice(0,50));toast(`Scan complete: ${findings.length} findings`);
+   setScan(v=>({...v,stage:2,status:"completed",progress:out.reasoning?"Playwright, VLM and Gemini reasoning complete":"Playwright and VLM complete; Gemini reasoning unavailable",findings,capture:out.capture,result:out.result,reasoning:out.reasoning,reasoningError:out.reasoningError,backendScanId:out.scanId}));
+   setHistory(h=>[{id:s.id,url,status:"completed",findings:findings.length,fixed:0},...h].slice(0,50));toast(out.reasoning?`Scan and LLM reasoning complete: ${findings.length} findings`:`VLM scan complete; LLM reasoning unavailable`);
   }catch(e){setScan(v=>({...v,status:"failed",error:e.message}));setHistory(h=>[{id:s.id,url,status:"failed",findings:0,fixed:0},...h].slice(0,50));toast("Scan failed: "+e.message)}
  }
  const crumb=route==="landing"?"Overview":route==="scan"?(scan?.url||"Active Scan"):route[0].toUpperCase()+route.slice(1);
