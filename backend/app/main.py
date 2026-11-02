@@ -125,7 +125,6 @@ def create_app() -> FastAPI:
     )
 
     register_exception_handlers(app)
-    app.include_router(scans.router)
     app.include_router(ci_webhooks.router)
     app.include_router(evidence.router)
     app.include_router(detection.router)
