@@ -40,3 +40,9 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# VLM raw outputs (never commit)
+evaluation/vlm/raw/
+evaluation/vlm/*.jsonl
+backend/.env
+

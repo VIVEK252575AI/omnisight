@@ -45,6 +45,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
     ]
 
     @field_validator("allowed_origins", mode="before")
@@ -259,20 +261,6 @@ class Settings(BaseSettings):
     verification_max_new_issues: int = Field(default=20, ge=1, le=100)
     # WCAG AA for normal text; used only when the collector captured colours.
     min_contrast_ratio: float = Field(default=4.5, gt=1.0, le=21.0)
-    # Snapshot/verification lifecycle (W4 evidence). Whether an exported scan
-    # snapshot should also be persisted to the canonical run store is the one
-    # behaviour tuned here; other persistence paths are left untouched.
-    store_exported_should_persist: bool = True
-
-    @field_validator("store_exported_should_persist", mode="before")
-    @classmethod
-    def _parse_store_exported_should_persist(cls, value: object) -> object:
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            text = value.strip().lower()
-            return text in {"1", "true", "yes"}
-        return bool(value)
 
     @field_validator("approved_patch_paths", mode="before")
     @classmethod
@@ -320,8 +308,44 @@ class Settings(BaseSettings):
     artifact_max_json_bytes: int = Field(default=1_048_576, ge=1024)
     observation_max_bytes: int = Field(default=1_048_576, ge=1024)
 
+    # Supabase Storage (optional; server-side service role key only).
+    supabase_url: str | None = None
+    supabase_service_role_key: str | None = None
+    supabase_storage_bucket: str = "scan-artifacts"
+
+    # Multi-provider VLM (OpenAI/Anthropic/Grok/Gemini). Selected by OMNISIGHT_VLM_PROVIDER.
+    vlm_provider: str = "gemini"
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4o-mini"
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-3-5-sonnet-latest"
+    grok_api_key: str | None = None
+    grok_model: str = "grok-2-vision-latest"
+    image_input_mode: str = "full"  # full | crops | tiles
+    image_crop_padding_px: int = 32
+    image_crop_max_count: int = 6
+    image_tile_overlap_px: int = 64
+    image_max_dimension: int = 1536
+
     # Optional shared secret for CI/CD webhook verification. Never logged.
     ci_webhook_secret: str | None = None
+
+    # Evidence / artifact handling (Week 1 evidence contract).
+    # Max accepted observation JSON body size (bytes).
+    observation_max_bytes: int = 1_048_576
+    # Max size of a referenced image / json artifact on disk (bytes).
+    artifact_max_image_bytes: int = 5_242_880
+    artifact_max_json_bytes: int = 1_048_576
+
+    # Gemini-backed, review-only patch suggestions. The key stays server-side.
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-3.6-flash"
+    gemini_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
+    gemini_max_output_tokens: int = Field(default=4096, ge=128, le=8192)
+
+    # GitHub delivery service credentials (server-side only).
+    github_token: str | None = None
+    github_dry_run: bool = True
 
 
 @lru_cache

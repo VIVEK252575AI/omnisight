@@ -1,5 +1,8 @@
 import {useEffect, useMemo, useState} from "react";
 import {runOmniSightScan} from "./services/api.js";
+import Login from "./components/Login.jsx";
+import Settings from "./components/Settings.jsx";
+import {supabase, isAuthConfigured} from "./lib/supabase.js";
 
 const SAMPLE_HISTORY=[
  {id:"1041",url:"https://shoplite.local",status:"completed",findings:3,fixed:3},
@@ -17,14 +20,14 @@ function normalizeFinding(record,i){
 }
 function toast(msg){const root=document.getElementById("toast-root");if(!root)return;const e=document.createElement("div");e.className="toast";e.textContent="✨ "+msg;root.appendChild(e);setTimeout(()=>e.remove(),3500)}
 function Tag({kind}){return <span className={`tag tag--${kind||"box"}`}>{kind?kind.toUpperCase():"SANDBOX"}</span>}
-function Sidebar({route,setRoute,history,startScan}){
+function Sidebar({route,setRoute,history,startScan,open}){
  const [q,setQ]=useState(""); const recent=history.filter(x=>x.url.toLowerCase().includes(q.toLowerCase())).slice(0,5);
- return <aside className="sidebar">
+ return <aside className={`sidebar ${open?"sidebar--open":""}`}>
   <button className="sidebar__brand" onClick={()=>setRoute("landing")}><div className="sidebar__logo">◉</div><div className="sidebar__brand-name">OmniSight</div></button>
   <button className="btn-new-chat" onClick={()=>setRoute("landing")}>＋ New Scan</button>
   <div className="sidebar__search-wrap"><span className="sidebar__search-icon">⌕</span><input className="sidebar__search" placeholder="Search scans...  ( / )" value={q} onChange={e=>setQ(e.target.value)}/></div>
   <div className="nav-group">
-   {["landing","scan","history","models"].map((r,i)=><button key={r} className={`nav-item ${route===r?"nav-item--active":""}`} onClick={()=>r!=="scan"||history.length?setRoute(r):null}>{["▦ Overview","◉ Active Scan","⌁ History","⚙ Models"][i]}</button>)}
+   {["landing","scan","history","models","settings"].map((r,i)=><button key={r} className={`nav-item ${route===r?"nav-item--active":""}`} onClick={()=>r!=="scan"||history.length?setRoute(r):null}>{["▦ Overview","◉ Active Scan","⌁ History","⚙ Models","🔧 Settings"][i]}</button>)}
   </div>
   <div className="sidebar__section-title">Recent Scans</div>
   <div className="recent-scans-list">{recent.map(h=><button key={h.id} className="recent-scan-btn truncate" onClick={()=>startScan(h.url)}>○ <span className="truncate">{h.url.replace(/^https?:\/\//,"")}</span></button>)}</div>
@@ -77,6 +80,17 @@ function Dashboard({scan}){
 function History({history,startScan}){return <div className="models-view"><div className="panel"><div className="panel__head"><div className="panel__title">Scan history</div><span className="panel__sub">{history.length} scans</span></div><div className="panel__body">{history.map(x=><div className="hist-row" key={x.id}><div><div className="model-row__name">{x.url}</div><div className="panel__sub">#{x.id} · {x.findings} findings</div></div><span className={`badge badge--${x.status==="completed"?"success":"error"}`}>{x.status}</span><button className="btn" onClick={()=>startScan(x.url)}>Re-run</button></div>)}</div></div></div>}
 function Models(){return <div className="models-view"><div className="panel"><div className="panel__head"><div className="panel__title">Model settings</div></div><div className="panel__body"><div className="field"><label>Backend API base URL</label><input value={import.meta.env.VITE_API_BASE_URL||"http://127.0.0.1:8000"} readOnly/></div><div className="field-grid"><div className="field"><label>VLM</label><input value="Backend VLM Adapter" readOnly/></div><div className="field"><label>LLM</label><input value="OmniCoder-LLM 70B" readOnly/></div></div></div></div></div>}
 export default function App(){
+ const [session,setSession]=useState(null);
+ const [authReady,setAuthReady]=useState(!isAuthConfigured());
+ const [sidebarOpen,setSidebarOpen]=useState(false);
+ useEffect(()=>{
+   if(!supabase){setAuthReady(true);return;}
+   supabase.auth.getSession().then(({data})=>{setSession(data.session);setAuthReady(true);});
+   const {data:sub}=supabase.auth.onAuthStateChange((_e,s)=>setSession(s));
+   return ()=>sub.subscription.unsubscribe();
+ },[]);
+ if(!authReady) return <div style={{display:"grid",placeItems:"center",height:"100vh"}}>Loading…</div>;
+ if(isAuthConfigured() && !session) return <Login onAuth={setSession}/>;
  const [route,setRoute]=useState("landing"),[deep,setDeep]=useState(true),[scan,setScan]=useState(null);
  const [history,setHistory]=useState(()=>{try{return JSON.parse(localStorage.getItem("omnisight.history.react"))||SAMPLE_HISTORY}catch{return SAMPLE_HISTORY}});
  const [theme,setTheme]=useState(()=>localStorage.getItem("omnisight.theme.react")||"light");
@@ -95,5 +109,5 @@ export default function App(){
   }catch(e){setScan(v=>({...v,status:"failed",error:e.message}));setHistory(h=>[{id:s.id,url,status:"failed",findings:0,fixed:0},...h].slice(0,50));toast("Scan failed: "+e.message)}
  }
  const crumb=route==="landing"?"Overview":route==="scan"?(scan?.url||"Active Scan"):route[0].toUpperCase()+route.slice(1);
- return <div className="app-shell"><Sidebar route={route} setRoute={setRoute} history={history} startScan={startScan}/><div className="workspace"><header className="topbar"><div className="topbar__title"><span>OmniSight</span><span className="muted">/</span><span style={{fontWeight:400}}>{crumb}</span></div><div className="topbar__actions"><button className="btn" onClick={()=>setTheme(theme==="dark"?"light":"dark")}>{theme==="dark"?"☀ Light":"☾ Dark"}</button></div></header><div className="main-content">{route==="landing"?<Landing startScan={startScan} deep={deep} setDeep={setDeep}/>:route==="history"?<History history={history} startScan={startScan}/>:route==="models"?<Models/>:scan?<Dashboard scan={scan}/>:<Landing startScan={startScan} deep={deep} setDeep={setDeep}/>}</div></div></div>
+ return <div className="app-shell"><button className="hamburger" onClick={()=>setSidebarOpen(true)} aria-label="Open menu">☰</button>{sidebarOpen&&<div className="sidebar-backdrop" onClick={()=>setSidebarOpen(false)}/>}<Sidebar route={route} setRoute={(r)=>{setRoute(r);setSidebarOpen(false);}} history={history} startScan={startScan} open={sidebarOpen}/><div className="workspace"><header className="topbar"><div className="topbar__title"><span>OmniSight</span><span className="muted">/</span><span style={{fontWeight:400}}>{crumb}</span></div><div className="topbar__actions"><button className="btn" onClick={()=>setTheme(theme==="dark"?"light":"dark")}>{theme==="dark"?"☀ Light":"☾ Dark"}</button></div></header><div className="main-content">{route==="landing"?<Landing startScan={startScan} deep={deep} setDeep={setDeep}/>:route==="history"?<History history={history} startScan={startScan}/>:route==="models"?<Models/>:route==="settings"?<Settings/>:scan?<Dashboard scan={scan}/>:<Landing startScan={startScan} deep={deep} setDeep={setDeep}/>}</div></div></div>
 }

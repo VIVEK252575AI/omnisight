@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: omnisight-backend
+    env: python
+    pythonVersion: "3.11.9"
+    region: oregon
+    buildCommand: pip install -r backend/requirements.txt && python -m playwright install chromium
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: OMNISIGHT_DATABASE_URL
+        sync: false
+      - key: OMNISIGHT_VLM_ADAPTER
+        value: mock
+      - key: OMNISIGHT_ALLOWED_ORIGINS
+        value: https://your-frontend.vercel.app

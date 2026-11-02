@@ -88,6 +88,7 @@ class ScanStatus(str, Enum):
     verification_failed = "verification_failed"
     review_preparation = "review_preparation"
     ready_for_review = "ready_for_review"
+    awaiting_review = "awaiting_review"
     repairing = "repairing"
     escalated = "escalated"
     failed = "failed"
@@ -169,8 +170,9 @@ LEGAL_TRANSITIONS: dict[ScanStatus, frozenset[ScanStatus]] = {
         {ScanStatus.review_preparation, ScanStatus.failed, ScanStatus.cancelled}
     ),
     ScanStatus.review_preparation: frozenset(
-        {ScanStatus.ready_for_review, ScanStatus.failed}
+        {ScanStatus.ready_for_review, ScanStatus.awaiting_review, ScanStatus.failed}
     ),
+    ScanStatus.awaiting_review: frozenset({ScanStatus.failed}),
     ScanStatus.ready_for_review: frozenset(),  # terminal
     ScanStatus.failed: frozenset(),  # terminal
     ScanStatus.cancelled: frozenset(),  # terminal

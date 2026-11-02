@@ -37,7 +37,7 @@ from app.evidence_storage import get_evidence_store
 from app.gemini import router as ai_router
 from app.orchestrator import get_attempt_store, recover_orphaned_scans
 from app.patch_apply import build_patch_applier
-from app.routers import ci_webhooks, demo_runs, detection, evidence, frontend_bridge, github_publish, patches, playwright_captures, projects, repair, scans
+from app.routers import ci_webhooks, demo_runs, detection, evidence, frontend_bridge, github_publish, patches, playwright_captures, projects, repair, scans, delivery, settings as settings_router
 from app.storage import get_store
 from app.workspace import WorkspaceError
 
@@ -126,7 +126,6 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(scans.router)
-    app.include_router(ci_webhooks.router)
     app.include_router(evidence.router)
     app.include_router(detection.router)
     app.include_router(demo_runs.router)
@@ -137,6 +136,8 @@ def create_app() -> FastAPI:
     app.include_router(frontend_bridge.router)
     app.include_router(playwright_captures.router)
     app.include_router(repair.router)
+    app.include_router(delivery.router)
+    app.include_router(settings_router.router)
 
     if not settings.enable_repair_orchestrator:
         logger.info(

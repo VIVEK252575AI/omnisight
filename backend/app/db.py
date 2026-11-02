@@ -36,12 +36,12 @@ def database_url(settings: Settings) -> str:
 
 def build_engine(settings: Settings) -> Engine:
     url = database_url(settings)
-    return create_engine(url, pool_pre_ping=True)
+    return create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
 
 
 @lru_cache(maxsize=4)
 def _sessionmaker_for_url(url: str):
-    engine = create_engine(url, pool_pre_ping=True)
+    engine = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
     return sessionmaker(bind=engine, expire_on_commit=False)
 
 

@@ -157,3 +157,27 @@ From `backend/`:
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\ -q
 ```
+
+## 3. Run and test end-to-end
+
+Backend (PowerShell, from `backend/`):
+
+`powershell
+.\.venv\Scripts\python.exe run_dev.py
+`
+
+Frontend (another terminal, from `frontend/omni/frontend/`):
+
+`powershell
+npm run dev
+`
+
+Open the printed Vite URL (http://127.0.0.1:5173 or 5174). Paste any URL and click **Start AI Scan**.
+
+If the UI shows "Failed to fetch", the backend is not running on port 8000 — start `run_dev.py` first.
+
+## Notes
+
+- Windows: use `run_dev.py` (proactor event loop) instead of `uvicorn --reload` so Playwright capture works.
+- Supabase: set `OMNISIGHT_DATABASE_URL` in `backend/.env` with `?sslmode=require`, then run `alembic upgrade head`.
+- The VLM adapter defaults to MOCK; findings are labelled MOCK. Set `OMNISIGHT_VLM_ADAPTER=gemini` plus `OMNISIGHT_GEMINI_API_KEY` for real inference.

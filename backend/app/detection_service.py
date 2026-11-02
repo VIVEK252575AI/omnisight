@@ -113,10 +113,13 @@ def build_measurements(
         )
     ]
     for element in candidates:
+        selector = element.selector
+        if len(selector) > 150:
+            selector = selector[:147] + "..."
         box = element.box
         measurements.append(
             DeterministicMeasurement(
-                name=f"box.{element.selector}",
+                name=f"box.{selector}",
                 value=f"x={box.x},y={box.y},w={box.w},h={box.h}",
                 unit="px",
                 source="observation",
@@ -124,7 +127,7 @@ def build_measurements(
         )
         measurements.append(
             DeterministicMeasurement(
-                name=f"in_viewport.{element.selector}",
+                name=f"in_viewport.{selector}",
                 value="true" if element.in_viewport else "false",
                 source="observation",
             )
