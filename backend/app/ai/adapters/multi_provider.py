@@ -16,7 +16,7 @@ import httpx
 
 from app.ai.adapters.base import ImageResolver, VisionAnalyzer
 from app.ai.contracts import RawVisionResult
-from app.ai.errors import VisionProviderError, VisionTimeoutError
+from app.ai.errors import VisionAdapterError as VisionProviderError, VisionTimeoutError
 from app.config import Settings
 
 
@@ -138,5 +138,3 @@ class MultiProviderVisionAnalyzer(VisionAnalyzer):
         r.raise_for_status()
         text = r.json()["choices"][0]["message"]["content"]
         return RawVisionResult(raw_text=text, provider_label=self.provider_label, is_mock=False, model_label=self.model_label)
-PY
-echo written
